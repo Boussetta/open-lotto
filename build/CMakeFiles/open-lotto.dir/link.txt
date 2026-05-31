@@ -1,0 +1,1 @@
+/usr/bin/gcc-11 -g "CMakeFiles/open-lotto.dir/src/main.c.o" "CMakeFiles/open-lotto.dir/src/plugin_loader.c.o" "CMakeFiles/open-lotto.dir/src/log.c.o" -o open-lotto 

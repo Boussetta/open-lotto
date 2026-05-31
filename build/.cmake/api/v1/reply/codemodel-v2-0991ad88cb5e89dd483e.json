@@ -1,0 +1,79 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-3dd1f005ad966d1554ab.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "open-lotto",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "eurojackpot::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-eurojackpot-Debug-033e28f70f73a992ec7c.json",
+					"name" : "eurojackpot",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "lotto::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-lotto-Debug-e6d8607583ce9d2456b5.json",
+					"name" : "lotto",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "open-lotto::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-open-lotto-Debug-e9e735d75384467c92da.json",
+					"name" : "open-lotto",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/wissem/workspace/open-lotto/build",
+		"source" : "/home/wissem/workspace/open-lotto"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 6
+	}
+}
