@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <time.h>
 #include <stdint.h>
+#include <limits.h>
+#include <errno.h>
 #include "plugin_loader.h"
 #include "plugin_registry.h"
 #include "gui_sdl.h"
@@ -179,8 +181,19 @@ int main(int argc, char **argv)
                 fprintf(stderr, "--draws requires a number.\n");
                 return 1;
             }
-            draws = atoi(argv[++i]);
-            if (draws < 1) draws = 1;
+            
+            char *endptr;
+            errno = 0;
+            long val = strtol(argv[++i], &endptr, 10);
+            
+            /* Validate: check for errors, non-numeric characters, and range */
+            if (errno == ERANGE || *endptr != '\0' || val < 1 || val > INT_MAX) {
+                fprintf(stderr, "Error: Invalid number of draws '%s'\n", argv[i]);
+                fprintf(stderr, "Must be a positive integer between 1 and %d\n", INT_MAX);
+                return 1;
+            }
+            
+            draws = (int)val;
         }
     }
 
