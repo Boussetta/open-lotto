@@ -87,6 +87,12 @@ void generate_draw(
             log_error("Invalid extra range: [%d, %d]", extra_min, extra_max);
             return;
         }
+
+        int extra_range = extra_max - extra_min + 1;
+        if (extra_range < extra_count) {
+            log_error("Not enough extra numbers: need %d from range of %d", extra_count, extra_range);
+            return;
+        }
     }
 
     uint64_t seed = rng_init();
@@ -127,8 +133,27 @@ void generate_draw(
     if (cb)
         cb(EVENT_AFTER_PICK, out);
 
-    for (int i = 0; i < extra_count; i++)
-        out->extra_numbers[i] = rng_int(extra_min, extra_max);
+    if (extra_count > 0) {
+        int extra_pool_size = extra_max - extra_min + 1;
+        int *extra_pool = malloc(extra_pool_size * sizeof(int));
+        if (!extra_pool)
+            return;
+
+        for (int i = 0; i < extra_pool_size; i++)
+            extra_pool[i] = extra_min + i;
+
+        for (int i = extra_pool_size - 1; i > 0; i--) {
+            int j = rng_int(0, i);
+            int tmp = extra_pool[i];
+            extra_pool[i] = extra_pool[j];
+            extra_pool[j] = tmp;
+        }
+
+        for (int i = 0; i < extra_count; i++)
+            out->extra_numbers[i] = extra_pool[i];
+
+        free(extra_pool);
+    }
 
     if (cb)
         cb(EVENT_DRAW_COMPLETE, out);
