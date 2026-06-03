@@ -24,6 +24,54 @@ static const char *SPINNER_FRAMES[] = {
 static const int SPINNER_COUNT = 10;
 
 /* ---------------------------------------------------------
+   ANIMATION HELPERS
+   --------------------------------------------------------- */
+
+/* Print main numbers range from index 0 to count-1 */
+static void print_main_numbers(const LotteryResult *result, int count)
+{
+    printf("Lottozahlen: ");
+    for (int j = 0; j < count; j++)
+        printf("%d ", result->main_numbers[j]);
+}
+
+/* Print main numbers + separator + extra numbers range */
+static void print_main_and_extra(const LotteryResult *result, int main_count, int extra_count)
+{
+    printf("Lottozahlen: ");
+    for (int j = 0; j < main_count; j++)
+        printf("%d ", result->main_numbers[j]);
+    printf("+ ");
+    for (int j = 0; j < extra_count; j++)
+        printf("%d ", result->extra_numbers[j]);
+}
+
+/* Animate a single number reveal with spinner animation */
+static void animate_number_reveal(
+    int number,
+    void (*print_prefix_fn)(const LotteryResult*, int),
+    const LotteryResult *result,
+    int revealed_count
+)
+{
+    /* Spinner animation frames */
+    for (int f = 0; f < SPINNER_COUNT; f++) {
+        printf("\r");
+        print_prefix_fn(result, revealed_count);
+        printf("%s ", SPINNER_FRAMES[f]);
+        fflush(stdout);
+        usleep(30000);
+    }
+
+    /* Reveal the actual number */
+    printf("\r");
+    print_prefix_fn(result, revealed_count);
+    printf("%d ", number);
+    fflush(stdout);
+    usleep(150000);
+}
+
+/* ---------------------------------------------------------
    ANIMATE NUMBER REVEAL (same line, spinner-only)
    --------------------------------------------------------- */
 static void animate_numbers(const LotteryInfo *info, const LotteryResult *result)
@@ -32,71 +80,33 @@ static void animate_numbers(const LotteryInfo *info, const LotteryResult *result
 
     printf("Lottozahlen: ");
 
-    /* MAIN NUMBERS */
+    /* Animate main numbers */
     for (int i = 0; i < info->main_count; i++) {
-
-        /* spinner at the correct position */
-        for (int f = 0; f < SPINNER_COUNT; f++) {
-            printf("\rLottozahlen: ");
-
-            /* already revealed numbers */
-            for (int j = 0; j < i; j++)
-                printf("%d ", result->main_numbers[j]);
-
-            /* spinner in place of next number */
-            printf("%s ", SPINNER_FRAMES[f]);
-
-            fflush(stdout);
-            usleep(30000);
-        }
-
-        /* reveal number */
-        printf("\rLottozahlen: ");
-        for (int j = 0; j < i; j++)
-            printf("%d ", result->main_numbers[j]);
-
-        printf("%d ", result->main_numbers[i]);
-        fflush(stdout);
-        usleep(150000);
+        animate_number_reveal(
+            result->main_numbers[i],
+            print_main_numbers,
+            result,
+            i
+        );
     }
 
-    /* EXTRA NUMBERS (Superzahl) */
+    /* Animate extra numbers if present */
     if (info->extra_count > 0) {
-
         printf("+ ");
 
         for (int i = 0; i < info->extra_count; i++) {
-
+            /* Custom print function for extra numbers */
             for (int f = 0; f < SPINNER_COUNT; f++) {
-                printf("\rLottozahlen: ");
-
-                /* main numbers */
-                for (int j = 0; j < info->main_count; j++)
-                    printf("%d ", result->main_numbers[j]);
-
-                printf("+ ");
-
-                /* already revealed extras */
-                for (int j = 0; j < i; j++)
-                    printf("%d ", result->extra_numbers[j]);
-
-                /* spinner */
+                printf("\r");
+                print_main_and_extra(result, info->main_count, i);
                 printf("%s ", SPINNER_FRAMES[f]);
-
                 fflush(stdout);
                 usleep(30000);
             }
 
-            /* reveal extra number */
-            printf("\rLottozahlen: ");
-            for (int j = 0; j < info->main_count; j++)
-                printf("%d ", result->main_numbers[j]);
-
-            printf("+ ");
-
-            for (int j = 0; j < i; j++)
-                printf("%d ", result->extra_numbers[j]);
-
+            /* Reveal extra number */
+            printf("\r");
+            print_main_and_extra(result, info->main_count, i);
             printf("%d ", result->extra_numbers[i]);
             fflush(stdout);
             usleep(150000);
