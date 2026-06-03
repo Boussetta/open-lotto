@@ -55,24 +55,29 @@ typedef struct {
     float rotation_angle; /* degrees, for visual rotation */
 } Drum;
 
+typedef enum {
+    ANIMATION_STATE_REVEALING_MAIN,   /* Main drum spinning, picking main numbers */
+    ANIMATION_STATE_REVEALING_EXTRA,  /* Extra drum spinning, picking extra numbers */
+    ANIMATION_STATE_COMPLETE          /* All numbers revealed, animation done */
+} AnimationState;
+
 typedef struct {
     Drum          main_drum;
     Drum          extra_drum;
     LotteryInfo   info;
     LotteryResult result;
 
-    int           main_drawn;          /* how many main balls started moving */
-    int           extra_drawn;         /* how many extra balls started moving */
+    /* Explicit state machine */
+    AnimationState animation_state;
 
+    /* Progress tracking */
+    int           next_pick_index;     /* 0 .. main_count + extra_count - 1 */
     int           revealed_main;       /* how many main balls fully in row */
     int           revealed_extra;      /* how many extra balls fully in row */
 
-    int           next_pick_index;     /* 0 .. main_count + extra_count - 1 */
+    /* Timing */
     float         time_since_last_pick;
     float         pick_interval;       /* seconds between starting new glides */
-
-    int           super_drum_started;  /* 0 until main picks done */
-    int           done;
 } GuiState;
 
 /* --------------------------------------------------------- */
@@ -369,13 +374,14 @@ static void gui_draw_callback(DrawEvent event, const LotteryResult *res)
 }
 
 /* --------------------------------------------------------- */
-/* Progressive reveal logic                                  */
+/* Progressive reveal logic with explicit state transitions */
 /* --------------------------------------------------------- */
 
 static void maybe_start_next_pick(GuiState *st)
 {
     int total = st->info.main_count + st->info.extra_count;
 
+    /* Stop if all picks have been started */
     if (st->next_pick_index >= total)
         return;
 
@@ -397,12 +403,11 @@ static void maybe_start_next_pick(GuiState *st)
             b->target_y = target_y;
             b->result_index = idx;
             b->state = BALL_MOVING_TO_RESULT;
-            st->main_drawn++;
         }
 
-        /* when last main ball has been started, mark super drum as spinning */
-        if (st->main_drawn == st->info.main_count) {
-            st->super_drum_started = 1;
+        /* Transition to extra drum reveal after all main picks have started */
+        if (st->next_pick_index == st->info.main_count) {
+            st->animation_state = ANIMATION_STATE_REVEALING_EXTRA;
         }
 
     } else {
@@ -417,7 +422,11 @@ static void maybe_start_next_pick(GuiState *st)
             b->target_y = target_y;
             b->result_index = extra_idx;
             b->state = BALL_MOVING_TO_RESULT;
-            st->extra_drawn++;
+        }
+
+        /* Transition to animation complete after all picks have started */
+        if (st->next_pick_index == total) {
+            st->animation_state = ANIMATION_STATE_COMPLETE;
         }
     }
 }
@@ -536,15 +545,12 @@ void gui_run(const char *game_name, const LotteryInfo *info)
     GuiState state;
     g_state = &state;
     state.info = *info;
-    state.main_drawn = 0;
-    state.extra_drawn = 0;
+    state.animation_state = ANIMATION_STATE_REVEALING_MAIN;
+    state.next_pick_index = 0;
     state.revealed_main = 0;
     state.revealed_extra = 0;
-    state.next_pick_index = 0;
     state.time_since_last_pick = 0.0f;
     state.pick_interval = 1.5f;   /* seconds between starting new glides */
-    state.super_drum_started = 0;
-    state.done = 0;
 
     srand((unsigned)time(NULL));
 
@@ -587,8 +593,8 @@ void gui_run(const char *game_name, const LotteryInfo *info)
         update_ball_physics(&state.main_drum, dt);
         update_glide_to_result(&state.main_drum, dt);
 
-        /* extra drum only starts spinning after main picks are all started */
-        if (state.super_drum_started) {
+        /* extra drum only active during REVEALING_EXTRA and COMPLETE states */
+        if (state.animation_state >= ANIMATION_STATE_REVEALING_EXTRA) {
             update_ball_physics(&state.extra_drum, dt);
             update_glide_to_result(&state.extra_drum, dt);
         }
@@ -601,7 +607,7 @@ void gui_run(const char *game_name, const LotteryInfo *info)
 
         /* draw drums */
         render_drum_outline(ren, state.main_drum.cx, state.main_drum.cy, state.main_drum.radius);
-        if (state.super_drum_started) {
+        if (state.animation_state >= ANIMATION_STATE_REVEALING_EXTRA) {
             render_drum_outline(ren, state.extra_drum.cx, state.extra_drum.cy, state.extra_drum.radius);
         }
 
@@ -627,7 +633,7 @@ void gui_run(const char *game_name, const LotteryInfo *info)
         }
 
         /* draw balls in extra drum (only after it starts) */
-        if (state.super_drum_started) {
+        if (state.animation_state >= ANIMATION_STATE_REVEALING_EXTRA) {
             float angle_rad = state.extra_drum.rotation_angle * (float)M_PI / 180.0f;
             float cosA = cosf(angle_rad);
             float sinA = sinf(angle_rad);
@@ -652,13 +658,7 @@ void gui_run(const char *game_name, const LotteryInfo *info)
 
         SDL_RenderPresent(ren);
 
-        int total = info->main_count + info->extra_count;
-        if (state.revealed_main == info->main_count &&
-            state.revealed_extra == info->extra_count &&
-            state.next_pick_index == total) {
-            /* Animation finished, but do NOT close window */
-            /* Just stop updating physics */
-        }
+        /* Animation state is tracked explicitly - no new picks once COMPLETE */
     }
 
     TTF_CloseFont(font);
