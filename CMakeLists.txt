@@ -25,6 +25,7 @@ add_executable(open-lotto
     src/plugin_loader.c
     src/random_seed.c
     src/gui_sdl.c
+    src/log.c
 )
 
 target_link_libraries(open-lotto

@@ -1,10 +1,43 @@
 #include <stdlib.h>
-#include <time.h>
+#include <stdint.h>
 #include "combogen.h"
+#include "random_seed.h"
+#include "log.h"
 
+/* PCG32 Random Number Generator (statistically strong) */
+typedef struct {
+    uint64_t state;
+    uint64_t inc;
+} pcg32_t;
+
+static pcg32_t rng_state = {0};
+static uint64_t last_seed = 0;
+
+/* Initialize PCG32 with a strong seed and return the seed value */
+static uint64_t rng_init(void)
+{
+    last_seed = generate_strong_seed();
+    rng_state.state = last_seed;
+    rng_state.inc = (generate_strong_seed() << 1) | 1;
+    return last_seed;
+}
+
+/* PCG32 next value */
+static uint32_t rng_next(void)
+{
+    uint64_t oldstate = rng_state.state;
+    rng_state.state = oldstate * 6364136223846793005ULL + rng_state.inc;
+    uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
+    uint32_t rot = oldstate >> 59u;
+    return (xorshifted >> rot) | (xorshifted << (32u - rot));
+}
+
+/* Generate random integer in range [min, max] */
 static int rng_int(int min, int max)
 {
-    return min + rand() % (max - min + 1);
+    uint32_t range = (uint32_t)(max - min + 1);
+    uint32_t val = rng_next();
+    return min + (int)(val % range);
 }
 
 __attribute__((visibility("default")))
@@ -18,7 +51,8 @@ void generate_draw(
     LotteryResult *out,
     draw_event_callback cb
 ){
-    srand((unsigned)time(NULL));
+    uint64_t seed = rng_init();
+    log_info("RNG Seed: 0x%016lx", (unsigned long)seed);
 
     if (cb)
         cb(EVENT_RNG_INITIALIZED, NULL);
