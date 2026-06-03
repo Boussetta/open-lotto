@@ -336,7 +336,7 @@ static void draw_filled_circle(SDL_Renderer *r, int cx, int cy, int radius)
 static void render_ball_at(SDL_Renderer *r, TTF_Font *font, float x, float y, int number,
                            int is_main)
 {
-    SDL_Color col = is_main ? (SDL_Color) {255, 215, 0, 255} : (SDL_Color) {50, 150, 255, 255};
+    SDL_Color col = is_main ? (SDL_Color){255, 215, 0, 255} : (SDL_Color){50, 150, 255, 255};
 
     SDL_SetRenderDrawColor(r, col.r, col.g, col.b, col.a);
     draw_filled_circle(r, (int) x, (int) y, (int) BALL_RADIUS);
@@ -344,7 +344,7 @@ static void render_ball_at(SDL_Renderer *r, TTF_Font *font, float x, float y, in
     char buf[8];
     snprintf(buf, sizeof(buf), "%d", number);
 
-    SDL_Surface *surf = TTF_RenderText_Blended(font, buf, (SDL_Color) {0, 0, 0, 255});
+    SDL_Surface *surf = TTF_RenderText_Blended(font, buf, (SDL_Color){0, 0, 0, 255});
     if (!surf)
         return;
     SDL_Texture *tex = SDL_CreateTextureFromSurface(r, surf);
@@ -400,12 +400,12 @@ static void render_number_in_result_row(SDL_Renderer *r, TTF_Font *font, int num
     char buf[8];
     snprintf(buf, sizeof(buf), "%d", number);
 
-    SDL_Color col = is_main ? (SDL_Color) {255, 215, 0, 255} : (SDL_Color) {50, 150, 255, 255};
+    SDL_Color col = is_main ? (SDL_Color){255, 215, 0, 255} : (SDL_Color){50, 150, 255, 255};
 
     SDL_SetRenderDrawColor(r, col.r, col.g, col.b, col.a);
     draw_filled_circle(r, (int) x, (int) y, (int) BALL_RADIUS);
 
-    SDL_Surface *surf = TTF_RenderText_Blended(font, buf, (SDL_Color) {0, 0, 0, 255});
+    SDL_Surface *surf = TTF_RenderText_Blended(font, buf, (SDL_Color){0, 0, 0, 255});
     if (!surf)
         return;
     SDL_Texture *tex = SDL_CreateTextureFromSurface(r, surf);
