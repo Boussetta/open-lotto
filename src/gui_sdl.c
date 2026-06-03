@@ -31,9 +31,7 @@
 #define MAX_BALLS      64
 
 /* Physics constants for realistic ball motion */
-#define GRAVITY         800.0f  /* pixels/second² - downward acceleration */
-#define N_PADDLES       4       /* paddles fixed to drum, rotate with it */
-#define PADDLE_REACH    0.80f   /* paddle tip as fraction of drum radius */
+#define GRAVITY         400.0f  /* pixels/second² - downward acceleration */
 
 typedef enum {
     BALL_IN_DRUM = 0,
@@ -120,9 +118,9 @@ static void init_drum(Drum *d, int count, float cx, float cy, float radius, int 
         float r = frand_range(0.0f, (radius - BALL_RADIUS - 5.0f) * 0.8f);  /* use 80% of available radius */
         b->x = cx + cosf(angle) * r;
         b->y = cy + sinf(angle) * r - radius * 0.3f;  /* start balls higher up so gravity pulls them down */
-        /* Give each ball a strong random kick so they scatter immediately */
-        b->vx = frand_range(-200.0f, 200.0f);
-        b->vy = frand_range(-200.0f, 100.0f);
+        /* Initial velocity - minimal, let gravity and drum rotation do the work */
+        b->vx = frand_range(-20.0f, 20.0f);
+        b->vy = frand_range(-15.0f, 10.0f);
         b->target_x = b->x;
         b->target_y = b->y;
         b->number = i + 1;
@@ -147,14 +145,15 @@ static Ball *find_ball_by_number(Drum *d, int number)
 
 static void update_ball_physics(Drum *d, float dt)
 {
-    /* Rotate drum - track previous angle to detect paddle sweeps */
-    float prev_angle = d->rotation_angle;
+    /* Rotate drum */
     if (d->active_count > 0) {
         d->rotation_angle += 90.0f * dt; /* degrees per second */
         if (d->rotation_angle >= 360.0f)
             d->rotation_angle -= 360.0f;
     }
-    float deg_swept = 90.0f * dt;  /* degrees the drum rotated this frame */
+
+    /* Drum surface velocity (at outer edge, in rad/s) */
+    float drum_omega = 90.0f * (float)M_PI / 180.0f;
 
     for (int i = 0; i < d->count; i++) {
         Ball *b = &d->balls[i];
@@ -168,70 +167,56 @@ static void update_ball_physics(Drum *d, float dt)
         b->x += b->vx * dt;
         b->y += b->vy * dt;
 
-        /* Paddle sweep: check if any paddle physically hit this ball */
+        /* Drum surface friction: drag balls along with rotating drum */
         float bx = b->x - d->cx;
         float by = b->y - d->cy;
         float ball_dist = sqrtf(bx*bx + by*by);
-        float paddle_tip_r = d->radius * PADDLE_REACH;
-
-        /* Only balls within paddle reach can be hit */
-        if (ball_dist < paddle_tip_r && ball_dist > BALL_RADIUS) {
-            float ball_angle = atan2f(by, bx) * 180.0f / (float)M_PI;
-            if (ball_angle < 0.0f) ball_angle += 360.0f;
-
-            for (int p = 0; p < N_PADDLES; p++) {
-                float paddle_prev = fmodf(prev_angle + p * (360.0f / N_PADDLES), 360.0f);
-
-                /* Angular distance the ball is ahead of where paddle was */
-                float diff = ball_angle - paddle_prev;
-                if (diff < 0.0f) diff += 360.0f;
-
-                /* Did paddle sweep over ball this frame? */
-                if (diff < deg_swept + 8.0f) {
-                    /* Paddle tip direction at ball's angular position */
-                    float norm = ball_dist > 0.001f ? ball_dist : 1.0f;
-                    float tx = -by / norm;  /* tangential (CCW) */
-                    float ty =  bx / norm;
-
-                    /* Kick strength: stronger when paddle hits near the bottom */
-                    float bottom_bias = 0.5f + 0.5f * (by / d->radius); /* 0=top, 1=bottom */
-                    float kick = d->radius * 2.5f * (0.5f + bottom_bias);
-
-                    /* Tangential kick (drum rotation direction) + upward component */
-                    b->vx += kick * tx;
-                    b->vy += kick * ty - kick * 0.6f;  /* extra upward push */
-                    break; /* one paddle hit per frame is enough */
-                }
-            }
-        }
-
-        /* Wall bounce - inelastic (restitution 0.5) */
-        float dx = b->x - d->cx;
-        float dy = b->y - d->cy;
-        float dist = sqrtf(dx*dx + dy*dy);
         float wall_r = d->radius - BALL_RADIUS;
 
-        if (dist > wall_r && dist > 0.0001f) {
-            float nx = dx / dist;
-            float ny = dy / dist;
+        if (ball_dist > 0.0001f) {
+            /* Surface velocity tangent to drum at ball's position */
+            float norm = (ball_dist > 0.0001f) ? 1.0f / ball_dist : 1.0f;
+            float nx = bx * norm;  /* radial normal (outward) */
+            float ny = by * norm;
+            float tx = -ny;        /* tangent (perpendicular, CCW) */
+            float ty =  nx;
 
-            /* Push ball back inside */
-            b->x -= nx * (dist - wall_r);
-            b->y -= ny * (dist - wall_r);
-
-            /* Inelastic bounce: restitution 0.5 */
-            float vn = b->vx * nx + b->vy * ny;
-            if (vn > 0.0f) {
-                b->vx -= 1.5f * vn * nx;
-                b->vy -= 1.5f * vn * ny;
+            /* If ball is near drum wall, friction drags it along */
+            if (ball_dist > wall_r * 0.9f && ball_dist < d->radius) {
+                float surface_vt = drum_omega * d->radius;
+                float ball_vt = b->vx * tx + b->vy * ty;
+                float slip = surface_vt - ball_vt;
+                
+                /* Weak friction - gravity must dominate */
+                float friction = slip * 0.08f;
+                b->vx += friction * tx;
+                b->vy += friction * ty;
             }
         }
 
-        /* Light air resistance */
-        b->vx *= 0.999f;
-        b->vy *= 0.999f;
+        /* Wall collision: inelastic bounce (restitution 0.5) */
+        if (ball_dist > wall_r && ball_dist > 0.0001f) {
+            float nx = bx / ball_dist;
+            float ny = by / ball_dist;
+
+            /* Push ball back inside */
+            b->x -= nx * (ball_dist - wall_r);
+            b->y -= ny * (ball_dist - wall_r);
+
+            /* Inelastic bounce */
+            float vn = b->vx * nx + b->vy * ny;
+            if (vn > 0.0f) {
+                b->vx -= 1.4f * vn * nx;  /* lower bounce coefficient */
+                b->vy -= 1.4f * vn * ny;
+            }
+        }
+
+        /* Light air resistance - strong damping to settle balls */
+        b->vx *= 0.95f;
+        b->vy *= 0.95f;
     }
 
+    /* Ball-to-ball collisions: energetic spreading through pile */
     for (int i = 0; i < d->count; i++) {
         Ball *a = &d->balls[i];
         if (a->state != BALL_IN_DRUM)
@@ -252,21 +237,34 @@ static void update_ball_physics(Drum *d, float dt)
                 float nx = dx / dist;
                 float ny = dy / dist;
 
+                /* Separate balls along normal */
                 a->x -= nx * overlap;
                 a->y -= ny * overlap;
                 b->x += nx * overlap;
                 b->y += ny * overlap;
 
+                /* Normal impulse: energetic momentum transfer (restitution 0.7) */
                 float rvx = b->vx - a->vx;
                 float rvy = b->vy - a->vy;
                 float rel = rvx * nx + rvy * ny;
                 if (rel < 0.0f) {
-                    float impulse = -rel * 0.5f;
+                    /* Momentum transfer through collisions - reduced to let gravity settle balls */
+                    float impulse = -rel * 0.4f;
                     a->vx -= impulse * nx;
                     a->vy -= impulse * ny;
                     b->vx += impulse * nx;
                     b->vy += impulse * ny;
                 }
+
+                /* Tangential friction: prevent balls from sliding cleanly past each other */
+                float tx = -ny;
+                float ty =  nx;
+                float rel_tangent = rvx * tx + rvy * ty;
+                float friction = rel_tangent * 0.15f;
+                a->vx -= friction * tx;
+                a->vy -= friction * ty;
+                b->vx += friction * tx;
+                b->vy += friction * ty;
             }
         }
     }
@@ -360,19 +358,18 @@ static void render_drum_outline(SDL_Renderer *r, float cx, float cy, float radiu
     }
 
     /* Draw rotating paddles (fixed to drum interior) */
-    SDL_SetRenderDrawColor(r, 180, 100, 50, 255);  /* brown paddle color */
-    for (int p = 0; p < N_PADDLES; p++) {
-        float paddle_angle = (rotation_angle + p * (360.0f / N_PADDLES)) * (float)M_PI / 180.0f;
-        /* Paddle goes from center outward to 80% of drum radius */
-        int x0 = (int)(cx + cosf(paddle_angle) * radius * 0.05f);
-        int y0 = (int)(cy + sinf(paddle_angle) * radius * 0.05f);
-        int x1 = (int)(cx + cosf(paddle_angle) * radius * PADDLE_REACH);
-        int y1 = (int)(cy + sinf(paddle_angle) * radius * PADDLE_REACH);
+    float angle_rad = rotation_angle * (float)M_PI / 180.0f;
+    SDL_SetRenderDrawColor(r, 255, 150, 100, 255);  /* orange rotation markers */
+    int num_markers = 12;
+    for (int i = 0; i < num_markers; i++) {
+        float marker_angle = angle_rad + (float)i / num_markers * 2.0f * (float)M_PI;
+        float inner_r = radius * 0.80f;
+        float outer_r = radius * 0.95f;
+        int x0 = (int)(cx + cosf(marker_angle) * inner_r);
+        int y0 = (int)(cy + sinf(marker_angle) * inner_r);
+        int x1 = (int)(cx + cosf(marker_angle) * outer_r);
+        int y1 = (int)(cy + sinf(marker_angle) * outer_r);
         SDL_RenderDrawLine(r, x0, y0, x1, y1);
-        /* Draw a slightly thicker paddle */
-        float perp = paddle_angle + (float)M_PI / 2.0f;
-        SDL_RenderDrawLine(r, x0 + (int)(cosf(perp)*1.5f), y0 + (int)(sinf(perp)*1.5f),
-                              x1 + (int)(cosf(perp)*1.5f), y1 + (int)(sinf(perp)*1.5f));
     }
 }
 
