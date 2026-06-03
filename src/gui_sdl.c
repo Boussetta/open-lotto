@@ -31,8 +31,9 @@
 #define MAX_BALLS      64
 
 /* Physics constants for realistic ball motion */
-#define GRAVITY         500.0f  /* pixels/second² - downward acceleration */
-#define GROUND_FRICTION 0.85f   /* friction when ball hits bottom */
+#define GRAVITY         800.0f  /* pixels/second² - downward acceleration */
+#define N_PADDLES       4       /* paddles fixed to drum, rotate with it */
+#define PADDLE_REACH    0.80f   /* paddle tip as fraction of drum radius */
 
 typedef enum {
     BALL_IN_DRUM = 0,
@@ -94,19 +95,6 @@ static float frand_range(float a, float b)
     return a + (b - a) * drand48();
 }
 
-static void clamp_to_circle(float cx, float cy, float r, float *x, float *y)
-{
-    float dx = *x - cx;
-    float dy = *y - cy;
-    float dist = sqrtf(dx*dx + dy*dy);
-    float max_r = r - BALL_RADIUS;
-
-    if (dist > max_r && dist > 0.0001f) {
-        float s = max_r / dist;
-        *x = cx + dx * s;
-        *y = cy + dy * s;
-    }
-}
 
 /* --------------------------------------------------------- */
 /* Drum / ball setup                                         */
@@ -127,14 +115,14 @@ static void init_drum(Drum *d, int count, float cx, float cy, float radius, int 
 
     for (int i = 0; i < count; i++) {
         Ball *b = &d->balls[i];
+        /* Distribute balls throughout the drum volume (not just edges) */
         float angle = frand_range(0.0f, 2.0f * (float)M_PI);
-        float r = frand_range(0.0f, radius - BALL_RADIUS - 5.0f);
+        float r = frand_range(0.0f, (radius - BALL_RADIUS - 5.0f) * 0.8f);  /* use 80% of available radius */
         b->x = cx + cosf(angle) * r;
-        b->y = cy + sinf(angle) * r;
-        /* Horizontal velocity: moderate random range */
-        b->vx = frand_range(-100.0f, 100.0f);
-        /* Vertical velocity: reduced since gravity will handle falling */
-        b->vy = frand_range(-30.0f, 30.0f);
+        b->y = cy + sinf(angle) * r - radius * 0.3f;  /* start balls higher up so gravity pulls them down */
+        /* Give each ball a strong random kick so they scatter immediately */
+        b->vx = frand_range(-200.0f, 200.0f);
+        b->vy = frand_range(-200.0f, 100.0f);
         b->target_x = b->x;
         b->target_y = b->y;
         b->number = i + 1;
@@ -159,39 +147,89 @@ static Ball *find_ball_by_number(Drum *d, int number)
 
 static void update_ball_physics(Drum *d, float dt)
 {
-    float energy = d->active_count > 0 ? (d->active_count / (float)d->initial_count) : 0.0f;
-    if (energy < 0.2f) energy = 0.2f;
-
-    /* medium TV-style rotation */
+    /* Rotate drum - track previous angle to detect paddle sweeps */
+    float prev_angle = d->rotation_angle;
     if (d->active_count > 0) {
         d->rotation_angle += 90.0f * dt; /* degrees per second */
         if (d->rotation_angle >= 360.0f)
             d->rotation_angle -= 360.0f;
     }
+    float deg_swept = 90.0f * dt;  /* degrees the drum rotated this frame */
 
     for (int i = 0; i < d->count; i++) {
         Ball *b = &d->balls[i];
         if (b->state != BALL_IN_DRUM)
             continue;
 
-        /* Apply gravity (realistic downward acceleration) */
+        /* Apply gravity */
         b->vy += GRAVITY * dt;
 
         /* Update position */
         b->x += b->vx * dt;
         b->y += b->vy * dt;
 
-        /* Random forces (reduced as energy decreases) */
-        b->vx += frand_range(-20.0f, 20.0f) * dt * energy;
-        b->vy += frand_range(-10.0f, 10.0f) * dt * energy;
+        /* Paddle sweep: check if any paddle physically hit this ball */
+        float bx = b->x - d->cx;
+        float by = b->y - d->cy;
+        float ball_dist = sqrtf(bx*bx + by*by);
+        float paddle_tip_r = d->radius * PADDLE_REACH;
 
-        /* Damping */
-        float damp = 0.96f + 0.04f * energy;
-        b->vx *= damp;
-        b->vy *= damp;
+        /* Only balls within paddle reach can be hit */
+        if (ball_dist < paddle_tip_r && ball_dist > BALL_RADIUS) {
+            float ball_angle = atan2f(by, bx) * 180.0f / (float)M_PI;
+            if (ball_angle < 0.0f) ball_angle += 360.0f;
 
-        /* Clamp ball to drum circle */
-        clamp_to_circle(d->cx, d->cy, d->radius, &b->x, &b->y);
+            for (int p = 0; p < N_PADDLES; p++) {
+                float paddle_prev = fmodf(prev_angle + p * (360.0f / N_PADDLES), 360.0f);
+
+                /* Angular distance the ball is ahead of where paddle was */
+                float diff = ball_angle - paddle_prev;
+                if (diff < 0.0f) diff += 360.0f;
+
+                /* Did paddle sweep over ball this frame? */
+                if (diff < deg_swept + 8.0f) {
+                    /* Paddle tip direction at ball's angular position */
+                    float norm = ball_dist > 0.001f ? ball_dist : 1.0f;
+                    float tx = -by / norm;  /* tangential (CCW) */
+                    float ty =  bx / norm;
+
+                    /* Kick strength: stronger when paddle hits near the bottom */
+                    float bottom_bias = 0.5f + 0.5f * (by / d->radius); /* 0=top, 1=bottom */
+                    float kick = d->radius * 2.5f * (0.5f + bottom_bias);
+
+                    /* Tangential kick (drum rotation direction) + upward component */
+                    b->vx += kick * tx;
+                    b->vy += kick * ty - kick * 0.6f;  /* extra upward push */
+                    break; /* one paddle hit per frame is enough */
+                }
+            }
+        }
+
+        /* Wall bounce - inelastic (restitution 0.5) */
+        float dx = b->x - d->cx;
+        float dy = b->y - d->cy;
+        float dist = sqrtf(dx*dx + dy*dy);
+        float wall_r = d->radius - BALL_RADIUS;
+
+        if (dist > wall_r && dist > 0.0001f) {
+            float nx = dx / dist;
+            float ny = dy / dist;
+
+            /* Push ball back inside */
+            b->x -= nx * (dist - wall_r);
+            b->y -= ny * (dist - wall_r);
+
+            /* Inelastic bounce: restitution 0.5 */
+            float vn = b->vx * nx + b->vy * ny;
+            if (vn > 0.0f) {
+                b->vx -= 1.5f * vn * nx;
+                b->vy -= 1.5f * vn * ny;
+            }
+        }
+
+        /* Light air resistance */
+        b->vx *= 0.999f;
+        b->vy *= 0.999f;
     }
 
     for (int i = 0; i < d->count; i++) {
@@ -305,8 +343,10 @@ static void render_ball_at(SDL_Renderer *r, TTF_Font *font,
     SDL_DestroyTexture(tex);
 }
 
-static void render_drum_outline(SDL_Renderer *r, float cx, float cy, float radius)
+/* Render a rotating drum with visual markers to show rotation */
+static void render_drum_outline(SDL_Renderer *r, float cx, float cy, float radius, float rotation_angle)
 {
+    /* Draw drum circle */
     SDL_SetRenderDrawColor(r, 200, 200, 200, 255);
     int steps = 128;
     for (int i = 0; i < steps; i++) {
@@ -317,6 +357,22 @@ static void render_drum_outline(SDL_Renderer *r, float cx, float cy, float radiu
         int x1 = (int)(cx + cosf(a1) * radius);
         int y1 = (int)(cy + sinf(a1) * radius);
         SDL_RenderDrawLine(r, x0, y0, x1, y1);
+    }
+
+    /* Draw rotating paddles (fixed to drum interior) */
+    SDL_SetRenderDrawColor(r, 180, 100, 50, 255);  /* brown paddle color */
+    for (int p = 0; p < N_PADDLES; p++) {
+        float paddle_angle = (rotation_angle + p * (360.0f / N_PADDLES)) * (float)M_PI / 180.0f;
+        /* Paddle goes from center outward to 80% of drum radius */
+        int x0 = (int)(cx + cosf(paddle_angle) * radius * 0.05f);
+        int y0 = (int)(cy + sinf(paddle_angle) * radius * 0.05f);
+        int x1 = (int)(cx + cosf(paddle_angle) * radius * PADDLE_REACH);
+        int y1 = (int)(cy + sinf(paddle_angle) * radius * PADDLE_REACH);
+        SDL_RenderDrawLine(r, x0, y0, x1, y1);
+        /* Draw a slightly thicker paddle */
+        float perp = paddle_angle + (float)M_PI / 2.0f;
+        SDL_RenderDrawLine(r, x0 + (int)(cosf(perp)*1.5f), y0 + (int)(sinf(perp)*1.5f),
+                              x1 + (int)(cosf(perp)*1.5f), y1 + (int)(sinf(perp)*1.5f));
     }
 }
 
@@ -621,50 +677,24 @@ void gui_run(const char *game_name, const LotteryInfo *info)
         SDL_RenderClear(ren);
 
         /* draw drums */
-        render_drum_outline(ren, state.main_drum.cx, state.main_drum.cy, state.main_drum.radius);
+        render_drum_outline(ren, state.main_drum.cx, state.main_drum.cy, state.main_drum.radius, state.main_drum.rotation_angle);
         if (state.animation_state >= ANIMATION_STATE_REVEALING_EXTRA) {
-            render_drum_outline(ren, state.extra_drum.cx, state.extra_drum.cy, state.extra_drum.radius);
+            render_drum_outline(ren, state.extra_drum.cx, state.extra_drum.cy, state.extra_drum.radius, state.extra_drum.rotation_angle);
         }
 
-        /* draw balls in main drum (with rotation for IN_DRUM) */
-        {
-            float angle_rad = state.main_drum.rotation_angle * (float)M_PI / 180.0f;
-            float cosA = cosf(angle_rad);
-            float sinA = sinf(angle_rad);
-
-            for (int i = 0; i < state.main_drum.count; i++) {
-                Ball *b = &state.main_drum.balls[i];
-
-                if (b->state == BALL_IN_DRUM) {
-                    float relx = b->x - state.main_drum.cx;
-                    float rely = b->y - state.main_drum.cy;
-                    float rx = state.main_drum.cx + relx * cosA - rely * sinA;
-                    float ry = state.main_drum.cy + relx * sinA + rely * cosA;
-                    render_ball_at(ren, font, rx, ry, b->number, b->is_main);
-                } else if (b->state == BALL_MOVING_TO_RESULT) {
-                    render_ball_at(ren, font, b->x, b->y, b->number, b->is_main);
-                }
-            }
+        /* draw balls in main drum - render at their actual physics positions */
+        for (int i = 0; i < state.main_drum.count; i++) {
+            Ball *b = &state.main_drum.balls[i];
+            if (b->state == BALL_IN_DRUM || b->state == BALL_MOVING_TO_RESULT)
+                render_ball_at(ren, font, b->x, b->y, b->number, b->is_main);
         }
 
         /* draw balls in extra drum (only after it starts) */
         if (state.animation_state >= ANIMATION_STATE_REVEALING_EXTRA) {
-            float angle_rad = state.extra_drum.rotation_angle * (float)M_PI / 180.0f;
-            float cosA = cosf(angle_rad);
-            float sinA = sinf(angle_rad);
-
             for (int i = 0; i < state.extra_drum.count; i++) {
                 Ball *b = &state.extra_drum.balls[i];
-
-                if (b->state == BALL_IN_DRUM) {
-                    float relx = b->x - state.extra_drum.cx;
-                    float rely = b->y - state.extra_drum.cy;
-                    float rx = state.extra_drum.cx + relx * cosA - rely * sinA;
-                    float ry = state.extra_drum.cy + relx * sinA + rely * cosA;
-                    render_ball_at(ren, font, rx, ry, b->number, b->is_main);
-                } else if (b->state == BALL_MOVING_TO_RESULT) {
+                if (b->state == BALL_IN_DRUM || b->state == BALL_MOVING_TO_RESULT)
                     render_ball_at(ren, font, b->x, b->y, b->number, b->is_main);
-                }
             }
         }
 
