@@ -61,6 +61,22 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/fonts")
 endif()
 
 if(BUILD_TESTING)
+    # Unit tests for draw generation logic
+    add_executable(test_combogen
+        tests/test_combogen.c
+        src/combogen.c
+        src/random_seed.c
+        src/log.c
+    )
+
+    add_test(NAME unit_combogen
+        COMMAND $<TARGET_FILE:test_combogen>
+    )
+    set_tests_properties(unit_combogen PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    # CLI integration tests
     add_test(NAME cli_lists_games
         COMMAND $<TARGET_FILE:open-lotto> --list-games
     )
