@@ -455,6 +455,41 @@ static void update_revealed_counts(GuiState *st)
 
 void gui_run(const char *game_name, const LotteryInfo *info)
 {
+    /* Validate input parameters */
+    if (!game_name || game_name[0] == '\0') {
+        fprintf(stderr, "Error: Game name is NULL or empty\n");
+        return;
+    }
+    
+    if (!info) {
+        fprintf(stderr, "Error: LotteryInfo pointer is NULL\n");
+        return;
+    }
+    
+    /* Validate lottery info structure */
+    if (info->main_count <= 0 || info->main_count > 7) {
+        fprintf(stderr, "Error: Invalid main_count in LotteryInfo: %d\n", info->main_count);
+        return;
+    }
+    
+    if (info->extra_count < 0 || info->extra_count > 3) {
+        fprintf(stderr, "Error: Invalid extra_count in LotteryInfo: %d\n", info->extra_count);
+        return;
+    }
+    
+    if (info->main_min <= 0 || info->main_max <= 0 || info->main_min > info->main_max) {
+        fprintf(stderr, "Error: Invalid main range in LotteryInfo: [%d, %d]\n", 
+                info->main_min, info->main_max);
+        return;
+    }
+    
+    if (info->extra_count > 0 && 
+        (info->extra_min < 0 || info->extra_max < 0 || info->extra_min > info->extra_max)) {
+        fprintf(stderr, "Error: Invalid extra range in LotteryInfo: [%d, %d]\n", 
+                info->extra_min, info->extra_max);
+        return;
+    }
+
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return;

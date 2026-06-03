@@ -51,6 +51,44 @@ void generate_draw(
     LotteryResult *out,
     draw_event_callback cb
 ){
+    /* Validate result structure */
+    if (!out) {
+        log_error("LotteryResult pointer is NULL");
+        return;
+    }
+
+    /* Validate main numbers count */
+    if (main_count <= 0 || main_count > 7) {
+        log_error("Invalid main_count: %d (must be 1-7)", main_count);
+        return;
+    }
+
+    /* Validate extra numbers count */
+    if (extra_count < 0 || extra_count > 3) {
+        log_error("Invalid extra_count: %d (must be 0-3)", extra_count);
+        return;
+    }
+
+    /* Validate main number range */
+    if (main_min <= 0 || main_max <= 0 || main_min > main_max) {
+        log_error("Invalid main range: [%d, %d]", main_min, main_max);
+        return;
+    }
+
+    int main_range = main_max - main_min + 1;
+    if (main_range < main_count) {
+        log_error("Not enough main numbers: need %d from range of %d", main_count, main_range);
+        return;
+    }
+
+    /* Validate extra number range if extra numbers needed */
+    if (extra_count > 0) {
+        if (extra_min < 0 || extra_max < 0 || extra_min > extra_max) {
+            log_error("Invalid extra range: [%d, %d]", extra_min, extra_max);
+            return;
+        }
+    }
+
     uint64_t seed = rng_init();
     log_info("RNG Seed: 0x%016lx", (unsigned long)seed);
 

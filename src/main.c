@@ -197,6 +197,18 @@ int main(int argc, char **argv)
     }
 
     const char *game_name = argv[2];
+    
+    /* Validate game name */
+    if (!game_name || game_name[0] == '\0') {
+        fprintf(stderr, "Error: Game name is empty\n");
+        return 1;
+    }
+    
+    size_t game_name_len = strlen(game_name);
+    if (game_name_len > 256) {
+        fprintf(stderr, "Error: Game name too long (max 256 characters)\n");
+        return 1;
+    }
     int animate = 0;
     int gui = 0;
     int draws = 1;

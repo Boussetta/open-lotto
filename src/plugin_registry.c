@@ -20,6 +20,13 @@ static void registry_add_plugin(PluginRegistry *registry, LoadedPlugin *plugin)
     if (!registry || !plugin)
         return;
 
+    /* Validate plugin name is not empty */
+    if (plugin->name[0] == '\0') {
+        log_error("Cannot add plugin with empty name");
+        unload_plugin(plugin);
+        return;
+    }
+
     /* Resize if needed */
     if (registry->count >= registry->capacity) {
         registry->capacity *= 2;
@@ -135,12 +142,28 @@ void registry_discover_plugins(PluginRegistry *registry)
 
 LoadedPlugin* registry_find_plugin(PluginRegistry *registry, const char *game_name)
 {
-    if (!registry || !game_name) {
-        log_error("Invalid registry or game name");
+    if (!registry) {
+        log_error("Invalid registry");
+        return NULL;
+    }
+    
+    if (!game_name || game_name[0] == '\0') {
+        log_error("Invalid game name (NULL or empty)");
+        return NULL;
+    }
+
+    /* Validate game name length */
+    size_t game_name_len = strlen(game_name);
+    if (game_name_len > 256) {
+        log_error("Game name too long: %zu bytes (max 256)", game_name_len);
         return NULL;
     }
 
     for (int i = 0; i < registry->count; i++) {
+        if (!registry->plugins[i]) {
+            log_error("Invalid plugin at index %d", i);
+            continue;
+        }
         if (strcasecmp(registry->plugins[i]->name, game_name) == 0) {
             log_info("Found plugin: %s", game_name);
             return registry->plugins[i];
