@@ -166,7 +166,15 @@ WissemEmbedded Linux Developer & Firmware ArchitectSaxony, Germany
 
 🤝 Contributions
 
-Contributions, new lottery plugins, and improvements are welcome.Feel free to open issues or submit pull requests.
+Contributions, new lottery plugins, and improvements are welcome!
+
+**Getting started?** See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- How to build locally
+- How to write new lottery plugins
+- Code style and testing requirements
+- How to submit pull requests
+
+Feel free to open issues or submit pull requests. All contributions are valued!
 
 ❤️ Support the Project
 Open‑Lotto is a passion‑driven project that I build and maintain in my free time. If you find it useful, enjoy the transparency behind the engine, or want to help accelerate development, your support makes a real difference.
