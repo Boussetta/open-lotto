@@ -16,14 +16,14 @@
  *   ./benchmark 1000000      # Run with 1 million iterations
  */
 
+#include "../include/combogen.h"
+#include "../include/random_seed.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
-#include <sys/time.h>
 #include <sys/resource.h>
-#include "../include/combogen.h"
-#include "../include/random_seed.h"
+#include <sys/time.h>
+#include <time.h>
 
 /**
  * @brief Get current wall-clock time in microseconds
@@ -33,7 +33,7 @@ static uint64_t get_time_us(void)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    return (uint64_t)tv.tv_sec * 1000000 + (uint64_t)tv.tv_usec;
+    return (uint64_t) tv.tv_sec * 1000000 + (uint64_t) tv.tv_usec;
 }
 
 /**
@@ -52,8 +52,8 @@ static long get_memory_kb(void)
  */
 static void benchmark_callback(DrawEvent event, const LotteryResult *result)
 {
-    (void)event;
-    (void)result;
+    (void) event;
+    (void) result;
 }
 
 /**
@@ -164,7 +164,7 @@ static double benchmark_seed_generation(int iterations)
     for (int i = 0; i < iterations; i++)
     {
         volatile uint64_t seed = generate_strong_seed();
-        (void)seed;
+        (void) seed;
     }
 
     uint64_t end = get_time_us();
@@ -263,8 +263,7 @@ int main(int argc, const char *argv[])
     /* Additional analysis */
     printf("Estimated performance:\n");
     printf("  %-30s: %.2f ms\n", "Time per RNG draw", 1000.0 / rng_rate);
-    printf("  %-30s: %.2f ms\n", "Time per Eurojackpot draw",
-           1000.0 / eurojackpot_rate);
+    printf("  %-30s: %.2f ms\n", "Time per Eurojackpot draw", 1000.0 / eurojackpot_rate);
     printf("  %-30s: %.2f ms\n", "Time per Lotto draw", 1000.0 / lotto_rate);
     printf("  %-30s: %.2f ms\n", "Time per seed", 1000.0 / seed_rate);
 

@@ -162,7 +162,7 @@ static LogLevel parse_log_level(const char *level_str)
    --------------------------------------------------------- */
 static void print_usage(const char *prog)
 {
-        fprintf(stderr,
+    fprintf(stderr,
             "Usage:\n"
             "  %s --game NAME [--draws N] [--animate] [--gui] [--verbose LEVEL]\n"
             "  %s --game NAME [--draws N] [--export csv|json] [--output FILE] [--verbose LEVEL]\n"
@@ -288,7 +288,8 @@ int main(int argc, char **argv)
             export_format = argv[++i];
             if (strcmp(export_format, "csv") != 0 && strcmp(export_format, "json") != 0)
             {
-                fprintf(stderr, "Error: Invalid export format '%s' (use 'csv' or 'json')\n", export_format);
+                fprintf(stderr, "Error: Invalid export format '%s' (use 'csv' or 'json')\n",
+                        export_format);
                 return 1;
             }
         }
@@ -390,11 +391,13 @@ int main(int argc, char **argv)
         int export_result = 0;
         if (strcmp(export_format, "csv") == 0)
         {
-            export_result = export_results_csv_file(export_filename, selected->name, results, draws);
+            export_result =
+                export_results_csv_file(export_filename, selected->name, results, draws);
         }
         else if (strcmp(export_format, "json") == 0)
         {
-            export_result = export_results_json_file(export_filename, selected->name, results, draws);
+            export_result =
+                export_results_json_file(export_filename, selected->name, results, draws);
         }
 
         free(results);

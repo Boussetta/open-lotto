@@ -22,8 +22,7 @@
  * @param result The lottery result to export
  * @return 0 on success, -1 on error
  */
-int export_result_csv(FILE *file, const char *game_name, int draw_num,
-                      const LotteryResult *result);
+int export_result_csv(FILE *file, const char *game_name, int draw_num, const LotteryResult *result);
 
 /**
  * @brief Export multiple lottery results to CSV file
