@@ -97,4 +97,15 @@ if(BUILD_TESTING)
     set_tests_properties(cli_runs_eurojackpot_once PROPERTIES
         PASS_REGULAR_EXPRESSION "Main:"
     )
+
+    # Performance benchmarking tool
+    add_executable(benchmark
+        tests/benchmark.c
+        src/combogen.c
+        src/random_seed.c
+        src/log.c
+    )
+
+    # Benchmark is not a test but a utility - we don't add it as a test
+    # Users can run it manually: ./benchmark [iterations] [verbose]
 endif()
