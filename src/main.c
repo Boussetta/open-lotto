@@ -126,6 +126,23 @@ static void silent_callback(DrawEvent event, const LotteryResult *res)
     (void)res;
 }
 
+/* Print draw result in normal (non-animated) CLI mode */
+static void print_draw_result(const char *game_name, int draw_num, const LotteryResult *result)
+{
+    printf("%s (Draw %d):\n", game_name, draw_num);
+    printf("  Main: ");
+    for (int j = 0; j < result->main_count; j++)
+        printf("%d ", result->main_numbers[j]);
+
+    if (result->extra_count > 0) {
+        printf("+ ");
+        for (int j = 0; j < result->extra_count; j++)
+            printf("%d ", result->extra_numbers[j]);
+    }
+
+    printf("\n\n");
+}
+
 /* ---------------------------------------------------------
    PARSE LOG LEVEL FROM STRING
    --------------------------------------------------------- */
@@ -311,18 +328,7 @@ int main(int argc, char **argv)
         }
 
         /* normal CLI output */
-        printf("%s (Draw %d):\n", selected->name, i + 1);
-        printf("  Main: ");
-        for (int j = 0; j < result.main_count; j++)
-            printf("%d ", result.main_numbers[j]);
-
-        if (result.extra_count > 0) {
-            printf("+ ");
-            for (int j = 0; j < result.extra_count; j++)
-                printf("%d ", result.extra_numbers[j]);
-        }
-
-        printf("\n\n");
+        print_draw_result(selected->name, i + 1, &result);
     }
 
     log_debug("Cleaning up resources");

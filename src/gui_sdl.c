@@ -301,6 +301,36 @@ static void render_drum_outline(SDL_Renderer *r, float cx, float cy, float radiu
     }
 }
 
+static void render_number_in_result_row(
+    SDL_Renderer *r,
+    TTF_Font *font,
+    int number,
+    float x,
+    float y,
+    int is_main)
+{
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d", number);
+
+    SDL_Color col = is_main
+        ? (SDL_Color){ 255, 215, 0, 255 }
+        : (SDL_Color){  50, 150, 255, 255 };
+
+    SDL_SetRenderDrawColor(r, col.r, col.g, col.b, col.a);
+    draw_filled_circle(r, (int)x, (int)y, (int)BALL_RADIUS);
+
+    SDL_Surface *surf = TTF_RenderText_Blended(font, buf, (SDL_Color){0,0,0,255});
+    if (!surf) return;
+    SDL_Texture *tex = SDL_CreateTextureFromSurface(r, surf);
+    SDL_FreeSurface(surf);
+    if (!tex) return;
+    int tw, th;
+    SDL_QueryTexture(tex, NULL, NULL, &tw, &th);
+    SDL_Rect dst = { (int)x - tw/2, (int)y - th/2, tw, th };
+    SDL_RenderCopy(r, tex, NULL, &dst);
+    SDL_DestroyTexture(tex);
+}
+
 static void render_result_row(SDL_Renderer *r, TTF_Font *font, GuiState *gs)
 {
     float start_x = WINDOW_WIDTH * 0.10f;
@@ -311,46 +341,14 @@ static void render_result_row(SDL_Renderer *r, TTF_Font *font, GuiState *gs)
 
     /* only draw revealed main numbers */
     for (int i = 0; i < gs->revealed_main; i++) {
-        int num = gs->result.main_numbers[i];
-        char buf[8];
-        snprintf(buf, sizeof(buf), "%d", num);
-
         float x = start_x + spacing * idx++;
-        SDL_SetRenderDrawColor(r, 255, 215, 0, 255);
-        draw_filled_circle(r, (int)x, (int)y, (int)BALL_RADIUS);
-
-        SDL_Surface *surf = TTF_RenderText_Blended(font, buf, (SDL_Color){0,0,0,255});
-        if (!surf) continue;
-        SDL_Texture *tex = SDL_CreateTextureFromSurface(r, surf);
-        SDL_FreeSurface(surf);
-        if (!tex) continue;
-        int tw, th;
-        SDL_QueryTexture(tex, NULL, NULL, &tw, &th);
-        SDL_Rect dst = { (int)x - tw/2, (int)y - th/2, tw, th };
-        SDL_RenderCopy(r, tex, NULL, &dst);
-        SDL_DestroyTexture(tex);
+        render_number_in_result_row(r, font, gs->result.main_numbers[i], x, y, 1);
     }
 
     /* only draw revealed extra numbers */
     for (int i = 0; i < gs->revealed_extra; i++) {
-        int num = gs->result.extra_numbers[i];
-        char buf[8];
-        snprintf(buf, sizeof(buf), "%d", num);
-
         float x = start_x + spacing * idx++;
-        SDL_SetRenderDrawColor(r, 50, 150, 255, 255);
-        draw_filled_circle(r, (int)x, (int)y, (int)BALL_RADIUS);
-
-        SDL_Surface *surf = TTF_RenderText_Blended(font, buf, (SDL_Color){0,0,0,255});
-        if (!surf) continue;
-        SDL_Texture *tex = SDL_CreateTextureFromSurface(r, surf);
-        SDL_FreeSurface(surf);
-        if (!tex) continue;
-        int tw, th;
-        SDL_QueryTexture(tex, NULL, NULL, &tw, &th);
-        SDL_Rect dst = { (int)x - tw/2, (int)y - th/2, tw, th };
-        SDL_RenderCopy(r, tex, NULL, &dst);
-        SDL_DestroyTexture(tex);
+        render_number_in_result_row(r, font, gs->result.extra_numbers[i], x, y, 0);
     }
 }
 
