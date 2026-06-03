@@ -118,9 +118,9 @@ static void init_drum(Drum *d, int count, float cx, float cy, float radius, int 
         float r = frand_range(0.0f, (radius - BALL_RADIUS - 5.0f) * 0.8f);  /* use 80% of available radius */
         b->x = cx + cosf(angle) * r;
         b->y = cy + sinf(angle) * r - radius * 0.3f;  /* start balls higher up so gravity pulls them down */
-        /* Initial velocity - minimal, let gravity and drum rotation do the work */
-        b->vx = frand_range(-20.0f, 20.0f);
-        b->vy = frand_range(-15.0f, 10.0f);
+        /* Initial velocity - horizontal spread prevents pure vertical free-fall */
+        b->vx = frand_range(-80.0f, 80.0f);
+        b->vy = frand_range(-20.0f, 20.0f);
         b->target_x = b->x;
         b->target_y = b->y;
         b->number = i + 1;
@@ -211,9 +211,9 @@ static void update_ball_physics(Drum *d, float dt)
             }
         }
 
-        /* Light air resistance - strong damping to settle balls */
-        b->vx *= 0.95f;
-        b->vy *= 0.95f;
+        /* Air resistance: light enough that horizontal momentum persists */
+        b->vx *= 0.99f;
+        b->vy *= 0.99f;
     }
 
     /* Ball-to-ball collisions: energetic spreading through pile */
