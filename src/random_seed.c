@@ -35,14 +35,14 @@ static inline uint64_t rdtsc(void)
 {
     unsigned hi, lo;
     __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
-    return ((uint64_t) hi << 32) | lo;
+    return ((uint64_t)hi << 32) | lo;
 }
 #else
 static inline uint64_t rdtsc(void)
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t) ts.tv_nsec ^ (uint64_t) ts.tv_sec;
+    return (uint64_t)ts.tv_nsec ^ (uint64_t)ts.tv_sec;
 }
 #endif
 
@@ -85,7 +85,7 @@ uint64_t generate_strong_seed(void)
         ssize_t n = read(fd, &seed, sizeof(seed));
         close(fd);
 
-        if (n == (ssize_t) sizeof(seed))
+        if (n == (ssize_t)sizeof(seed))
         {
             log_debug("Successfully obtained entropy from /dev/urandom");
             return seed ^ rdtsc();
@@ -100,7 +100,7 @@ uint64_t generate_strong_seed(void)
     clock_gettime(CLOCK_MONOTONIC, &ts);
 
     /* Combine timestamp components and jitter for weak entropy fallback */
-    seed = (((uint64_t) ts.tv_sec) << 32) ^ (uint64_t) ts.tv_nsec ^ rdtsc();
+    seed = (((uint64_t)ts.tv_sec) << 32) ^ (uint64_t)ts.tv_nsec ^ rdtsc();
 
     return seed;
 }

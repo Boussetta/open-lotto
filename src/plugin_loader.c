@@ -28,11 +28,11 @@ LoadedPlugin *load_plugin(const char *path)
 
     /* Use intermediate void* to avoid pedantic pointer-to-function conversion warning */
     const LotteryInfo *(*get_info)(void) =
-        (const LotteryInfo *(*) (void) )(uintptr_t) dlsym(handle, "plugin_get_info");
+        (const LotteryInfo *(*)(void))(uintptr_t)dlsym(handle, "plugin_get_info");
     const char *(*get_name)(void) =
-        (const char *(*) (void) )(uintptr_t) dlsym(handle, "plugin_get_name");
+        (const char *(*)(void))(uintptr_t)dlsym(handle, "plugin_get_name");
     void (*draw_fn)(LotteryResult *, draw_event_callback) =
-        (void (*)(LotteryResult *, draw_event_callback))(uintptr_t) dlsym(handle, "plugin_draw");
+        (void (*)(LotteryResult *, draw_event_callback))(uintptr_t)dlsym(handle, "plugin_draw");
 
     /* Validate all function pointers were found */
     if (!get_info || !get_name || !draw_fn)
@@ -69,10 +69,10 @@ LoadedPlugin *load_plugin(const char *path)
     }
 
     size_t name_len = strlen(name);
-    if (name_len >= sizeof(((LoadedPlugin *) 0)->name))
+    if (name_len >= sizeof(((LoadedPlugin *)0)->name))
     {
         log_error("Plugin %s name too long (%zu bytes, max %zu)", path, name_len,
-                  sizeof(((LoadedPlugin *) 0)->name) - 1);
+                  sizeof(((LoadedPlugin *)0)->name) - 1);
         dlclose(handle);
         return NULL;
     }

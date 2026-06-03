@@ -114,8 +114,8 @@ static void animate_numbers(const LotteryInfo *info, const LotteryResult *result
    --------------------------------------------------------- */
 static void silent_callback(DrawEvent event, const LotteryResult *res)
 {
-    (void) event;
-    (void) res;
+    (void)event;
+    (void)res;
 }
 
 /* Print draw result in normal (non-animated) CLI mode */
@@ -275,7 +275,7 @@ int main(int argc, char **argv)
                 return 1;
             }
 
-            draws = (int) val;
+            draws = (int)val;
         }
         else if (strcmp(argv[i], "--export") == 0)
         {
@@ -374,7 +374,7 @@ int main(int argc, char **argv)
     if (export_format)
     {
         /* Export mode: collect all results then write to file */
-        LotteryResult *results = (LotteryResult *) malloc(sizeof(LotteryResult) * draws);
+        LotteryResult *results = (LotteryResult *)malloc(sizeof(LotteryResult) * draws);
         if (!results)
         {
             log_error("Failed to allocate memory for results");

@@ -119,7 +119,7 @@ static void init_drum(Drum *d, int count, float cx, float cy, float radius, int 
     {
         Ball *b = &d->balls[i];
         /* Distribute balls throughout the drum volume (not just edges) */
-        float angle = frand_range(0.0f, 2.0f * (float) M_PI);
+        float angle = frand_range(0.0f, 2.0f * (float)M_PI);
         float r = frand_range(0.0f, (radius - BALL_RADIUS - 5.0f) *
                                         0.8f); /* use 80% of available radius */
         b->x = cx + cosf(angle) * r;
@@ -162,7 +162,7 @@ static void update_ball_physics(Drum *d, float dt)
     }
 
     /* Drum surface velocity (at outer edge, in rad/s) */
-    float drum_omega = 90.0f * (float) M_PI / 180.0f;
+    float drum_omega = 90.0f * (float)M_PI / 180.0f;
 
     for (int i = 0; i < d->count; i++)
     {
@@ -325,7 +325,7 @@ static void draw_filled_circle(SDL_Renderer *r, int cx, int cy, int radius)
 {
     for (int dy = -radius; dy <= radius; dy++)
     {
-        int dx_max = (int) sqrtf((float) (radius * radius - dy * dy));
+        int dx_max = (int)sqrtf((float)(radius * radius - dy * dy));
         for (int dx = -dx_max; dx <= dx_max; dx++)
         {
             SDL_RenderDrawPoint(r, cx + dx, cy + dy);
@@ -336,15 +336,15 @@ static void draw_filled_circle(SDL_Renderer *r, int cx, int cy, int radius)
 static void render_ball_at(SDL_Renderer *r, TTF_Font *font, float x, float y, int number,
                            int is_main)
 {
-    SDL_Color col = is_main ? (SDL_Color) {255, 215, 0, 255} : (SDL_Color) {50, 150, 255, 255};
+    SDL_Color col = is_main ? (SDL_Color){255, 215, 0, 255} : (SDL_Color){50, 150, 255, 255};
 
     SDL_SetRenderDrawColor(r, col.r, col.g, col.b, col.a);
-    draw_filled_circle(r, (int) x, (int) y, (int) BALL_RADIUS);
+    draw_filled_circle(r, (int)x, (int)y, (int)BALL_RADIUS);
 
     char buf[8];
     snprintf(buf, sizeof(buf), "%d", number);
 
-    SDL_Surface *surf = TTF_RenderText_Blended(font, buf, (SDL_Color) {0, 0, 0, 255});
+    SDL_Surface *surf = TTF_RenderText_Blended(font, buf, (SDL_Color){0, 0, 0, 255});
     if (!surf)
         return;
     SDL_Texture *tex = SDL_CreateTextureFromSurface(r, surf);
@@ -354,7 +354,7 @@ static void render_ball_at(SDL_Renderer *r, TTF_Font *font, float x, float y, in
 
     int tw, th;
     SDL_QueryTexture(tex, NULL, NULL, &tw, &th);
-    SDL_Rect dst = {(int) x - tw / 2, (int) y - th / 2, tw, th};
+    SDL_Rect dst = {(int)x - tw / 2, (int)y - th / 2, tw, th};
     SDL_RenderCopy(r, tex, NULL, &dst);
     SDL_DestroyTexture(tex);
 }
@@ -368,28 +368,28 @@ static void render_drum_outline(SDL_Renderer *r, float cx, float cy, float radiu
     int steps = 128;
     for (int i = 0; i < steps; i++)
     {
-        float a0 = (float) i / steps * 2.0f * (float) M_PI;
-        float a1 = (float) (i + 1) / steps * 2.0f * (float) M_PI;
-        int x0 = (int) (cx + cosf(a0) * radius);
-        int y0 = (int) (cy + sinf(a0) * radius);
-        int x1 = (int) (cx + cosf(a1) * radius);
-        int y1 = (int) (cy + sinf(a1) * radius);
+        float a0 = (float)i / steps * 2.0f * (float)M_PI;
+        float a1 = (float)(i + 1) / steps * 2.0f * (float)M_PI;
+        int x0 = (int)(cx + cosf(a0) * radius);
+        int y0 = (int)(cy + sinf(a0) * radius);
+        int x1 = (int)(cx + cosf(a1) * radius);
+        int y1 = (int)(cy + sinf(a1) * radius);
         SDL_RenderDrawLine(r, x0, y0, x1, y1);
     }
 
     /* Draw rotating paddles (fixed to drum interior) */
-    float angle_rad = rotation_angle * (float) M_PI / 180.0f;
+    float angle_rad = rotation_angle * (float)M_PI / 180.0f;
     SDL_SetRenderDrawColor(r, 255, 150, 100, 255); /* orange rotation markers */
     int num_markers = 12;
     for (int i = 0; i < num_markers; i++)
     {
-        float marker_angle = angle_rad + (float) i / num_markers * 2.0f * (float) M_PI;
+        float marker_angle = angle_rad + (float)i / num_markers * 2.0f * (float)M_PI;
         float inner_r = radius * 0.80f;
         float outer_r = radius * 0.95f;
-        int x0 = (int) (cx + cosf(marker_angle) * inner_r);
-        int y0 = (int) (cy + sinf(marker_angle) * inner_r);
-        int x1 = (int) (cx + cosf(marker_angle) * outer_r);
-        int y1 = (int) (cy + sinf(marker_angle) * outer_r);
+        int x0 = (int)(cx + cosf(marker_angle) * inner_r);
+        int y0 = (int)(cy + sinf(marker_angle) * inner_r);
+        int x1 = (int)(cx + cosf(marker_angle) * outer_r);
+        int y1 = (int)(cy + sinf(marker_angle) * outer_r);
         SDL_RenderDrawLine(r, x0, y0, x1, y1);
     }
 }
@@ -400,12 +400,12 @@ static void render_number_in_result_row(SDL_Renderer *r, TTF_Font *font, int num
     char buf[8];
     snprintf(buf, sizeof(buf), "%d", number);
 
-    SDL_Color col = is_main ? (SDL_Color) {255, 215, 0, 255} : (SDL_Color) {50, 150, 255, 255};
+    SDL_Color col = is_main ? (SDL_Color){255, 215, 0, 255} : (SDL_Color){50, 150, 255, 255};
 
     SDL_SetRenderDrawColor(r, col.r, col.g, col.b, col.a);
-    draw_filled_circle(r, (int) x, (int) y, (int) BALL_RADIUS);
+    draw_filled_circle(r, (int)x, (int)y, (int)BALL_RADIUS);
 
-    SDL_Surface *surf = TTF_RenderText_Blended(font, buf, (SDL_Color) {0, 0, 0, 255});
+    SDL_Surface *surf = TTF_RenderText_Blended(font, buf, (SDL_Color){0, 0, 0, 255});
     if (!surf)
         return;
     SDL_Texture *tex = SDL_CreateTextureFromSurface(r, surf);
@@ -414,7 +414,7 @@ static void render_number_in_result_row(SDL_Renderer *r, TTF_Font *font, int num
         return;
     int tw, th;
     SDL_QueryTexture(tex, NULL, NULL, &tw, &th);
-    SDL_Rect dst = {(int) x - tw / 2, (int) y - th / 2, tw, th};
+    SDL_Rect dst = {(int)x - tw / 2, (int)y - th / 2, tw, th};
     SDL_RenderCopy(r, tex, NULL, &dst);
     SDL_DestroyTexture(tex);
 }
@@ -658,7 +658,7 @@ void gui_run(const char *game_name, const LotteryInfo *info)
     state.pick_interval = 1.5f; /* seconds between starting new glides */
 
     /* Initialize drand48() with seed based on current time */
-    srand48((unsigned) time(NULL));
+    srand48((unsigned)time(NULL));
 
     init_drum(&state.main_drum, info->main_max, MAIN_DRUM_X, MAIN_DRUM_Y, MAIN_DRUM_R, 1);
     init_drum(&state.extra_drum, info->extra_max, EXTRA_DRUM_X, EXTRA_DRUM_Y, EXTRA_DRUM_R, 0);

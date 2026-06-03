@@ -33,7 +33,7 @@ static uint64_t get_time_us(void)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    return (uint64_t) tv.tv_sec * 1000000 + (uint64_t) tv.tv_usec;
+    return (uint64_t)tv.tv_sec * 1000000 + (uint64_t)tv.tv_usec;
 }
 
 /**
@@ -52,8 +52,8 @@ static long get_memory_kb(void)
  */
 static void benchmark_callback(DrawEvent event, const LotteryResult *result)
 {
-    (void) event;
-    (void) result;
+    (void)event;
+    (void)result;
 }
 
 /**
@@ -164,7 +164,7 @@ static double benchmark_seed_generation(int iterations)
     for (int i = 0; i < iterations; i++)
     {
         volatile uint64_t seed = generate_strong_seed();
-        (void) seed;
+        (void)seed;
     }
 
     uint64_t end = get_time_us();

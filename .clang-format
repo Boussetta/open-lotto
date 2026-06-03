@@ -6,5 +6,5 @@ IndentWidth: 4
 UseTab: Never
 AllowShortFunctionsOnASingleLine: Inline
 BreakBeforeBraces: Allman
-SpaceAfterCStyleCast: true
+SpaceAfterCStyleCast: false
 

@@ -113,9 +113,9 @@ static uint32_t rng_next(void)
  */
 static int rng_int(int min, int max)
 {
-    uint32_t range = (uint32_t) (max - min + 1);
+    uint32_t range = (uint32_t)(max - min + 1);
     uint32_t val = rng_next();
-    return min + (int) (val % range);
+    return min + (int)(val % range);
 }
 
 /**
@@ -214,7 +214,7 @@ generate_draw(int main_count, int main_min, int main_max, int extra_count, int e
 
     /* Initialize PCG32 RNG with a cryptographically strong seed */
     uint64_t seed = rng_init();
-    log_info("RNG Seed: 0x%016lx", (unsigned long) seed);
+    log_info("RNG Seed: 0x%016lx", (unsigned long)seed);
 
     /* Fire RNG initialization callback for animation */
     if (cb)

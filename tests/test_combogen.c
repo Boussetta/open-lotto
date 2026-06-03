@@ -32,8 +32,8 @@ static int in_range(const int *arr, int count, int min, int max)
 /* Dummy callback for tests */
 static void dummy_callback(DrawEvent event, const LotteryResult *result)
 {
-    (void) event;
-    (void) result;
+    (void)event;
+    (void)result;
 }
 
 int main(void)

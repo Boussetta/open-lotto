@@ -70,7 +70,7 @@ static void scan_plugin_directory(PluginRegistry *registry, const char *dirpath)
 
         char plugin_path[MAX_PATH];
         int len = snprintf(plugin_path, sizeof(plugin_path), "%s/%s", dirpath, entry->d_name);
-        if (len < 0 || len >= (int) sizeof(plugin_path))
+        if (len < 0 || len >= (int)sizeof(plugin_path))
         {
             log_warn("Plugin path too long, skipping: %s/%s", dirpath, entry->d_name);
             continue;
