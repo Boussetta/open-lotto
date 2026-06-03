@@ -226,7 +226,7 @@ static void print_result(const char *name, double value, const char *unit)
  * @param argv - Arguments: [iterations] [verbose]
  * @return 0 on success
  */
-int main(int argc, char *argv[])
+int main(int argc, const char *argv[])
 {
     int iterations = 100000;
 

@@ -186,7 +186,7 @@ static void update_ball_physics(Drum *d, float dt)
         if (ball_dist > 0.0001f)
         {
             /* Surface velocity tangent to drum at ball's position */
-            float norm = (ball_dist > 0.0001f) ? 1.0f / ball_dist : 1.0f;
+            float norm = 1.0f / ball_dist;
             float nx = bx * norm; /* radial normal (outward) */
             float ny = by * norm;
             float tx = -ny; /* tangent (perpendicular, CCW) */
