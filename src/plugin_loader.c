@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <dlfcn.h>
 
 #include "plugin_loader.h"
@@ -14,12 +15,13 @@ LoadedPlugin *load_plugin(const char *path)
         return NULL;
     }
 
+    /* Use intermediate void* to avoid pedantic pointer-to-function conversion warning */
     const LotteryInfo* (*get_info)(void) =
-        (const LotteryInfo* (*)(void)) dlsym(handle, "plugin_get_info");
+        (const LotteryInfo* (*)(void)) (uintptr_t) dlsym(handle, "plugin_get_info");
     const char* (*get_name)(void) =
-        (const char* (*)(void)) dlsym(handle, "plugin_get_name");
+        (const char* (*)(void)) (uintptr_t) dlsym(handle, "plugin_get_name");
     void (*draw_fn)(LotteryResult *, draw_event_callback) =
-        (void (*)(LotteryResult *, draw_event_callback)) dlsym(handle, "plugin_draw");
+        (void (*)(LotteryResult *, draw_event_callback)) (uintptr_t) dlsym(handle, "plugin_draw");
 
     if (!get_info || !get_name || !draw_fn) {
         fprintf(stderr, "Plugin %s missing required symbols\n", path);

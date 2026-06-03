@@ -19,15 +19,6 @@ static const char *SPINNER_FRAMES[] = {
 };
 static const int SPINNER_COUNT = 10;
 
-static void spinner_once(void)
-{
-    for (int i = 0; i < SPINNER_COUNT; i++) {
-        printf("\r%s ", SPINNER_FRAMES[i]);
-        fflush(stdout);
-        usleep(30000);
-    }
-}
-
 /* ---------------------------------------------------------
    ANIMATE NUMBER REVEAL (same line, spinner-only)
    --------------------------------------------------------- */
@@ -119,46 +110,6 @@ static void silent_callback(DrawEvent event, const LotteryResult *res)
 {
     (void)event;
     (void)res;
-}
-
-/* ---------------------------------------------------------
-   TEXT ANIMATION CALLBACK (legacy)
-   --------------------------------------------------------- */
-static void animate_callback(DrawEvent event, const LotteryResult *res)
-{
-    switch (event) {
-    case EVENT_RNG_INITIALIZED:
-        printf("RNG initialized...\n");
-        break;
-    case EVENT_POOL_INITIALIZED:
-        printf("Pool initialized...\n");
-        break;
-    case EVENT_AFTER_SHUFFLE:
-        printf("Numbers shuffled...\n");
-        break;
-    case EVENT_AFTER_PICK:
-        if (res) {
-            printf("Main numbers picked: ");
-            for (int i = 0; i < res->main_count; i++)
-                printf("%d ", res->main_numbers[i]);
-            printf("\n");
-        }
-        break;
-    case EVENT_DRAW_COMPLETE:
-        if (res) {
-            printf("Final draw:\n  Main: ");
-            for (int i = 0; i < res->main_count; i++)
-                printf("%d ", res->main_numbers[i]);
-            printf("\n  Extra: ");
-            for (int i = 0; i < res->extra_count; i++)
-                printf("%d ", res->extra_numbers[i]);
-            printf("\n");
-        }
-        break;
-    default:
-        break;
-    }
-    usleep(300000);
 }
 
 /* ---------------------------------------------------------
