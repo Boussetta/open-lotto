@@ -91,15 +91,18 @@ void lottery_generate(LotteryResult *out, draw_event_callback cb);
 
 Plugins are compiled as shared libraries and placed in:
 
+```
 build/plugins/
+```
 
 The loader extracts the game name from the plugin metadata, not from the .so filename.
 
 Example plugin structure
-
+```
 plugins/
 ├── lotto.c
 └── eurojackpot.c
+```
 
 🔧 RNG Architecture
 
@@ -132,7 +135,7 @@ No repetition within a draw
 Fast performance
 
 📁 Project Structure
-
+```
 open-lotto/
 ├── include/
 │   ├── combogen.h
@@ -151,6 +154,7 @@ open-lotto/
 │   └── eurojackpot.c
 ├── CMakeLists.txt
 └── README.md
+```
 
 📜 License
 
@@ -163,3 +167,12 @@ WissemEmbedded Linux Developer & Firmware ArchitectSaxony, Germany
 🤝 Contributions
 
 Contributions, new lottery plugins, and improvements are welcome.Feel free to open issues or submit pull requests.
+
+❤️ Support the Project
+Open‑Lotto is a passion‑driven project that I build and maintain in my free time. If you find it useful, enjoy the transparency behind the engine, or want to help accelerate development, your support makes a real difference.
+
+https://github.com/sponsors/Boussetta
+
+Your contribution helps me dedicate more time to improving the system, adding new features, and keeping the project open for everyone.
+
+Thank you for supporting independent open‑source work.
