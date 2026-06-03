@@ -23,6 +23,7 @@ include_directories(
 
 add_executable(open-lotto
     src/main.c
+    src/export.c
     src/combogen.c
     src/plugin_loader.c
     src/plugin_registry.c

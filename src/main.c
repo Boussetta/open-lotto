@@ -1,3 +1,4 @@
+#include "export.h"
 #include "gui_sdl.h"
 #include "log.h"
 #include "plugin_loader.h"
@@ -161,9 +162,10 @@ static LogLevel parse_log_level(const char *level_str)
    --------------------------------------------------------- */
 static void print_usage(const char *prog)
 {
-    fprintf(stderr,
+        fprintf(stderr,
             "Usage:\n"
             "  %s --game NAME [--draws N] [--animate] [--gui] [--verbose LEVEL]\n"
+            "  %s --game NAME [--draws N] [--export csv|json] [--output FILE] [--verbose LEVEL]\n"
             "  %s --list-games\n"
             "\n"
             "Log Levels (for --verbose):\n"
@@ -174,11 +176,13 @@ static void print_usage(const char *prog)
             "  %s --game \"Lotto 6aus49\" --draws 10\n"
             "  %s --game \"Lotto 6aus49\" --animate\n"
             "  %s --game \"EuroJackpot\" --gui\n"
+            "  %s --game \"Lotto 6aus49\" --draws 100 --export csv --output results.csv\n"
+            "  %s --game \"Lotto 6aus49\" --draws 50 --export json --output results.json\n"
             "  %s --game \"Lotto 6aus49\" --verbose DEBUG\n"
             "\n"
             "Environment Variables:\n"
             "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n",
-            prog, prog, prog, prog, prog, prog, prog);
+            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 /* ---------------------------------------------------------
@@ -226,6 +230,8 @@ int main(int argc, char **argv)
     int gui = 0;
     int draws = 1;
     LogLevel log_level = LOG_INFO;
+    const char *export_format = NULL;
+    const char *export_filename = NULL;
 
     /* ---------------------------------------------------------
        Parse arguments (first pass: collect all options)
@@ -271,12 +277,55 @@ int main(int argc, char **argv)
 
             draws = (int) val;
         }
+        else if (strcmp(argv[i], "--export") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--export requires a format (csv or json).\n");
+                return 1;
+            }
+
+            export_format = argv[++i];
+            if (strcmp(export_format, "csv") != 0 && strcmp(export_format, "json") != 0)
+            {
+                fprintf(stderr, "Error: Invalid export format '%s' (use 'csv' or 'json')\n", export_format);
+                return 1;
+            }
+        }
+        else if (strcmp(argv[i], "--output") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--output requires a filename.\n");
+                return 1;
+            }
+
+            export_filename = argv[++i];
+        }
     }
 
     /* Validate option combinations */
     if (animate && gui)
     {
         fprintf(stderr, "Cannot use --animate and --gui together.\n");
+        return 1;
+    }
+
+    if (export_format && gui)
+    {
+        fprintf(stderr, "Cannot use --export and --gui together.\n");
+        return 1;
+    }
+
+    if (export_format && animate)
+    {
+        fprintf(stderr, "Cannot use --export and --animate together.\n");
+        return 1;
+    }
+
+    if (export_format && !export_filename)
+    {
+        fprintf(stderr, "--export requires --output filename.\n");
         return 1;
     }
 
@@ -320,25 +369,62 @@ int main(int argc, char **argv)
        CLI MODE (single or multiple draws)
        --------------------------------------------------------- */
     log_debug("Running CLI mode with %d draw(s)", draws);
-    for (int i = 0; i < draws; i++)
+
+    if (export_format)
     {
-
-        LotteryResult result;
-
-        /* generate silently */
-        selected->draw(&result, silent_callback);
-
-        /* animated reveal */
-        if (animate)
+        /* Export mode: collect all results then write to file */
+        LotteryResult *results = (LotteryResult *) malloc(sizeof(LotteryResult) * draws);
+        if (!results)
         {
-            printf("Draw %d:\n", i + 1);
-            animate_numbers(&selected->info, &result);
-            printf("\n");
-            continue;
+            log_error("Failed to allocate memory for results");
+            registry_destroy(registry);
+            return 1;
         }
 
-        /* normal CLI output */
-        print_draw_result(selected->name, i + 1, &result);
+        for (int i = 0; i < draws; i++)
+        {
+            selected->draw(&results[i], silent_callback);
+        }
+
+        /* Export to file based on format */
+        int export_result = 0;
+        if (strcmp(export_format, "csv") == 0)
+        {
+            export_result = export_results_csv_file(export_filename, selected->name, results, draws);
+        }
+        else if (strcmp(export_format, "json") == 0)
+        {
+            export_result = export_results_json_file(export_filename, selected->name, results, draws);
+        }
+
+        free(results);
+
+        if (export_result != 0)
+        {
+            log_error("Export failed");
+            registry_destroy(registry);
+            return 1;
+        }
+    }
+    else
+    {
+        /* Normal CLI mode: print as we go */
+        for (int i = 0; i < draws; i++)
+        {
+            LotteryResult result;
+            selected->draw(&result, silent_callback);
+
+            if (animate)
+            {
+                printf("Draw %d:\n", i + 1);
+                animate_numbers(&selected->info, &result);
+                printf("\n");
+            }
+            else
+            {
+                print_draw_result(selected->name, i + 1, &result);
+            }
+        }
     }
 
     log_debug("Cleaning up resources");
