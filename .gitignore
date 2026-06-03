@@ -1,0 +1,14 @@
+build/
+*.o
+*.so
+*.a
+*.swp
+*.swo
+*.log
+*.tmp
+.DS_Store
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+compile_commands.json
+
