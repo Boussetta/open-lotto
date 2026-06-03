@@ -127,24 +127,49 @@ static void silent_callback(DrawEvent event, const LotteryResult *res)
 }
 
 /* ---------------------------------------------------------
+   PARSE LOG LEVEL FROM STRING
+   --------------------------------------------------------- */
+static LogLevel parse_log_level(const char *level_str)
+{
+    if (!level_str)
+        return LOG_INFO;
+    
+    if (strcasecmp(level_str, "ERROR") == 0)
+        return LOG_ERROR;
+    if (strcasecmp(level_str, "WARN") == 0)
+        return LOG_WARN;
+    if (strcasecmp(level_str, "INFO") == 0)
+        return LOG_INFO;
+    if (strcasecmp(level_str, "DEBUG") == 0)
+        return LOG_DEBUG;
+    
+    fprintf(stderr, "Invalid log level: %s (use ERROR, WARN, INFO, or DEBUG)\n", level_str);
+    return LOG_INFO;
+}
+
+/* ---------------------------------------------------------
    Usage
    --------------------------------------------------------- */
 static void print_usage(const char *prog)
 {
     fprintf(stderr,
         "Usage:\n"
-        "  %s --game NAME [--draws N] [--animate] [--gui]\n"
+        "  %s --game NAME [--draws N] [--animate] [--gui] [--verbose LEVEL]\n"
         "  %s --list-games\n"
+        "\n"
+        "Log Levels (for --verbose):\n"
+        "  ERROR, WARN, INFO (default), DEBUG\n"
         "\n"
         "Examples:\n"
         "  %s --game \"Lotto 6aus49\"\n"
         "  %s --game \"Lotto 6aus49\" --draws 10\n"
         "  %s --game \"Lotto 6aus49\" --animate\n"
         "  %s --game \"EuroJackpot\" --gui\n"
+        "  %s --game \"Lotto 6aus49\" --verbose DEBUG\n"
         "\n"
         "Environment Variables:\n"
         "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n",
-        prog, prog, prog, prog, prog, prog
+        prog, prog, prog, prog, prog, prog, prog
     );
 }
 
@@ -175,6 +200,7 @@ int main(int argc, char **argv)
     int animate = 0;
     int gui = 0;
     int draws = 1;
+    LogLevel log_level = LOG_INFO;
 
     /* ---------------------------------------------------------
        Parse arguments
@@ -185,6 +211,13 @@ int main(int argc, char **argv)
         }
         else if (strcmp(argv[i], "--gui") == 0) {
             gui = 1;
+        }
+        else if (strcmp(argv[i], "--verbose") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "--verbose requires a log level (ERROR, WARN, INFO, DEBUG).\n");
+                return 1;
+            }
+            log_level = parse_log_level(argv[++i]);
         }
         else if (strcmp(argv[i], "--draws") == 0) {
             if (i + 1 >= argc) {
@@ -212,12 +245,16 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    /* Set the log level early so all subsequent operations are logged */
+    log_set_level(log_level);
+    log_debug("Starting open-lotto with log level set to DEBUG");
+
     /* ---------------------------------------------------------
        Discover and load plugins
        --------------------------------------------------------- */
     PluginRegistry *registry = registry_create();
     if (!registry) {
-        fprintf(stderr, "Failed to create plugin registry\n");
+        log_error("Failed to create plugin registry");
         return 1;
     }
 
@@ -225,8 +262,8 @@ int main(int argc, char **argv)
 
     LoadedPlugin *selected = registry_find_plugin(registry, game_name);
     if (!selected) {
-        fprintf(stderr, "Game '%s' not found.\n", game_name);
-        fprintf(stderr, "Use --list-games to see available games.\n");
+        log_error("Game '%s' not found", game_name);
+        log_info("Use --list-games to see available games");
         registry_destroy(registry);
         return 1;
     }

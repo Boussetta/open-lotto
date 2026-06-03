@@ -6,12 +6,15 @@
 
 #include "plugin_loader.h"
 #include "lottery_plugin.h"
+#include "log.h"
 
 LoadedPlugin *load_plugin(const char *path)
 {
+    log_debug("Attempting to load plugin from: %s", path);
+    
     void *handle = dlopen(path, RTLD_NOW);
     if (!handle) {
-        fprintf(stderr, "Failed to load plugin %s: %s\n", path, dlerror());
+        log_error("Failed to load plugin %s: %s", path, dlerror());
         return NULL;
     }
 
@@ -24,14 +27,14 @@ LoadedPlugin *load_plugin(const char *path)
         (void (*)(LotteryResult *, draw_event_callback)) (uintptr_t) dlsym(handle, "plugin_draw");
 
     if (!get_info || !get_name || !draw_fn) {
-        fprintf(stderr, "Plugin %s missing required symbols\n", path);
+        log_error("Plugin %s missing required symbols (get_info, get_name, or draw)", path);
         dlclose(handle);
         return NULL;
     }
 
     LoadedPlugin *p = malloc(sizeof(LoadedPlugin));
     if (!p) {
-        fprintf(stderr, "Out of memory loading plugin %s\n", path);
+        log_error("Out of memory loading plugin %s", path);
         dlclose(handle);
         return NULL;
     }
@@ -42,7 +45,7 @@ LoadedPlugin *load_plugin(const char *path)
     p->draw = draw_fn;
     p->handle = handle;
 
-    printf("Loaded plugin: %s\n", p->name);
+    log_info("Successfully loaded plugin: %s", p->name);
     return p;
 }
 

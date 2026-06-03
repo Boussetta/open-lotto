@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <sys/random.h>
+#include "log.h"
 
 #if defined(__x86_64__)
 static inline uint64_t rdtsc(void)
@@ -24,19 +25,25 @@ uint64_t generate_strong_seed(void)
 {
     uint64_t seed = 0;
 
-    /* 1) Try Linux getrandom() */
-    if (getrandom(&seed, sizeof(seed), 0) == sizeof(seed))
+    /* 1) Try Linux getrandom() - Best option */
+    log_debug("Attempting to get entropy from getrandom()");
+    if (getrandom(&seed, sizeof(seed), 0) == sizeof(seed)) {
+        log_debug("Successfully obtained entropy from getrandom()");
         return seed ^ rdtsc();
+    }
 
     /* 2) Fallback: /dev/urandom */
+    log_debug("getrandom() failed, falling back to /dev/urandom");
     int fd = open("/dev/urandom", O_RDONLY);
     if (fd >= 0) {
         read(fd, &seed, sizeof(seed));
         close(fd);
+        log_debug("Successfully obtained entropy from /dev/urandom");
         return seed ^ rdtsc();
     }
 
     /* 3) Final fallback: time + jitter */
+    log_warn("Both getrandom() and /dev/urandom failed, using time-based fallback");
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
 
