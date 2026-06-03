@@ -182,7 +182,7 @@ int main(int argc, char **argv)
     if (argc >= 2 && strcmp(argv[1], "--list-games") == 0) {
         PluginRegistry *registry = registry_create();
         if (!registry) {
-            fprintf(stderr, "Failed to create plugin registry\n");
+            log_error("Failed to create plugin registry");
             return 1;
         }
         registry_discover_plugins(registry);
@@ -203,7 +203,7 @@ int main(int argc, char **argv)
     LogLevel log_level = LOG_INFO;
 
     /* ---------------------------------------------------------
-       Parse arguments
+       Parse arguments (first pass: collect all options)
        --------------------------------------------------------- */
     for (int i = 3; i < argc; i++) {
         if (strcmp(argv[i], "--animate") == 0) {
@@ -240,6 +240,7 @@ int main(int argc, char **argv)
         }
     }
 
+    /* Validate option combinations */
     if (animate && gui) {
         fprintf(stderr, "Cannot use --animate and --gui together.\n");
         return 1;
@@ -272,6 +273,7 @@ int main(int argc, char **argv)
        GUI MODE (always 1 draw)
        --------------------------------------------------------- */
     if (gui) {
+        log_debug("Launching GUI mode");
         gui_run(selected->name, &selected->info);
         registry_destroy(registry);
         return 0;
@@ -280,6 +282,7 @@ int main(int argc, char **argv)
     /* ---------------------------------------------------------
        CLI MODE (single or multiple draws)
        --------------------------------------------------------- */
+    log_debug("Running CLI mode with %d draw(s)", draws);
     for (int i = 0; i < draws; i++) {
 
         LotteryResult result;
@@ -310,6 +313,7 @@ int main(int argc, char **argv)
         printf("\n\n");
     }
 
+    log_debug("Cleaning up resources");
     registry_destroy(registry);
     return 0;
 }
