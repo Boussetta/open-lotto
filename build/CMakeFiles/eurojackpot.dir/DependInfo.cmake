@@ -9,8 +9,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/wissem/workspace/open-lotto/plugins/eurojackpot.c" "CMakeFiles/eurojackpot.dir/plugins/eurojackpot.c.o" "gcc" "CMakeFiles/eurojackpot.dir/plugins/eurojackpot.c.o.d"
-  "/home/wissem/workspace/open-lotto/src/combogen.c" "CMakeFiles/eurojackpot.dir/src/combogen.c.o" "gcc" "CMakeFiles/eurojackpot.dir/src/combogen.c.o.d"
-  "/home/wissem/workspace/open-lotto/src/random.c" "CMakeFiles/eurojackpot.dir/src/random.c.o" "gcc" "CMakeFiles/eurojackpot.dir/src/random.c.o.d"
+  "" "plugins/libeurojackpot.so" "gcc" "CMakeFiles/eurojackpot.dir/link.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

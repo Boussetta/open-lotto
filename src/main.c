@@ -1,21 +1,17 @@
 #include <stdio.h>
 #include <string.h>
-#include <stdint.h>
-#include <time.h>
-#include <unistd.h>
+#include <strings.h>
 #include <stdlib.h>
-
-#include "log.h"
+#include <unistd.h>
+#include <time.h>
+#include <stdint.h>
 #include "plugin_loader.h"
-#include "combogen.h"
+#include "gui_sdl.h"
+#include "random_seed.h"
 
-static void print_usage(void) {
-    printf("Usage:\n");
-    printf("  open-lotto --list-games\n");
-    printf("  open-lotto --game <name> [--draws N] [--animate]\n");
-}
-
-/* Spinner frames */
+/* ---------------------------------------------------------
+   SPINNER ANIMATION
+   --------------------------------------------------------- */
 static const char *SPINNER_FRAMES[] = {
     "⠋", "⠙", "⠹", "⠸",
     "⠼", "⠴", "⠦", "⠧",
@@ -23,160 +19,283 @@ static const char *SPINNER_FRAMES[] = {
 };
 static const int SPINNER_COUNT = 10;
 
-static void animate_numbers(const LotteryInfo *info, const LotteryResult *result) {
+static void spinner_once(void)
+{
+    for (int i = 0; i < SPINNER_COUNT; i++) {
+        printf("\r%s ", SPINNER_FRAMES[i]);
+        fflush(stdout);
+        usleep(30000);
+    }
+}
+
+/* ---------------------------------------------------------
+   ANIMATE NUMBER REVEAL (same line, spinner-only)
+   --------------------------------------------------------- */
+static void animate_numbers(const LotteryInfo *info, const LotteryResult *result)
+{
     printf("Drawing numbers…\n\n");
 
-    printf("Main: ");
-    fflush(stdout);
+    printf("Lottozahlen: ");
 
+    /* MAIN NUMBERS */
     for (int i = 0; i < info->main_count; i++) {
+
+        /* spinner at the correct position */
         for (int f = 0; f < SPINNER_COUNT; f++) {
-            printf("\rMain: ");
-            for (int j = 0; j < i; j++) {
-                printf("\033[32m%d\033[0m ", result->main_numbers[j]);
-            }
+            printf("\rLottozahlen: ");
+
+            /* already revealed numbers */
+            for (int j = 0; j < i; j++)
+                printf("%d ", result->main_numbers[j]);
+
+            /* spinner in place of next number */
             printf("%s ", SPINNER_FRAMES[f]);
+
             fflush(stdout);
             usleep(30000);
         }
 
-        printf("\rMain: ");
-        for (int j = 0; j < i; j++) {
-            printf("\033[32m%d\033[0m ", result->main_numbers[j]);
-        }
-        printf("\033[32m%d\033[0m ", result->main_numbers[i]);
+        /* reveal number */
+        printf("\rLottozahlen: ");
+        for (int j = 0; j < i; j++)
+            printf("%d ", result->main_numbers[j]);
+
+        printf("%d ", result->main_numbers[i]);
         fflush(stdout);
         usleep(150000);
     }
 
-    printf("\n");
-
+    /* EXTRA NUMBERS (Superzahl) */
     if (info->extra_count > 0) {
-        printf("Extra: ");
-        fflush(stdout);
+
+        printf("+ ");
 
         for (int i = 0; i < info->extra_count; i++) {
+
             for (int f = 0; f < SPINNER_COUNT; f++) {
-                printf("\rExtra: ");
-                for (int j = 0; j < i; j++) {
-                    printf("\033[33m%d\033[0m ", result->extra_numbers[j]);
-                }
+                printf("\rLottozahlen: ");
+
+                /* main numbers */
+                for (int j = 0; j < info->main_count; j++)
+                    printf("%d ", result->main_numbers[j]);
+
+                printf("+ ");
+
+                /* already revealed extras */
+                for (int j = 0; j < i; j++)
+                    printf("%d ", result->extra_numbers[j]);
+
+                /* spinner */
                 printf("%s ", SPINNER_FRAMES[f]);
+
                 fflush(stdout);
                 usleep(30000);
             }
 
-            printf("\rExtra: ");
-            for (int j = 0; j < i; j++) {
-                printf("\033[33m%d\033[0m ", result->extra_numbers[j]);
-            }
-            printf("\033[33m%d\033[0m ", result->extra_numbers[i]);
+            /* reveal extra number */
+            printf("\rLottozahlen: ");
+            for (int j = 0; j < info->main_count; j++)
+                printf("%d ", result->main_numbers[j]);
+
+            printf("+ ");
+
+            for (int j = 0; j < i; j++)
+                printf("%d ", result->extra_numbers[j]);
+
+            printf("%d ", result->extra_numbers[i]);
             fflush(stdout);
             usleep(150000);
         }
-
-        printf("\n");
     }
 
-    printf("\n");
+    printf("\n\n");
 }
 
-static void event_handler(
-    draw_event_type event,
-    const int *pool, int pool_size,
-    const int *out,  int out_size,
-    uint64_t seed
-) {
+
+/* ---------------------------------------------------------
+   SILENT CALLBACK FOR ANIMATION MODE
+   --------------------------------------------------------- */
+static void silent_callback(DrawEvent event, const LotteryResult *res)
+{
+    (void)event;
+    (void)res;
+}
+
+/* ---------------------------------------------------------
+   TEXT ANIMATION CALLBACK (legacy)
+   --------------------------------------------------------- */
+static void animate_callback(DrawEvent event, const LotteryResult *res)
+{
     switch (event) {
-        case EVENT_RNG_INITIALIZED:
-            log_info("RNG initialized with seed %llu",
-                     (unsigned long long)seed);
-            break;
-        case EVENT_POOL_INITIALIZED:
-            log_debug("Pool initialized (%d numbers)", pool_size);
-            break;
-        case EVENT_AFTER_SHUFFLE:
-            log_debug("Pool shuffled");
-            break;
-        case EVENT_AFTER_PICK:
-            log_debug("Picked %d numbers", out_size);
-            break;
-        case EVENT_DRAW_COMPLETE:
-            log_info("Draw complete");
-            break;
+    case EVENT_RNG_INITIALIZED:
+        printf("RNG initialized...\n");
+        break;
+    case EVENT_POOL_INITIALIZED:
+        printf("Pool initialized...\n");
+        break;
+    case EVENT_AFTER_SHUFFLE:
+        printf("Numbers shuffled...\n");
+        break;
+    case EVENT_AFTER_PICK:
+        if (res) {
+            printf("Main numbers picked: ");
+            for (int i = 0; i < res->main_count; i++)
+                printf("%d ", res->main_numbers[i]);
+            printf("\n");
+        }
+        break;
+    case EVENT_DRAW_COMPLETE:
+        if (res) {
+            printf("Final draw:\n  Main: ");
+            for (int i = 0; i < res->main_count; i++)
+                printf("%d ", res->main_numbers[i]);
+            printf("\n  Extra: ");
+            for (int i = 0; i < res->extra_count; i++)
+                printf("%d ", res->extra_numbers[i]);
+            printf("\n");
+        }
+        break;
+    default:
+        break;
     }
+    usleep(300000);
 }
 
-int main(int argc, char **argv) {
-    log_enable_file_output("open-lotto.log");
-    log_set_level(LOG_INFO);
+/* ---------------------------------------------------------
+   MATCH GAME NAME
+   --------------------------------------------------------- */
+static int match_game(const char *requested, const char *plugin_name)
+{
+    return strcasecmp(requested, plugin_name) == 0;
+}
 
-    PluginRegistry reg = plugin_loader_init("plugins");
+/* ---------------------------------------------------------
+   Usage
+   --------------------------------------------------------- */
+static void print_usage(const char *prog)
+{
+    fprintf(stderr,
+        "Usage:\n"
+        "  %s --game NAME [--draws N] [--animate] [--gui]\n"
+        "\n"
+        "Examples:\n"
+        "  %s --game \"Lotto 6aus49\"\n"
+        "  %s --game \"Lotto 6aus49\" --draws 10\n"
+        "  %s --game \"Lotto 6aus49\" --animate\n"
+        "  %s --game \"EuroJackpot\" --gui\n",
+        prog, prog, prog, prog, prog
+    );
+}
 
+/* ---------------------------------------------------------
+   MAIN
+   --------------------------------------------------------- */
+int main(int argc, char **argv)
+{
+    if (argc < 3 || strcmp(argv[1], "--game") != 0) {
+        print_usage(argv[0]);
+        return 1;
+    }
+
+    const char *game_name = argv[2];
     int animate = 0;
-    int draws = 1;   // default
+    int gui = 0;
+    int draws = 1;
 
-    /* Parse flags */
-    for (int i = 1; i < argc; i++) {
+    /* ---------------------------------------------------------
+       Parse arguments
+       --------------------------------------------------------- */
+    for (int i = 3; i < argc; i++) {
         if (strcmp(argv[i], "--animate") == 0) {
             animate = 1;
-        } else if (strcmp(argv[i], "--draws") == 0 && i + 1 < argc) {
+        }
+        else if (strcmp(argv[i], "--gui") == 0) {
+            gui = 1;
+        }
+        else if (strcmp(argv[i], "--draws") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "--draws requires a number.\n");
+                return 1;
+            }
             draws = atoi(argv[++i]);
             if (draws < 1) draws = 1;
         }
     }
 
-    if (argc == 2 && strcmp(argv[1], "--list-games") == 0) {
-        plugin_loader_list(&reg);
-        plugin_loader_free(&reg);
+    if (animate && gui) {
+        fprintf(stderr, "Cannot use --animate and --gui together.\n");
+        return 1;
+    }
+
+    /* ---------------------------------------------------------
+       Load plugins
+       --------------------------------------------------------- */
+    const char *plugin_paths[] = {
+        "./plugins/liblotto.so",
+        "./plugins/libeurojackpot.so"
+    };
+
+    LoadedPlugin *selected = NULL;
+
+    for (int i = 0; i < 2; i++) {
+        LoadedPlugin *p = load_plugin(plugin_paths[i]);
+        if (!p)
+            continue;
+
+        if (match_game(game_name, p->name)) {
+            selected = p;
+            break;
+        }
+        unload_plugin(p);
+    }
+
+    if (!selected) {
+        fprintf(stderr, "Game '%s' not found.\n", game_name);
+        return 1;
+    }
+
+    /* ---------------------------------------------------------
+       GUI MODE (always 1 draw)
+       --------------------------------------------------------- */
+    if (gui) {
+        gui_run(selected->name, &selected->info);
+        unload_plugin(selected);
         return 0;
     }
 
-    if (argc >= 3 && strcmp(argv[1], "--game") == 0) {
-        const char *name = argv[2];
-        const LoadedPlugin *p = plugin_loader_find(&reg, name);
+    /* ---------------------------------------------------------
+       CLI MODE (single or multiple draws)
+       --------------------------------------------------------- */
+    for (int i = 0; i < draws; i++) {
 
-        if (!p) {
-            printf("Game '%s' not found.\n", name);
-            plugin_loader_list(&reg);
-            plugin_loader_free(&reg);
-            return 1;
+        LotteryResult result;
+
+        /* generate silently */
+        selected->draw(&result, silent_callback);
+
+        /* animated reveal */
+        if (animate) {
+            printf("Draw %d:\n", i + 1);
+            animate_numbers(&selected->info, &result);
+            printf("\n");
+            continue;
         }
 
-        printf("%s:\n\n", p->info->name);
+        /* normal CLI output */
+        printf("%s (Draw %d):\n", selected->name, i + 1);
+        printf("  Main: ");
+        for (int j = 0; j < result.main_count; j++)
+            printf("%d ", result.main_numbers[j]);
 
-        for (int d = 1; d <= draws; d++) {
-            LotteryResult result;
-            p->generate(&result, event_handler);
-
-            if (draws > 1) {
-                printf("=== Draw %d/%d ===\n", d, draws);
-            }
-
-            if (animate) {
-                animate_numbers(p->info, &result);
-            } else {
-                printf("Numbers: ");
-                for (int i = 0; i < p->info->main_count; i++)
-                    printf("%d ", result.main_numbers[i]);
-                printf("\n");
-
-                if (p->info->extra_count > 0) {
-                    printf("Extra:   ");
-                    for (int i = 0; i < p->info->extra_count; i++)
-                        printf("%d ", result.extra_numbers[i]);
-                    printf("\n");
-                }
-
-                printf("\n");
-            }
+        if (result.extra_count > 0) {
+            printf("+ ");
+            for (int j = 0; j < result.extra_count; j++)
+                printf("%d ", result.extra_numbers[j]);
         }
 
-        plugin_loader_free(&reg);
-        return 0;
+        printf("\n\n");
     }
 
-    print_usage();
-    plugin_loader_free(&reg);
-    return 1;
+    unload_plugin(selected);
+    return 0;
 }

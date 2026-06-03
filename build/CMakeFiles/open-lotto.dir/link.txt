@@ -1,1 +1,1 @@
-/usr/bin/gcc-11 -g "CMakeFiles/open-lotto.dir/src/main.c.o" "CMakeFiles/open-lotto.dir/src/plugin_loader.c.o" "CMakeFiles/open-lotto.dir/src/log.c.o" -o open-lotto 
+/usr/bin/cc -g -Wl,-export-dynamic -Wl,--dependency-file=CMakeFiles/open-lotto.dir/link.d "CMakeFiles/open-lotto.dir/src/main.c.o" "CMakeFiles/open-lotto.dir/src/combogen.c.o" "CMakeFiles/open-lotto.dir/src/plugin_loader.c.o" "CMakeFiles/open-lotto.dir/src/random_seed.c.o" "CMakeFiles/open-lotto.dir/src/gui_sdl.c.o" -o open-lotto  -lSDL2 -lSDL2_ttf -lSDL2 -ldl -lm -lSDL2_ttf -ldl -lm

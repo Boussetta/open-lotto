@@ -9,8 +9,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/home/wissem/workspace/open-lotto/plugins/lotto.c" "CMakeFiles/lotto.dir/plugins/lotto.c.o" "gcc" "CMakeFiles/lotto.dir/plugins/lotto.c.o.d"
-  "/home/wissem/workspace/open-lotto/src/combogen.c" "CMakeFiles/lotto.dir/src/combogen.c.o" "gcc" "CMakeFiles/lotto.dir/src/combogen.c.o.d"
-  "/home/wissem/workspace/open-lotto/src/random.c" "CMakeFiles/lotto.dir/src/random.c.o" "gcc" "CMakeFiles/lotto.dir/src/random.c.o.d"
+  "" "plugins/liblotto.so" "gcc" "CMakeFiles/lotto.dir/link.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

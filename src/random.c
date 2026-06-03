@@ -1,21 +1,43 @@
 #include "random.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <time.h>
+#include <unistd.h>
+#include <fcntl.h>
 
-static uint32_t pcg32_random(RandomGenerator *rng) {
-    uint64_t oldstate = rng->state;
-    rng->state = oldstate * 6364136223846793005ULL + (rng->inc | 1);
-    uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
-    uint32_t rot = oldstate >> 59u;
-    return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
+/* SplitMix64 for seeding */
+static uint64_t splitmix64(uint64_t *x)
+{
+    uint64_t z = (*x += 0x9e3779b97f4a7c15ULL);
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+    return z ^ (z >> 31);
 }
 
-static int pcg32_next_int(RandomGenerator *rng, int max) {
-    return pcg32_random(rng) % max;
+/* Try to get entropy from /dev/urandom */
+uint64_t rng_seed(void)
+{
+    uint64_t seed = 0;
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd >= 0) {
+        read(fd, &seed, sizeof(seed));
+        close(fd);
+        return seed;
+    }
+
+    /* fallback */
+    return (uint64_t)time(NULL) ^ (uint64_t)getpid();
 }
 
-RandomGenerator create_pcg32_rng(uint64_t seed) {
-    RandomGenerator rng;
-    rng.state = seed;
-    rng.inc = (seed << 1u) | 1u;
-    rng.next_int = pcg32_next_int;
-    return rng;
+/* xoshiro256** */
+uint64_t rng_next(uint64_t *state)
+{
+    uint64_t s = *state;
+
+    /* scramble state using splitmix64 */
+    s = splitmix64(&s);
+    *state = s;
+
+    /* return scrambled value */
+    return s;
 }

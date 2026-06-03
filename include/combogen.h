@@ -1,30 +1,47 @@
 #ifndef COMBOGEN_H
 #define COMBOGEN_H
 
-#include <stdint.h>
-
-struct LotteryInfo;
-struct LotteryResult;
+#include <stddef.h>
 
 typedef enum {
-    EVENT_RNG_INITIALIZED = 1,
+    EVENT_RNG_INITIALIZED = 0,
     EVENT_POOL_INITIALIZED,
     EVENT_AFTER_SHUFFLE,
     EVENT_AFTER_PICK,
     EVENT_DRAW_COMPLETE
-} draw_event_type;
+} DrawEvent;
+
+typedef struct {
+    int main_numbers[7];   // supports 6aus49 and EuroJackpot
+    int main_count;
+
+    int extra_numbers[3];  // supports EuroJackpot (2 extras)
+    int extra_count;
+} LotteryResult;
+
+typedef struct {
+    int main_count;
+    int main_min;
+    int main_max;
+    int extra_count;
+    int extra_min;
+    int extra_max;
+} LotteryInfo;
 
 typedef void (*draw_event_callback)(
-    draw_event_type event,
-    const int *pool, int pool_size,
-    const int *out,  int out_size,
-    uint64_t seed
+    DrawEvent event,
+    const LotteryResult *result
 );
 
 void generate_draw(
-    const struct LotteryInfo *info,
-    struct LotteryResult *result,
+    int main_count,
+    int main_min,
+    int main_max,
+    int extra_count,
+    int extra_min,
+    int extra_max,
+    LotteryResult *out,
     draw_event_callback cb
 );
 
-#endif
+#endif /* COMBOGEN_H */
