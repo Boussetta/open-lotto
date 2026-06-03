@@ -23,6 +23,7 @@ add_executable(open-lotto
     src/main.c
     src/combogen.c
     src/plugin_loader.c
+    src/plugin_registry.c
     src/random_seed.c
     src/gui_sdl.c
     src/log.c

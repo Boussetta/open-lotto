@@ -6,8 +6,10 @@
 #include <time.h>
 #include <stdint.h>
 #include "plugin_loader.h"
+#include "plugin_registry.h"
 #include "gui_sdl.h"
 #include "random_seed.h"
+#include "log.h"
 
 /* ---------------------------------------------------------
    SPINNER ANIMATION
@@ -113,14 +115,6 @@ static void silent_callback(DrawEvent event, const LotteryResult *res)
 }
 
 /* ---------------------------------------------------------
-   MATCH GAME NAME
-   --------------------------------------------------------- */
-static int match_game(const char *requested, const char *plugin_name)
-{
-    return strcasecmp(requested, plugin_name) == 0;
-}
-
-/* ---------------------------------------------------------
    Usage
    --------------------------------------------------------- */
 static void print_usage(const char *prog)
@@ -128,13 +122,17 @@ static void print_usage(const char *prog)
     fprintf(stderr,
         "Usage:\n"
         "  %s --game NAME [--draws N] [--animate] [--gui]\n"
+        "  %s --list-games\n"
         "\n"
         "Examples:\n"
         "  %s --game \"Lotto 6aus49\"\n"
         "  %s --game \"Lotto 6aus49\" --draws 10\n"
         "  %s --game \"Lotto 6aus49\" --animate\n"
-        "  %s --game \"EuroJackpot\" --gui\n",
-        prog, prog, prog, prog, prog
+        "  %s --game \"EuroJackpot\" --gui\n"
+        "\n"
+        "Environment Variables:\n"
+        "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n",
+        prog, prog, prog, prog, prog, prog
     );
 }
 
@@ -143,6 +141,19 @@ static void print_usage(const char *prog)
    --------------------------------------------------------- */
 int main(int argc, char **argv)
 {
+    /* Handle --list-games command */
+    if (argc >= 2 && strcmp(argv[1], "--list-games") == 0) {
+        PluginRegistry *registry = registry_create();
+        if (!registry) {
+            fprintf(stderr, "Failed to create plugin registry\n");
+            return 1;
+        }
+        registry_discover_plugins(registry);
+        registry_list_games(registry);
+        registry_destroy(registry);
+        return 0;
+    }
+
     if (argc < 3 || strcmp(argv[1], "--game") != 0) {
         print_usage(argv[0]);
         return 1;
@@ -179,29 +190,21 @@ int main(int argc, char **argv)
     }
 
     /* ---------------------------------------------------------
-       Load plugins
+       Discover and load plugins
        --------------------------------------------------------- */
-    const char *plugin_paths[] = {
-        "./plugins/liblotto.so",
-        "./plugins/libeurojackpot.so"
-    };
-
-    LoadedPlugin *selected = NULL;
-
-    for (int i = 0; i < 2; i++) {
-        LoadedPlugin *p = load_plugin(plugin_paths[i]);
-        if (!p)
-            continue;
-
-        if (match_game(game_name, p->name)) {
-            selected = p;
-            break;
-        }
-        unload_plugin(p);
+    PluginRegistry *registry = registry_create();
+    if (!registry) {
+        fprintf(stderr, "Failed to create plugin registry\n");
+        return 1;
     }
 
+    registry_discover_plugins(registry);
+
+    LoadedPlugin *selected = registry_find_plugin(registry, game_name);
     if (!selected) {
         fprintf(stderr, "Game '%s' not found.\n", game_name);
+        fprintf(stderr, "Use --list-games to see available games.\n");
+        registry_destroy(registry);
         return 1;
     }
 
@@ -210,7 +213,7 @@ int main(int argc, char **argv)
        --------------------------------------------------------- */
     if (gui) {
         gui_run(selected->name, &selected->info);
-        unload_plugin(selected);
+        registry_destroy(registry);
         return 0;
     }
 
@@ -247,6 +250,6 @@ int main(int argc, char **argv)
         printf("\n\n");
     }
 
-    unload_plugin(selected);
+    registry_destroy(registry);
     return 0;
 }
