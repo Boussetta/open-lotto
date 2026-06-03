@@ -94,7 +94,7 @@ static uint32_t rng_next(void)
     /* Output function: XOR-shift and rotate for whitening */
     uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
     uint32_t rot = oldstate >> 59u;
-    return (xorshifted >> rot) | (xorshifted << ((uint32_t) (-rot) & 31u));
+    return (xorshifted >> rot) | (xorshifted << ((32u - rot) & 31u));
 }
 
 /**
