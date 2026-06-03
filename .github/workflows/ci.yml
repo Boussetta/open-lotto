@@ -27,3 +27,51 @@ jobs:
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
+
+  sanitizers:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake gcc pkg-config libsdl2-dev libsdl2-ttf-dev
+
+      - name: Configure with ASan/UBSan
+        run: |
+          cmake -S . -B build-sanitizer \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=undefined -g"
+
+      - name: Build with sanitizers
+        run: cmake --build build-sanitizer --config Debug -j
+
+      - name: Run tests with sanitizers
+        run: ctest --test-dir build-sanitizer --output-on-failure
+        env:
+          ASAN_OPTIONS: "halt_on_error=1:exitcode=99"
+
+  static-analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+
+      - name: Run cppcheck
+        run: |
+          cppcheck --enable=all \
+            --suppress=missingIncludeSystem \
+            --suppress=missingInclude \
+            --suppress=unusedFunction \
+            --suppress=constParameterPointer \
+            --suppress=constVariablePointer \
+            --error-exitcode=1 \
+            src/ plugins/ include/ tests/

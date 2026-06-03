@@ -52,7 +52,7 @@ uint64_t generate_strong_seed(void)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
 
-    seed = ((uint64_t)ts.tv_sec << 32) ^
+    seed = (((uint64_t)ts.tv_sec) << 32) ^
            (uint64_t)ts.tv_nsec ^
            rdtsc();
 
