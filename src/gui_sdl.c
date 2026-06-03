@@ -30,6 +30,10 @@
 
 #define MAX_BALLS      64
 
+/* Physics constants for realistic ball motion */
+#define GRAVITY         500.0f  /* pixels/second² - downward acceleration */
+#define GROUND_FRICTION 0.85f   /* friction when ball hits bottom */
+
 typedef enum {
     BALL_IN_DRUM = 0,
     BALL_MOVING_TO_RESULT,
@@ -127,8 +131,10 @@ static void init_drum(Drum *d, int count, float cx, float cy, float radius, int 
         float r = frand_range(0.0f, radius - BALL_RADIUS - 5.0f);
         b->x = cx + cosf(angle) * r;
         b->y = cy + sinf(angle) * r;
-        b->vx = frand_range(-80.0f, 80.0f);
-        b->vy = frand_range(-80.0f, 80.0f);
+        /* Horizontal velocity: moderate random range */
+        b->vx = frand_range(-100.0f, 100.0f);
+        /* Vertical velocity: reduced since gravity will handle falling */
+        b->vy = frand_range(-30.0f, 30.0f);
         b->target_x = b->x;
         b->target_y = b->y;
         b->number = i + 1;
@@ -168,16 +174,23 @@ static void update_ball_physics(Drum *d, float dt)
         if (b->state != BALL_IN_DRUM)
             continue;
 
+        /* Apply gravity (realistic downward acceleration) */
+        b->vy += GRAVITY * dt;
+
+        /* Update position */
         b->x += b->vx * dt;
         b->y += b->vy * dt;
 
-        b->vx += frand_range(-20.0f, 20.0f) * dt;
-        b->vy += frand_range(-20.0f, 20.0f) * dt;
+        /* Random forces (reduced as energy decreases) */
+        b->vx += frand_range(-20.0f, 20.0f) * dt * energy;
+        b->vy += frand_range(-10.0f, 10.0f) * dt * energy;
 
+        /* Damping */
         float damp = 0.96f + 0.04f * energy;
         b->vx *= damp;
         b->vy *= damp;
 
+        /* Clamp ball to drum circle */
         clamp_to_circle(d->cx, d->cy, d->radius, &b->x, &b->y);
     }
 
