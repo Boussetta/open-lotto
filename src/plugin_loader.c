@@ -10,6 +10,12 @@
 
 LoadedPlugin *load_plugin(const char *path)
 {
+    /* Validate input path */
+    if (!path || path[0] == '\0') {
+        log_error("Invalid plugin path (NULL or empty)");
+        return NULL;
+    }
+
     log_debug("Attempting to load plugin from: %s", path);
     
     void *handle = dlopen(path, RTLD_NOW);
@@ -26,12 +32,45 @@ LoadedPlugin *load_plugin(const char *path)
     void (*draw_fn)(LotteryResult *, draw_event_callback) =
         (void (*)(LotteryResult *, draw_event_callback)) (uintptr_t) dlsym(handle, "plugin_draw");
 
+    /* Validate all function pointers were found */
     if (!get_info || !get_name || !draw_fn) {
         log_error("Plugin %s missing required symbols (get_info, get_name, or draw)", path);
         dlclose(handle);
         return NULL;
     }
 
+    /* Call get_info() and validate return value */
+    const LotteryInfo *info = get_info();
+    if (!info) {
+        log_error("Plugin %s get_info() returned NULL", path);
+        dlclose(handle);
+        return NULL;
+    }
+
+    /* Call get_name() and validate return value */
+    const char *name = get_name();
+    if (!name) {
+        log_error("Plugin %s get_name() returned NULL", path);
+        dlclose(handle);
+        return NULL;
+    }
+
+    /* Validate name is not empty and not too long */
+    if (name[0] == '\0') {
+        log_error("Plugin %s returned empty name", path);
+        dlclose(handle);
+        return NULL;
+    }
+
+    size_t name_len = strlen(name);
+    if (name_len >= sizeof(((LoadedPlugin *)0)->name)) {
+        log_error("Plugin %s name too long (%zu bytes, max %zu)", 
+                  path, name_len, sizeof(((LoadedPlugin *)0)->name) - 1);
+        dlclose(handle);
+        return NULL;
+    }
+
+    /* Allocate plugin structure */
     LoadedPlugin *p = malloc(sizeof(LoadedPlugin));
     if (!p) {
         log_error("Out of memory loading plugin %s", path);
@@ -39,9 +78,12 @@ LoadedPlugin *load_plugin(const char *path)
         return NULL;
     }
 
-    p->info = *get_info();
-    strncpy(p->name, get_name(), sizeof(p->name) - 1);
+    /* Safe copy of validated name */
+    strncpy(p->name, name, sizeof(p->name) - 1);
     p->name[sizeof(p->name) - 1] = '\0';
+
+    /* Store the validated info and function pointers */
+    p->info = *info;
     p->draw = draw_fn;
     p->handle = handle;
 
