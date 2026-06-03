@@ -36,10 +36,15 @@ uint64_t generate_strong_seed(void)
     log_debug("getrandom() failed, falling back to /dev/urandom");
     int fd = open("/dev/urandom", O_RDONLY);
     if (fd >= 0) {
-        read(fd, &seed, sizeof(seed));
+        ssize_t n = read(fd, &seed, sizeof(seed));
         close(fd);
-        log_debug("Successfully obtained entropy from /dev/urandom");
-        return seed ^ rdtsc();
+
+        if (n == (ssize_t)sizeof(seed)) {
+            log_debug("Successfully obtained entropy from /dev/urandom");
+            return seed ^ rdtsc();
+        }
+
+        log_warn("/dev/urandom returned insufficient entropy, using time-based fallback");
     }
 
     /* 3) Final fallback: time + jitter */
