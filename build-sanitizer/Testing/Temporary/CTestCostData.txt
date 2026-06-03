@@ -1,0 +1,8 @@
+unit_combogen 0 0
+cli_lists_games 1 0.0324022
+cli_runs_lotto_once 0 0
+cli_runs_eurojackpot_once 0 0
+---
+unit_combogen
+cli_runs_lotto_once
+cli_runs_eurojackpot_once

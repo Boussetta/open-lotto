@@ -1,26 +1,22 @@
-#include <stdio.h>
-#include <string.h>
-#include <strings.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <time.h>
-#include <stdint.h>
-#include <limits.h>
-#include <errno.h>
+#include "gui_sdl.h"
+#include "log.h"
 #include "plugin_loader.h"
 #include "plugin_registry.h"
-#include "gui_sdl.h"
 #include "random_seed.h"
-#include "log.h"
+#include <errno.h>
+#include <limits.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+#include <time.h>
+#include <unistd.h>
 
 /* ---------------------------------------------------------
    SPINNER ANIMATION
    --------------------------------------------------------- */
-static const char *SPINNER_FRAMES[] = {
-    "⠋", "⠙", "⠹", "⠸",
-    "⠼", "⠴", "⠦", "⠧",
-    "⠇", "⠏"
-};
+static const char *SPINNER_FRAMES[] = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
 static const int SPINNER_COUNT = 10;
 
 /* ---------------------------------------------------------
@@ -47,15 +43,12 @@ static void print_main_and_extra(const LotteryResult *result, int main_count, in
 }
 
 /* Animate a single number reveal with spinner animation */
-static void animate_number_reveal(
-    int number,
-    void (*print_prefix_fn)(const LotteryResult*, int),
-    const LotteryResult *result,
-    int revealed_count
-)
+static void animate_number_reveal(int number, void (*print_prefix_fn)(const LotteryResult *, int),
+                                  const LotteryResult *result, int revealed_count)
 {
     /* Spinner animation frames */
-    for (int f = 0; f < SPINNER_COUNT; f++) {
+    for (int f = 0; f < SPINNER_COUNT; f++)
+    {
         printf("\r");
         print_prefix_fn(result, revealed_count);
         printf("%s ", SPINNER_FRAMES[f]);
@@ -81,22 +74,21 @@ static void animate_numbers(const LotteryInfo *info, const LotteryResult *result
     printf("Lottozahlen: ");
 
     /* Animate main numbers */
-    for (int i = 0; i < info->main_count; i++) {
-        animate_number_reveal(
-            result->main_numbers[i],
-            print_main_numbers,
-            result,
-            i
-        );
+    for (int i = 0; i < info->main_count; i++)
+    {
+        animate_number_reveal(result->main_numbers[i], print_main_numbers, result, i);
     }
 
     /* Animate extra numbers if present */
-    if (info->extra_count > 0) {
+    if (info->extra_count > 0)
+    {
         printf("+ ");
 
-        for (int i = 0; i < info->extra_count; i++) {
+        for (int i = 0; i < info->extra_count; i++)
+        {
             /* Custom print function for extra numbers */
-            for (int f = 0; f < SPINNER_COUNT; f++) {
+            for (int f = 0; f < SPINNER_COUNT; f++)
+            {
                 printf("\r");
                 print_main_and_extra(result, info->main_count, i);
                 printf("%s ", SPINNER_FRAMES[f]);
@@ -116,14 +108,13 @@ static void animate_numbers(const LotteryInfo *info, const LotteryResult *result
     printf("\n\n");
 }
 
-
 /* ---------------------------------------------------------
    SILENT CALLBACK FOR ANIMATION MODE
    --------------------------------------------------------- */
 static void silent_callback(DrawEvent event, const LotteryResult *res)
 {
-    (void)event;
-    (void)res;
+    (void) event;
+    (void) res;
 }
 
 /* Print draw result in normal (non-animated) CLI mode */
@@ -134,7 +125,8 @@ static void print_draw_result(const char *game_name, int draw_num, const Lottery
     for (int j = 0; j < result->main_count; j++)
         printf("%d ", result->main_numbers[j]);
 
-    if (result->extra_count > 0) {
+    if (result->extra_count > 0)
+    {
         printf("+ ");
         for (int j = 0; j < result->extra_count; j++)
             printf("%d ", result->extra_numbers[j]);
@@ -150,7 +142,7 @@ static LogLevel parse_log_level(const char *level_str)
 {
     if (!level_str)
         return LOG_INFO;
-    
+
     if (strcasecmp(level_str, "ERROR") == 0)
         return LOG_ERROR;
     if (strcasecmp(level_str, "WARN") == 0)
@@ -159,7 +151,7 @@ static LogLevel parse_log_level(const char *level_str)
         return LOG_INFO;
     if (strcasecmp(level_str, "DEBUG") == 0)
         return LOG_DEBUG;
-    
+
     fprintf(stderr, "Invalid log level: %s (use ERROR, WARN, INFO, or DEBUG)\n", level_str);
     return LOG_INFO;
 }
@@ -170,24 +162,23 @@ static LogLevel parse_log_level(const char *level_str)
 static void print_usage(const char *prog)
 {
     fprintf(stderr,
-        "Usage:\n"
-        "  %s --game NAME [--draws N] [--animate] [--gui] [--verbose LEVEL]\n"
-        "  %s --list-games\n"
-        "\n"
-        "Log Levels (for --verbose):\n"
-        "  ERROR, WARN, INFO (default), DEBUG\n"
-        "\n"
-        "Examples:\n"
-        "  %s --game \"Lotto 6aus49\"\n"
-        "  %s --game \"Lotto 6aus49\" --draws 10\n"
-        "  %s --game \"Lotto 6aus49\" --animate\n"
-        "  %s --game \"EuroJackpot\" --gui\n"
-        "  %s --game \"Lotto 6aus49\" --verbose DEBUG\n"
-        "\n"
-        "Environment Variables:\n"
-        "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n",
-        prog, prog, prog, prog, prog, prog, prog
-    );
+            "Usage:\n"
+            "  %s --game NAME [--draws N] [--animate] [--gui] [--verbose LEVEL]\n"
+            "  %s --list-games\n"
+            "\n"
+            "Log Levels (for --verbose):\n"
+            "  ERROR, WARN, INFO (default), DEBUG\n"
+            "\n"
+            "Examples:\n"
+            "  %s --game \"Lotto 6aus49\"\n"
+            "  %s --game \"Lotto 6aus49\" --draws 10\n"
+            "  %s --game \"Lotto 6aus49\" --animate\n"
+            "  %s --game \"EuroJackpot\" --gui\n"
+            "  %s --game \"Lotto 6aus49\" --verbose DEBUG\n"
+            "\n"
+            "Environment Variables:\n"
+            "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n",
+            prog, prog, prog, prog, prog, prog, prog);
 }
 
 /* ---------------------------------------------------------
@@ -196,9 +187,11 @@ static void print_usage(const char *prog)
 int main(int argc, char **argv)
 {
     /* Handle --list-games command */
-    if (argc >= 2 && strcmp(argv[1], "--list-games") == 0) {
+    if (argc >= 2 && strcmp(argv[1], "--list-games") == 0)
+    {
         PluginRegistry *registry = registry_create();
-        if (!registry) {
+        if (!registry)
+        {
             log_error("Failed to create plugin registry");
             return 1;
         }
@@ -208,21 +201,24 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    if (argc < 3 || strcmp(argv[1], "--game") != 0) {
+    if (argc < 3 || strcmp(argv[1], "--game") != 0)
+    {
         print_usage(argv[0]);
         return 1;
     }
 
     const char *game_name = argv[2];
-    
+
     /* Validate game name */
-    if (!game_name || game_name[0] == '\0') {
+    if (!game_name || game_name[0] == '\0')
+    {
         fprintf(stderr, "Error: Game name is empty\n");
         return 1;
     }
-    
+
     size_t game_name_len = strlen(game_name);
-    if (game_name_len > 256) {
+    if (game_name_len > 256)
+    {
         fprintf(stderr, "Error: Game name too long (max 256 characters)\n");
         return 1;
     }
@@ -234,43 +230,52 @@ int main(int argc, char **argv)
     /* ---------------------------------------------------------
        Parse arguments (first pass: collect all options)
        --------------------------------------------------------- */
-    for (int i = 3; i < argc; i++) {
-        if (strcmp(argv[i], "--animate") == 0) {
+    for (int i = 3; i < argc; i++)
+    {
+        if (strcmp(argv[i], "--animate") == 0)
+        {
             animate = 1;
         }
-        else if (strcmp(argv[i], "--gui") == 0) {
+        else if (strcmp(argv[i], "--gui") == 0)
+        {
             gui = 1;
         }
-        else if (strcmp(argv[i], "--verbose") == 0) {
-            if (i + 1 >= argc) {
+        else if (strcmp(argv[i], "--verbose") == 0)
+        {
+            if (i + 1 >= argc)
+            {
                 fprintf(stderr, "--verbose requires a log level (ERROR, WARN, INFO, DEBUG).\n");
                 return 1;
             }
             log_level = parse_log_level(argv[++i]);
         }
-        else if (strcmp(argv[i], "--draws") == 0) {
-            if (i + 1 >= argc) {
+        else if (strcmp(argv[i], "--draws") == 0)
+        {
+            if (i + 1 >= argc)
+            {
                 fprintf(stderr, "--draws requires a number.\n");
                 return 1;
             }
-            
+
             char *endptr;
             errno = 0;
             long val = strtol(argv[++i], &endptr, 10);
-            
+
             /* Validate: check for errors, non-numeric characters, and range */
-            if (errno == ERANGE || *endptr != '\0' || val < 1 || val > INT_MAX) {
+            if (errno == ERANGE || *endptr != '\0' || val < 1 || val > INT_MAX)
+            {
                 fprintf(stderr, "Error: Invalid number of draws '%s'\n", argv[i]);
                 fprintf(stderr, "Must be a positive integer between 1 and %d\n", INT_MAX);
                 return 1;
             }
-            
-            draws = (int)val;
+
+            draws = (int) val;
         }
     }
 
     /* Validate option combinations */
-    if (animate && gui) {
+    if (animate && gui)
+    {
         fprintf(stderr, "Cannot use --animate and --gui together.\n");
         return 1;
     }
@@ -283,7 +288,8 @@ int main(int argc, char **argv)
        Discover and load plugins
        --------------------------------------------------------- */
     PluginRegistry *registry = registry_create();
-    if (!registry) {
+    if (!registry)
+    {
         log_error("Failed to create plugin registry");
         return 1;
     }
@@ -291,7 +297,8 @@ int main(int argc, char **argv)
     registry_discover_plugins(registry);
 
     LoadedPlugin *selected = registry_find_plugin(registry, game_name);
-    if (!selected) {
+    if (!selected)
+    {
         log_error("Game '%s' not found", game_name);
         log_info("Use --list-games to see available games");
         registry_destroy(registry);
@@ -301,7 +308,8 @@ int main(int argc, char **argv)
     /* ---------------------------------------------------------
        GUI MODE (always 1 draw)
        --------------------------------------------------------- */
-    if (gui) {
+    if (gui)
+    {
         log_debug("Launching GUI mode");
         gui_run(selected->name, &selected->info);
         registry_destroy(registry);
@@ -312,7 +320,8 @@ int main(int argc, char **argv)
        CLI MODE (single or multiple draws)
        --------------------------------------------------------- */
     log_debug("Running CLI mode with %d draw(s)", draws);
-    for (int i = 0; i < draws; i++) {
+    for (int i = 0; i < draws; i++)
+    {
 
         LotteryResult result;
 
@@ -320,7 +329,8 @@ int main(int argc, char **argv)
         selected->draw(&result, silent_callback);
 
         /* animated reveal */
-        if (animate) {
+        if (animate)
+        {
             printf("Draw %d:\n", i + 1);
             animate_numbers(&selected->info, &result);
             printf("\n");

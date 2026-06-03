@@ -3,7 +3,8 @@
 
 #include <stdarg.h>
 
-typedef enum {
+typedef enum
+{
     LOG_ERROR = 0,
     LOG_WARN,
     LOG_INFO,

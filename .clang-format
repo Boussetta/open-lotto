@@ -1,0 +1,10 @@
+---
+Language: C
+BasedOnStyle: LLVM
+ColumnLimit: 100
+IndentWidth: 4
+UseTab: Never
+AllowShortFunctionsOnASingleLine: Inline
+BreakBeforeBraces: Allman
+SpaceAfterCStyleCast: true
+

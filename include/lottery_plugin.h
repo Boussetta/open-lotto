@@ -4,13 +4,14 @@
 #include "combogen.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-/* Every plugin must export these three symbols */
-const LotteryInfo* plugin_get_info(void);
-const char*        plugin_get_name(void);
-void               plugin_draw(LotteryResult *out, draw_event_callback cb);
+    /* Every plugin must export these three symbols */
+    const LotteryInfo *plugin_get_info(void);
+    const char *plugin_get_name(void);
+    void plugin_draw(LotteryResult *out, draw_event_callback cb);
 
 #ifdef __cplusplus
 }

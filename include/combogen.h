@@ -3,7 +3,8 @@
 
 #include <stddef.h>
 
-typedef enum {
+typedef enum
+{
     EVENT_RNG_INITIALIZED = 0,
     EVENT_POOL_INITIALIZED,
     EVENT_AFTER_SHUFFLE,
@@ -11,15 +12,17 @@ typedef enum {
     EVENT_DRAW_COMPLETE
 } DrawEvent;
 
-typedef struct {
-    int main_numbers[7];   // supports 6aus49 and EuroJackpot
+typedef struct
+{
+    int main_numbers[7]; // supports 6aus49 and EuroJackpot
     int main_count;
 
-    int extra_numbers[3];  // supports EuroJackpot (2 extras)
+    int extra_numbers[3]; // supports EuroJackpot (2 extras)
     int extra_count;
 } LotteryResult;
 
-typedef struct {
+typedef struct
+{
     int main_count;
     int main_min;
     int main_max;
@@ -28,20 +31,9 @@ typedef struct {
     int extra_max;
 } LotteryInfo;
 
-typedef void (*draw_event_callback)(
-    DrawEvent event,
-    const LotteryResult *result
-);
+typedef void (*draw_event_callback)(DrawEvent event, const LotteryResult *result);
 
-void generate_draw(
-    int main_count,
-    int main_min,
-    int main_max,
-    int extra_count,
-    int extra_min,
-    int extra_max,
-    LotteryResult *out,
-    draw_event_callback cb
-);
+void generate_draw(int main_count, int main_min, int main_max, int extra_count, int extra_min,
+                   int extra_max, LotteryResult *out, draw_event_callback cb);
 
 #endif /* COMBOGEN_H */

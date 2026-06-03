@@ -1,9 +1,10 @@
 #ifndef EUROJACKPOT_H
 #define EUROJACKPOT_H
 
-#include "random.h" 
+#include "random.h"
 
-typedef struct {
+typedef struct
+{
     int numbers[5];
     int eurozahlen[2];
 } EurojackpotResult;

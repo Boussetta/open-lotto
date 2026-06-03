@@ -3,8 +3,9 @@
 
 #include "lottery_plugin.h"
 
-typedef struct {
-    LotteryInfo info;   /* copy of rules */
+typedef struct
+{
+    LotteryInfo info; /* copy of rules */
     char name[64];
     void (*draw)(LotteryResult *, draw_event_callback);
     void *handle;

@@ -1,11 +1,11 @@
+#include <dirent.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <dirent.h>
 #include <sys/stat.h>
 
-#include "plugin_registry.h"
 #include "log.h"
+#include "plugin_registry.h"
 
 #define INITIAL_CAPACITY 10
 #define MAX_PATH 512
@@ -21,18 +21,21 @@ static void registry_add_plugin(PluginRegistry *registry, LoadedPlugin *plugin)
         return;
 
     /* Validate plugin name is not empty */
-    if (plugin->name[0] == '\0') {
+    if (plugin->name[0] == '\0')
+    {
         log_error("Cannot add plugin with empty name");
         unload_plugin(plugin);
         return;
     }
 
     /* Resize if needed */
-    if (registry->count >= registry->capacity) {
+    if (registry->count >= registry->capacity)
+    {
         registry->capacity *= 2;
-        LoadedPlugin **new_plugins = realloc(registry->plugins,
-                                             registry->capacity * sizeof(LoadedPlugin*));
-        if (!new_plugins) {
+        LoadedPlugin **new_plugins =
+            realloc(registry->plugins, registry->capacity * sizeof(LoadedPlugin *));
+        if (!new_plugins)
+        {
             log_error("Failed to resize plugin registry");
             return;
         }
@@ -44,13 +47,15 @@ static void registry_add_plugin(PluginRegistry *registry, LoadedPlugin *plugin)
 
 static void scan_plugin_directory(PluginRegistry *registry, const char *dirpath)
 {
-    if (!dirpath || !registry) {
+    if (!dirpath || !registry)
+    {
         log_warn("Invalid directory path or registry");
         return;
     }
 
     DIR *dir = opendir(dirpath);
-    if (!dir) {
+    if (!dir)
+    {
         log_debug("Plugin directory not found: %s", dirpath);
         return;
     }
@@ -58,20 +63,23 @@ static void scan_plugin_directory(PluginRegistry *registry, const char *dirpath)
     log_info("Scanning plugin directory: %s", dirpath);
 
     struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
+    while ((entry = readdir(dir)) != NULL)
+    {
         if (!is_plugin_file(entry->d_name))
             continue;
 
         char plugin_path[MAX_PATH];
         int len = snprintf(plugin_path, sizeof(plugin_path), "%s/%s", dirpath, entry->d_name);
-        if (len < 0 || len >= (int)sizeof(plugin_path)) {
+        if (len < 0 || len >= (int) sizeof(plugin_path))
+        {
             log_warn("Plugin path too long, skipping: %s/%s", dirpath, entry->d_name);
             continue;
         }
 
         log_debug("Loading plugin: %s", plugin_path);
         LoadedPlugin *plugin = load_plugin(plugin_path);
-        if (plugin) {
+        if (plugin)
+        {
             registry_add_plugin(registry, plugin);
         }
     }
@@ -79,16 +87,18 @@ static void scan_plugin_directory(PluginRegistry *registry, const char *dirpath)
     closedir(dir);
 }
 
-PluginRegistry* registry_create(void)
+PluginRegistry *registry_create(void)
 {
     PluginRegistry *registry = malloc(sizeof(PluginRegistry));
-    if (!registry) {
+    if (!registry)
+    {
         log_error("Failed to allocate plugin registry");
         return NULL;
     }
 
-    registry->plugins = malloc(INITIAL_CAPACITY * sizeof(LoadedPlugin*));
-    if (!registry->plugins) {
+    registry->plugins = malloc(INITIAL_CAPACITY * sizeof(LoadedPlugin *));
+    if (!registry->plugins)
+    {
         log_error("Failed to allocate plugin array");
         free(registry);
         return NULL;
@@ -102,7 +112,8 @@ PluginRegistry* registry_create(void)
 
 void registry_discover_plugins(PluginRegistry *registry)
 {
-    if (!registry) {
+    if (!registry)
+    {
         log_error("Invalid plugin registry");
         return;
     }
@@ -111,21 +122,18 @@ void registry_discover_plugins(PluginRegistry *registry)
 
     /* Check environment variable first */
     const char *env_path = getenv("OPEN_LOTTO_PLUGIN_PATH");
-    if (env_path) {
+    if (env_path)
+    {
         log_info("Using OPEN_LOTTO_PLUGIN_PATH: %s", env_path);
         scan_plugin_directory(registry, env_path);
     }
 
     /* Try default locations */
-    const char *default_paths[] = {
-        "./plugins",
-        "./build/plugins",
-        "/usr/lib/open-lotto/plugins",
-        "/usr/local/lib/open-lotto/plugins",
-        NULL
-    };
+    const char *default_paths[] = {"./plugins", "./build/plugins", "/usr/lib/open-lotto/plugins",
+                                   "/usr/local/lib/open-lotto/plugins", NULL};
 
-    for (int i = 0; default_paths[i] != NULL; i++) {
+    for (int i = 0; default_paths[i] != NULL; i++)
+    {
         /* Skip if same as env_path (already scanned) */
         if (env_path && strcmp(env_path, default_paths[i]) == 0)
             continue;
@@ -133,38 +141,47 @@ void registry_discover_plugins(PluginRegistry *registry)
         scan_plugin_directory(registry, default_paths[i]);
     }
 
-    if (registry->count == 0) {
+    if (registry->count == 0)
+    {
         log_warn("No plugins found in any search path");
-    } else {
+    }
+    else
+    {
         log_info("Successfully discovered %d plugin(s)", registry->count);
     }
 }
 
-LoadedPlugin* registry_find_plugin(PluginRegistry *registry, const char *game_name)
+LoadedPlugin *registry_find_plugin(PluginRegistry *registry, const char *game_name)
 {
-    if (!registry) {
+    if (!registry)
+    {
         log_error("Invalid registry");
         return NULL;
     }
-    
-    if (!game_name || game_name[0] == '\0') {
+
+    if (!game_name || game_name[0] == '\0')
+    {
         log_error("Invalid game name (NULL or empty)");
         return NULL;
     }
 
     /* Validate game name length */
     size_t game_name_len = strlen(game_name);
-    if (game_name_len > 256) {
+    if (game_name_len > 256)
+    {
         log_error("Game name too long: %zu bytes (max 256)", game_name_len);
         return NULL;
     }
 
-    for (int i = 0; i < registry->count; i++) {
-        if (!registry->plugins[i]) {
+    for (int i = 0; i < registry->count; i++)
+    {
+        if (!registry->plugins[i])
+        {
             log_error("Invalid plugin at index %d", i);
             continue;
         }
-        if (strcasecmp(registry->plugins[i]->name, game_name) == 0) {
+        if (strcasecmp(registry->plugins[i]->name, game_name) == 0)
+        {
             log_info("Found plugin: %s", game_name);
             return registry->plugins[i];
         }
@@ -176,18 +193,21 @@ LoadedPlugin* registry_find_plugin(PluginRegistry *registry, const char *game_na
 
 void registry_list_games(PluginRegistry *registry)
 {
-    if (!registry) {
+    if (!registry)
+    {
         log_error("Invalid plugin registry");
         return;
     }
 
-    if (registry->count == 0) {
+    if (registry->count == 0)
+    {
         fprintf(stdout, "No plugins available\n");
         return;
     }
 
     fprintf(stdout, "Available games:\n");
-    for (int i = 0; i < registry->count; i++) {
+    for (int i = 0; i < registry->count; i++)
+    {
         fprintf(stdout, "  - %s\n", registry->plugins[i]->name);
     }
 }
@@ -197,8 +217,10 @@ void registry_destroy(PluginRegistry *registry)
     if (!registry)
         return;
 
-    for (int i = 0; i < registry->count; i++) {
-        if (registry->plugins[i]) {
+    for (int i = 0; i < registry->count; i++)
+    {
+        if (registry->plugins[i])
+        {
             unload_plugin(registry->plugins[i]);
         }
     }
