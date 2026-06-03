@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(open-lotto C)
 
+include(CTest)
+
 set(CMAKE_C_VISIBILITY_PRESET default)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN OFF)
 
@@ -56,4 +58,27 @@ set_target_properties(eurojackpot PROPERTIES
 if(EXISTS "${CMAKE_SOURCE_DIR}/fonts")
     file(COPY "${CMAKE_SOURCE_DIR}/fonts"
          DESTINATION "${CMAKE_BINARY_DIR}")
+endif()
+
+if(BUILD_TESTING)
+    add_test(NAME cli_lists_games
+        COMMAND $<TARGET_FILE:open-lotto> --list-games
+    )
+    set_tests_properties(cli_lists_games PROPERTIES
+        PASS_REGULAR_EXPRESSION "Eurojackpot|EuroJackpot"
+    )
+
+    add_test(NAME cli_runs_lotto_once
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --draws 1
+    )
+    set_tests_properties(cli_runs_lotto_once PROPERTIES
+        PASS_REGULAR_EXPRESSION "Main:"
+    )
+
+    add_test(NAME cli_runs_eurojackpot_once
+        COMMAND $<TARGET_FILE:open-lotto> --game "Eurojackpot" --draws 1
+    )
+    set_tests_properties(cli_runs_eurojackpot_once PROPERTIES
+        PASS_REGULAR_EXPRESSION "Main:"
+    )
 endif()
