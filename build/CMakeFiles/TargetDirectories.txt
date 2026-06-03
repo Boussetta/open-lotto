@@ -1,5 +1,0 @@
-/home/wissem/workspace/open-lotto/build/CMakeFiles/open-lotto.dir
-/home/wissem/workspace/open-lotto/build/CMakeFiles/lotto.dir
-/home/wissem/workspace/open-lotto/build/CMakeFiles/eurojackpot.dir
-/home/wissem/workspace/open-lotto/build/CMakeFiles/edit_cache.dir
-/home/wissem/workspace/open-lotto/build/CMakeFiles/rebuild_cache.dir

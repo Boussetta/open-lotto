@@ -1,1 +1,0 @@
-/usr/bin/cc -fPIC -g -shared -Wl,--dependency-file=CMakeFiles/eurojackpot.dir/link.d -Wl,-soname,libeurojackpot.so -o plugins/libeurojackpot.so CMakeFiles/eurojackpot.dir/plugins/eurojackpot.c.o  -lm

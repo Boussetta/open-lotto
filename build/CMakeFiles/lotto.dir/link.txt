@@ -1,1 +1,0 @@
-/usr/bin/cc -fPIC -g -shared -Wl,--dependency-file=CMakeFiles/lotto.dir/link.d -Wl,-soname,liblotto.so -o plugins/liblotto.so CMakeFiles/lotto.dir/plugins/lotto.c.o  -lm
