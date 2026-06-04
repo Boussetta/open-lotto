@@ -781,7 +781,73 @@ static void update_animation(GuiState3D *state, float delta_time)
             {
                 for (int j = i + 1; j < state->ball_count; j++)
                 {
-                    resolve_ball_collision(&state->balls[i], &state->balls[j], collision_dist);
+                    float dx = state->balls[j].x - state->balls[i].x;
+                    float dy = state->balls[j].y - state->balls[i].y;
+                    float dz = state->balls[j].z - state->balls[i].z;
+                    float dist_sq = dx * dx + dy * dy + dz * dz;
+
+                    if (dist_sq < collision_dist * collision_dist && dist_sq > 1e-6f)
+                    {
+                        float dist = sqrtf(dist_sq);
+                        float nx = dx / dist;
+                        float ny = dy / dist;
+                        float nz = dz / dist;
+
+                        /* Separate overlapping balls */
+                        float overlap = collision_dist - dist;
+                        state->balls[i].x -= nx * (overlap * 0.5f);
+                        state->balls[i].y -= ny * (overlap * 0.5f);
+                        state->balls[i].z -= nz * (overlap * 0.5f);
+                        state->balls[j].x += nx * (overlap * 0.5f);
+                        state->balls[j].y += ny * (overlap * 0.5f);
+                        state->balls[j].z += nz * (overlap * 0.5f);
+
+                        /* During falling, use VERY LOW restitution to dampen bounces */
+                        float rel_vx = state->balls[j].vx - state->balls[i].vx;
+                        float rel_vy = state->balls[j].vy - state->balls[i].vy;
+                        float rel_vz = state->balls[j].vz - state->balls[i].vz;
+                        float rel_vel_normal = rel_vx * nx + rel_vy * ny + rel_vz * nz;
+
+                        if (rel_vel_normal < 0.0f)
+                        {
+                            /* FALLING phase uses 0.3 restitution (very inelastic) */
+                            /* This prevents bouncing and ensures balls settle quickly */
+                            float falling_restitution = 0.3f;
+                            float impulse = -((1.0f + falling_restitution) * rel_vel_normal) * 0.5f;
+                            state->balls[i].vx -= impulse * nx;
+                            state->balls[i].vy -= impulse * ny;
+                            state->balls[i].vz -= impulse * nz;
+                            state->balls[j].vx += impulse * nx;
+                            state->balls[j].vy += impulse * ny;
+                            state->balls[j].vz += impulse * nz;
+                        }
+                    }
+                }
+            }
+        }
+
+        /* Keep all balls strictly inside drum during falling */
+        {
+            float drum_interior_radius = DRUM_RADIUS - BALL_RADIUS;
+            float drum_interior_radius_sq = drum_interior_radius * drum_interior_radius;
+            for (int i = 0; i < state->ball_count; i++)
+            {
+                DrumBall *ball = &state->balls[i];
+                float dist_sq = ball->x * ball->x + ball->y * ball->y + ball->z * ball->z;
+                if (dist_sq > drum_interior_radius_sq && dist_sq > 0.0001f)
+                {
+                    float dist = sqrtf(dist_sq);
+                    float scale = drum_interior_radius / dist;
+                    ball->x *= scale;
+                    ball->y *= scale;
+                    ball->z *= scale;
+                    /* Also kill outward velocity component */
+                    float vx_radial = ball->vx * (ball->x / dist);
+                    float vy_radial = ball->vy * (ball->y / dist);
+                    float vz_radial = ball->vz * (ball->z / dist);
+                    ball->vx -= vx_radial * (ball->x / dist);
+                    ball->vy -= vy_radial * (ball->y / dist);
+                    ball->vz -= vz_radial * (ball->z / dist);
                 }
             }
         }
