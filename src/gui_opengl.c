@@ -72,6 +72,8 @@ typedef struct
     float vy;
     float vz;
     int settled;
+    int picked;      /* 1 = this ball has been drawn */
+    int ball_number; /* 1-based number shown on the ball */
 } DrumBall;
 
 typedef struct
@@ -89,7 +91,10 @@ typedef struct
 typedef enum
 {
     DRUM_PHASE_FALLING = 0,
-    DRUM_PHASE_ROTATING
+    DRUM_PHASE_ROTATING,     /* drum spinning, balls tumbling */
+    DRUM_PHASE_STOPPING,     /* drum decelerating before a pick */
+    DRUM_PHASE_PICK_PAUSE,   /* drum stopped, picked ball highlighted / floats out */
+    DRUM_PHASE_DRAW_COMPLETE /* all numbers drawn */
 } DrumPhase;
 
 typedef struct
@@ -104,6 +109,14 @@ typedef struct
     DrumBall *balls;
     int ball_count;
     DrumPhase phase;
+
+    /* Draw cycle */
+    int picks_done;           /* how many balls have been drawn so far */
+    int picks_total;          /* total to draw (main_count + extra_count) */
+    float phase_timer;        /* seconds spent in current sub-phase */
+    float spin_before_pick;   /* seconds of spinning before next stop */
+    int   current_pick_idx;   /* index into balls[] of currently highlighted ball */
+    float stop_omega;         /* current rotation speed during deceleration */
 
     float camera_pitch;
     float camera_yaw;
@@ -474,6 +487,8 @@ static void init_balls(GuiState3D *state)
         state->balls[i].vy = 0.0f;
         state->balls[i].vz = 0.0f;
         state->balls[i].settled = 0;
+        state->balls[i].picked = 0;
+        state->balls[i].ball_number = i + 1;
     }
 }
 
@@ -618,6 +633,14 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
     srand((unsigned int)time(NULL));
     init_balls(state);
 
+    /* Draw cycle initialisation */
+    state->picks_done        = 0;
+    state->picks_total       = info->main_count + info->extra_count;
+    state->phase_timer       = 0.0f;
+    state->spin_before_pick  = 3.0f + frand_range(0.0f, 2.0f); /* 3-5 s of spinning */
+    state->current_pick_idx  = -1;
+    state->stop_omega        = DRUM_ROTATION_SPEED_DEG;
+
     /* Only attempt GPU compute if explicitly enabled via environment variable */
     /* This prevents freezing on systems with incomplete OpenGL 4.3 support */
     const char *enable_gpu = getenv("LOTTO_GPU_COMPUTE");
@@ -747,8 +770,17 @@ static void render_drum(float x, float y, float rot_x, float rot_y, float rot_z,
         const DrumBall *ball = &state->balls[i];
         glPushMatrix();
         glTranslatef(ball->x, ball->y, ball->z);
-        /* Unified green color for all balls regardless of settled state */
-        glColor3f(0.15f, 0.75f, 0.25f);
+        if (ball->picked)
+        {
+            /* Gold highlight for drawn ball, pulse scale slightly */
+            float pulse = 1.0f + 0.12f * sinf(state->sim_time * 6.0f);
+            glScalef(pulse, pulse, pulse);
+            glColor3f(1.0f, 0.82f, 0.0f);
+        }
+        else
+        {
+            glColor3f(0.15f, 0.75f, 0.25f);
+        }
         draw_sphere(BALL_RADIUS, 18, 12);
         glPopMatrix();
     }
@@ -848,8 +880,6 @@ static void on_draw_event(DrawEvent event, const LotteryResult *res)
 
 static void update_animation(GuiState3D *state, float delta_time)
 {
-    /* Calculate angular velocity for drum rotation */
-    float omega_rad_per_sec = DRUM_ROTATION_SPEED_DEG * 3.14159265f / 180.0f;
     state->sim_time += delta_time;
 
     if (state->phase == DRUM_PHASE_FALLING)
@@ -1005,19 +1035,19 @@ static void update_animation(GuiState3D *state, float delta_time)
         if (can_transition)
         {
             state->phase = DRUM_PHASE_ROTATING;
+            state->phase_timer = 0.0f;
             for (int i = 0; i < state->ball_count; i++)
             {
-                /* Start rotation phase without shell-locking initial velocity */
                 state->balls[i].vx *= 0.25f;
                 state->balls[i].vy *= 0.25f;
                 state->balls[i].vz *= 0.25f;
             }
             if (state->use_gpu_compute)
                 sync_cpu_balls_to_gpu(state);
-            log_info("Balls settled (%.1f%% reached threshold); starting drum rotation at %.2f seconds",
+            log_info("Balls settled (%.1f%%); starting drum rotation at %.2f s",
                      (100.0f * settled_count) / state->ball_count, state->sim_time);
         }
-        else if ((int)(state->sim_time * 10) % 10 == 0)  /* Log every ~1 second */
+        else if ((int)(state->sim_time * 10) % 10 == 0)
         {
             log_info("FALLING phase: %d/%d balls settled", settled_count, state->ball_count);
         }
@@ -1025,19 +1055,128 @@ static void update_animation(GuiState3D *state, float delta_time)
         return;
     }
 
-    if (state->use_gpu_compute)
+    /* ------------------------------------------------------------------ */
+    /* DRAW CYCLE STATE MACHINE                                             */
+    /* ------------------------------------------------------------------ */
+
+    if (state->phase == DRUM_PHASE_DRAW_COMPLETE)
+        return;
+
+    state->phase_timer += delta_time;
+
+    /* ---- ROTATING: spin for spin_before_pick seconds, then decelerate -- */
+    if (state->phase == DRUM_PHASE_ROTATING)
     {
-        update_animation_gpu(state, delta_time);
+        if (state->use_gpu_compute)
+        {
+            update_animation_gpu(state, delta_time);
+        }
+        /* else: fall through to CPU physics below */
 
-        /* Rotate drum around Z axis */
         state->drum_rotation_z += DRUM_ROTATION_SPEED_DEG * delta_time;
-
         while (state->drum_rotation_z > 360.0f)
             state->drum_rotation_z -= 360.0f;
-        return;
+
+        if (state->phase_timer >= state->spin_before_pick)
+        {
+            /* Start deceleration */
+            state->phase = DRUM_PHASE_STOPPING;
+            state->phase_timer = 0.0f;
+            state->stop_omega = DRUM_ROTATION_SPEED_DEG;
+            log_info("Drum stopping for pick %d/%d", state->picks_done + 1, state->picks_total);
+        }
+        if (state->use_gpu_compute) return;
     }
 
+    /* ---- STOPPING: decelerate drum to zero over ~1.5 s ------------------ */
+    if (state->phase == DRUM_PHASE_STOPPING)
+    {
+        float decel_time = 1.5f;
+        state->stop_omega = DRUM_ROTATION_SPEED_DEG * (1.0f - state->phase_timer / decel_time);
+        if (state->stop_omega < 0.0f) state->stop_omega = 0.0f;
+
+        state->drum_rotation_z += state->stop_omega * delta_time;
+        while (state->drum_rotation_z > 360.0f)
+            state->drum_rotation_z -= 360.0f;
+
+        if (state->phase_timer >= decel_time)
+        {
+            /* Drum stopped: pick the next ball from the result */
+            int pick_num = -1;
+            if (state->picks_done < state->result.main_count)
+                pick_num = state->result.main_numbers[state->picks_done];
+            else
+            {
+                int extra_idx = state->picks_done - state->result.main_count;
+                if (extra_idx < state->result.extra_count)
+                    pick_num = state->result.extra_numbers[extra_idx];
+            }
+
+            /* Find the ball with that number */
+            state->current_pick_idx = -1;
+            for (int i = 0; i < state->ball_count; i++)
+            {
+                if (state->balls[i].ball_number == pick_num && !state->balls[i].picked)
+                {
+                    state->current_pick_idx = i;
+                    state->balls[i].picked = 1;
+                    /* Give it an upward launch so it floats toward the top */
+                    state->balls[i].vx = 0.0f;
+                    state->balls[i].vy = 120.0f;
+                    state->balls[i].vz = 0.0f;
+                    break;
+                }
+            }
+
+            state->picks_done++;
+            state->phase = DRUM_PHASE_PICK_PAUSE;
+            state->phase_timer = 0.0f;
+            log_info("Picked ball #%d (%d/%d)", pick_num, state->picks_done, state->picks_total);
+        }
+        if (state->use_gpu_compute) return;
+    }
+
+    /* ---- PICK_PAUSE: show picked ball for 2 s, then resume spin --------- */
+    if (state->phase == DRUM_PHASE_PICK_PAUSE)
+    {
+        /* Float the picked ball upward inside the drum */
+        if (state->current_pick_idx >= 0)
+        {
+            DrumBall *pb = &state->balls[state->current_pick_idx];
+            pb->vy += -BALL_GRAVITY * 0.15f * delta_time; /* gentle float */
+            pb->y  += pb->vy * delta_time;
+            /* Clamp inside drum so it doesn't escape */
+            float max_y = DRUM_RADIUS - BALL_RADIUS - 2.0f;
+            if (pb->y > max_y) { pb->y = max_y; pb->vy = 0.0f; }
+        }
+
+        float pause_time = 2.0f;
+        if (state->phase_timer >= pause_time)
+        {
+            if (state->picks_done >= state->picks_total)
+            {
+                state->phase = DRUM_PHASE_DRAW_COMPLETE;
+                state->animation_complete = 1;
+                log_info("Draw complete!");
+            }
+            else
+            {
+                state->phase = DRUM_PHASE_ROTATING;
+                state->phase_timer = 0.0f;
+                state->spin_before_pick = 3.0f + frand_range(0.0f, 2.0f);
+                log_info("Resuming drum rotation (next pick in %.1f s)", state->spin_before_pick);
+            }
+        }
+        if (state->use_gpu_compute) return;
+    }
+
+    /* CPU physics (shared by ROTATING / STOPPING) */
+    if (state->phase == DRUM_PHASE_DRAW_COMPLETE || state->phase == DRUM_PHASE_PICK_PAUSE)
+        return;
+
     /* ROTATING PHASE: gravity + shell contact drive (around Z) */
+    {
+    float omega_rad_per_sec = DRUM_ROTATION_SPEED_DEG * 3.14159265f / 180.0f;
     for (int i = 0; i < state->ball_count; i++)
     {
         DrumBall *ball = &state->balls[i];
@@ -1112,6 +1251,7 @@ static void update_animation(GuiState3D *state, float delta_time)
             }
         }
     }
+    } /* end omega_rad_per_sec scope */
 
     /* Ball-to-ball collisions using uniform grid broad phase */
     {
@@ -1237,8 +1377,12 @@ static void update_animation(GuiState3D *state, float delta_time)
         }
     }
 
-    /* Rotate drum around Z axis */
-    state->drum_rotation_z += DRUM_ROTATION_SPEED_DEG * delta_time;
+    /* Rotate drum: speed depends on current phase */
+    /* (STOPPING uses stop_omega set above; ROTATING uses full speed) */
+    float effective_omega = (state->phase == DRUM_PHASE_STOPPING)
+                            ? state->stop_omega
+                            : DRUM_ROTATION_SPEED_DEG;
+    state->drum_rotation_z += effective_omega * delta_time;
 
     /* Normalize angles to prevent overflow */
     while (state->drum_rotation_z > 360.0f)
