@@ -2,11 +2,16 @@
 #include <GL/gl.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
+#include <SDL2/SDL_ttf.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#ifndef PROJECT_ROOT_DIR
+#define PROJECT_ROOT_DIR "."
+#endif
 
 #include "combogen.h"
 #include "gui_opengl.h"
@@ -117,6 +122,9 @@ typedef struct
     GLuint compute_program;
     GLuint ball_ssbo;
     GpuBall *gpu_ball_cache;
+
+    TTF_Font *font;
+    GLuint *number_textures;  /* one texture per ball, indexed 0..ball_count-1 */
 
     float sim_time;
 
@@ -634,6 +642,14 @@ static void gui_state_destroy(GuiState3D *state)
     if (!state)
         return;
 
+    if (state->number_textures)
+    {
+        glDeleteTextures(state->ball_count, state->number_textures);
+        free(state->number_textures);
+    }
+    if (state->font)
+        TTF_CloseFont(state->font);
+
     free(state->balls);
     free(state->gpu_ball_cache);
     free(state);
@@ -642,6 +658,77 @@ static void gui_state_destroy(GuiState3D *state)
 /* ============================================================
    RENDERING
    ============================================================ */
+
+/* Create an OpenGL texture from a ball number using SDL_ttf */
+static GLuint make_number_texture(TTF_Font *font, int number)
+{
+    if (!font) return 0;
+
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d", number);
+
+    SDL_Color white = {255, 255, 255, 255};
+    SDL_Surface *text_surf = TTF_RenderText_Blended(font, buf, white);
+    if (!text_surf) return 0;
+
+    /* Square canvas, power-of-two for compatibility */
+    int tex_size = 64;
+    SDL_Surface *canvas = SDL_CreateRGBSurface(0, tex_size, tex_size, 32,
+        0x000000FFu, 0x0000FF00u, 0x00FF0000u, 0xFF000000u);
+    if (!canvas) { SDL_FreeSurface(text_surf); return 0; }
+    SDL_FillRect(canvas, NULL, 0);
+
+    SDL_Rect dst = {
+        (tex_size - text_surf->w) / 2,
+        (tex_size - text_surf->h) / 2,
+        text_surf->w, text_surf->h
+    };
+    SDL_BlitSurface(text_surf, NULL, canvas, &dst);
+    SDL_FreeSurface(text_surf);
+
+    SDL_Surface *conv = SDL_ConvertSurfaceFormat(canvas, SDL_PIXELFORMAT_RGBA32, 0);
+    SDL_FreeSurface(canvas);
+    if (!conv) return 0;
+
+    GLuint tex = 0;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, conv->w, conv->h, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, conv->pixels);
+    SDL_FreeSurface(conv);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return tex;
+}
+
+static void init_ball_textures(GuiState3D *state)
+{
+    if (TTF_Init() < 0)
+    {
+        log_warn("TTF_Init failed: %s", TTF_GetError());
+        return;
+    }
+
+    char font_path[512];
+    snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
+    state->font = TTF_OpenFont(font_path, 36);
+    if (!state->font)
+    {
+        log_warn("Failed to load font '%s': %s — numbers will be hidden", font_path, TTF_GetError());
+        return;
+    }
+
+    state->number_textures = (GLuint *)calloc((size_t)state->ball_count, sizeof(GLuint));
+    if (!state->number_textures) return;
+
+    for (int i = 0; i < state->ball_count; i++)
+        state->number_textures[i] = make_number_texture(state->font, i + 1);
+
+    log_info("Ball number textures created (%d balls)", state->ball_count);
+}
 
 static void render_drum(float x, float y, float rot_x, float rot_y, float rot_z,
                         const GuiState3D *state)
@@ -660,12 +747,52 @@ static void render_drum(float x, float y, float rot_x, float rot_y, float rot_z,
         const DrumBall *ball = &state->balls[i];
         glPushMatrix();
         glTranslatef(ball->x, ball->y, ball->z);
-        if (ball->settled)
-            glColor3f(1.0f, 0.86f, 0.25f);
-        else
-            glColor3f(0.96f, 0.96f, 0.96f);
+        /* Unified green color for all balls regardless of settled state */
+        glColor3f(0.15f, 0.75f, 0.25f);
         draw_sphere(BALL_RADIUS, 18, 12);
         glPopMatrix();
+    }
+
+    /* Draw number billboard on each ball (always faces camera) */
+    if (state->number_textures)
+    {
+        glDisable(GL_LIGHTING);
+        glEnable(GL_TEXTURE_2D);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glColor3f(1.0f, 1.0f, 1.0f);
+
+        for (int i = 0; i < state->ball_count; i++)
+        {
+            if (!state->number_textures[i]) continue;
+            const DrumBall *ball = &state->balls[i];
+
+            glPushMatrix();
+            glTranslatef(ball->x, ball->y, ball->z);
+
+            /* Cancel accumulated rotation so the quad always faces the camera */
+            float mv[16];
+            glGetFloatv(GL_MODELVIEW_MATRIX, mv);
+            mv[0] = 1.0f; mv[1] = 0.0f; mv[2] = 0.0f;
+            mv[4] = 0.0f; mv[5] = 1.0f; mv[6] = 0.0f;
+            mv[8] = 0.0f; mv[9] = 0.0f; mv[10] = 1.0f;
+            glLoadMatrixf(mv);
+
+            float s = BALL_RADIUS * 0.80f;
+            glBindTexture(GL_TEXTURE_2D, state->number_textures[i]);
+            glBegin(GL_QUADS);
+                glTexCoord2f(0.0f, 1.0f); glVertex3f(-s, -s, 0.5f);
+                glTexCoord2f(1.0f, 1.0f); glVertex3f( s, -s, 0.5f);
+                glTexCoord2f(1.0f, 0.0f); glVertex3f( s,  s, 0.5f);
+                glTexCoord2f(0.0f, 0.0f); glVertex3f(-s,  s, 0.5f);
+            glEnd();
+
+            glPopMatrix();
+        }
+
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glDisable(GL_TEXTURE_2D);
+        glEnable(GL_LIGHTING);
     }
 
     /* Draw solid drum sphere */
@@ -852,14 +979,12 @@ static void update_animation(GuiState3D *state, float delta_time)
             }
         }
 
-        /* Smart transition to rotating phase: 
-           - Wait minimum 0.5 seconds for initial settling
-           - Once 80% of balls are settled AND remaining balls have low kinetic energy
-           - Then transition (no need to wait for every single ball)
-        */
-        int settle_threshold = (state->ball_count * 4) / 5;  /* 80% */
-        int needs_more_time = (state->sim_time < 0.5f) ? 1 : 0;
-        
+        /* Transition conditions (lenient):
+           - 50% of balls settled and remaining balls are slow, OR
+           - Hard timeout: force transition after 3 seconds regardless */
+        int force_timeout = (state->sim_time >= 3.0f);
+        int min_settled = state->ball_count / 2;  /* 50% */
+
         float max_remaining_speed = 0.0f;
         for (int i = 0; i < state->ball_count; i++)
         {
@@ -873,10 +998,9 @@ static void update_animation(GuiState3D *state, float delta_time)
                     max_remaining_speed = speed;
             }
         }
-        
-        int can_transition = (settled_count >= settle_threshold) && 
-                             (max_remaining_speed < 25.0f) &&
-                             !needs_more_time;
+
+        int calm_enough = (settled_count >= min_settled) && (max_remaining_speed < 50.0f);
+        int can_transition = force_timeout || (calm_enough && state->sim_time >= 0.5f);
         
         if (can_transition)
         {
@@ -1184,6 +1308,7 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
     SDL_GL_SetSwapInterval(1);  /* Enable vsync */
 
     setup_opengl();
+    init_ball_textures(state);
 
     {
         const char *gl_version = (const char *)glGetString(GL_VERSION);
@@ -1284,6 +1409,7 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
 
     SDL_GL_DeleteContext(state->gl_context);
     SDL_DestroyWindow(state->window);
+    TTF_Quit();
     SDL_Quit();
     gui_state_destroy(state);
 }
