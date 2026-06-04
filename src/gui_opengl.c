@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "combogen.h"
 #include "gui_opengl.h"
@@ -30,6 +31,13 @@
 #define DRUM_X 0.0f
 #define DRUM_Y -0.2f
 
+/* Ball simulation (initial state only) */
+#define DRUM_BALL_COUNT 50
+#define BALL_RADIUS 27.0f
+#define BALL_GRAVITY 360.0f
+#define BALL_BOUNCE_DAMPING 0.35f
+#define BALL_SETTLE_SPEED 8.0f
+
 /* Drum color */
 #define COLOR_DRUM_R 0.20f
 #define COLOR_DRUM_G 0.55f
@@ -40,12 +48,31 @@
 
 typedef struct
 {
+    float x;
+    float y;
+    float z;
+    float vy;
+    int settled;
+} DrumBall;
+
+typedef enum
+{
+    DRUM_PHASE_FALLING = 0,
+    DRUM_PHASE_ROTATING
+} DrumPhase;
+
+typedef struct
+{
     LotteryInfo info;
     LotteryResult result;
     
     float drum_rotation_x;  /* Rotation angles for tumbling effect */
     float drum_rotation_y;
     float drum_rotation_z;
+
+    DrumBall balls[DRUM_BALL_COUNT];
+    int ball_count;
+    DrumPhase phase;
 
     float camera_pitch;
     float camera_yaw;
@@ -72,6 +99,34 @@ static void check_gl_error(const char *context)
     if (err != GL_NO_ERROR)
     {
         log_warn("OpenGL error in %s: %x", context, err);
+    }
+}
+
+static float frand_range(float a, float b)
+{
+    return a + (b - a) * ((float)rand() / (float)RAND_MAX);
+}
+
+static void init_balls(GuiState3D *state)
+{
+    state->ball_count = DRUM_BALL_COUNT;
+    state->phase = DRUM_PHASE_FALLING;
+
+    for (int i = 0; i < state->ball_count; i++)
+    {
+        float x, z;
+        float spawn_r = DRUM_RADIUS * 0.60f;
+        do
+        {
+            x = frand_range(-spawn_r, spawn_r);
+            z = frand_range(-spawn_r, spawn_r);
+        } while ((x * x + z * z) > (spawn_r * spawn_r));
+
+        state->balls[i].x = x;
+        state->balls[i].z = z;
+        state->balls[i].y = frand_range(DRUM_RADIUS * 0.25f, DRUM_RADIUS * 0.75f);
+        state->balls[i].vy = 0.0f;
+        state->balls[i].settled = 0;
     }
 }
 
@@ -196,6 +251,9 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
     state->camera_z = CAMERA_Z;
     state->mouse_dragging = 0;
 
+    srand((unsigned int)time(NULL));
+    init_balls(state);
+
     return state;
 }
 
@@ -209,7 +267,8 @@ static void gui_state_destroy(GuiState3D *state)
    RENDERING
    ============================================================ */
 
-static void render_drum(float x, float y, float rot_x, float rot_y, float rot_z)
+static void render_drum(float x, float y, float rot_x, float rot_y, float rot_z,
+                        const GuiState3D *state)
 {
     glPushMatrix();
     glTranslatef(x, y, 0.0f);
@@ -219,9 +278,25 @@ static void render_drum(float x, float y, float rot_x, float rot_y, float rot_z)
     glRotatef(rot_y, 0.0f, 1.0f, 0.0f);
     glRotatef(rot_z, 0.0f, 0.0f, 1.0f);
 
+    /* Balls inside drum */
+    for (int i = 0; i < state->ball_count; i++)
+    {
+        const DrumBall *ball = &state->balls[i];
+        glPushMatrix();
+        glTranslatef(ball->x, ball->y, ball->z);
+        if (ball->settled)
+            glColor3f(1.0f, 0.86f, 0.25f);
+        else
+            glColor3f(0.96f, 0.96f, 0.96f);
+        draw_sphere(BALL_RADIUS, 18, 12);
+        glPopMatrix();
+    }
+
     /* Draw solid drum sphere */
+    glDepthMask(GL_FALSE);
     glColor4f(COLOR_DRUM_R, COLOR_DRUM_G, COLOR_DRUM_B, 0.12f);
     draw_sphere(DRUM_RADIUS, 64, 44);
+    glDepthMask(GL_TRUE);
 
     /* Draw wireframe outline for definition */
     draw_sphere_frame(DRUM_RADIUS, 28, 20);
@@ -253,7 +328,7 @@ static void render_scene(GuiState3D *state)
 
     /* Single large drum preview */
     render_drum(DRUM_X, DRUM_Y, state->drum_rotation_x, state->drum_rotation_y,
-                state->drum_rotation_z);
+                state->drum_rotation_z, state);
 
     check_gl_error("render_scene");
 }
@@ -270,8 +345,63 @@ static void on_draw_event(DrawEvent event, const LotteryResult *res)
 
 static void update_animation(GuiState3D *state, float delta_time)
 {
+    if (state->phase == DRUM_PHASE_FALLING)
+    {
+        int settled_count = 0;
+
+        for (int i = 0; i < state->ball_count; i++)
+        {
+            DrumBall *ball = &state->balls[i];
+
+            if (ball->settled)
+            {
+                settled_count++;
+                continue;
+            }
+
+            ball->vy -= BALL_GRAVITY * delta_time;
+            ball->y += ball->vy * delta_time;
+
+            float radial_sq = ball->x * ball->x + ball->z * ball->z;
+            float floor_y;
+            float inside = (DRUM_RADIUS - BALL_RADIUS) * (DRUM_RADIUS - BALL_RADIUS) - radial_sq;
+
+            if (inside <= 0.0f)
+            {
+                floor_y = -DRUM_RADIUS + BALL_RADIUS;
+            }
+            else
+            {
+                floor_y = -sqrtf(inside);
+            }
+
+            if (ball->y <= floor_y)
+            {
+                ball->y = floor_y;
+                if (fabsf(ball->vy) < BALL_SETTLE_SPEED)
+                {
+                    ball->vy = 0.0f;
+                    ball->settled = 1;
+                    settled_count++;
+                }
+                else
+                {
+                    ball->vy = -ball->vy * BALL_BOUNCE_DAMPING;
+                }
+            }
+        }
+
+        if (settled_count == state->ball_count)
+        {
+            state->phase = DRUM_PHASE_ROTATING;
+            log_info("Balls settled at drum bottom; starting drum rotation");
+        }
+
+        return;
+    }
+
     /* Rotate drum around one axis only (Z axis) */
-    state->drum_rotation_z += 42.0f * delta_time;
+    state->drum_rotation_z += 70.0f * delta_time;
 
     /* Normalize angles to prevent overflow */
     while (state->drum_rotation_z > 360.0f)
@@ -336,7 +466,7 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
     generate_draw(info->main_count, info->main_min, info->main_max, info->extra_count,
                   info->extra_min, info->extra_max, &state->result, on_draw_event);
 
-    log_info("Displaying %s - single large grid drum preview (capacity target: 50 balls)",
+    log_info("Displaying %s - 50 balls start inside, fall first, then drum rotates",
              game_name);
     log_info("Mouse controls: hold left button and drag to orbit, wheel to zoom");
 
