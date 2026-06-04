@@ -1231,6 +1231,16 @@ static void update_animation(GuiState3D *state, float delta_time)
             state->picks_done++;
             state->phase = DRUM_PHASE_PICK_PAUSE;
             state->phase_timer = 0.0f;
+            /* Kill all spin momentum immediately so balls fall straight down */
+            for (int i = 0; i < state->ball_count; i++)
+            {
+                if (!state->balls[i].picked)
+                {
+                    state->balls[i].vx = 0.0f;
+                    state->balls[i].vz = 0.0f;
+                    /* Keep vy (could be near 0) — gravity will handle it */
+                }
+            }
             log_info("Picked ball #%d (%d/%d)", pick_num, state->picks_done, state->picks_total);
         }
         if (state->use_gpu_compute) return;
@@ -1273,8 +1283,14 @@ static void update_animation(GuiState3D *state, float delta_time)
             DrumBall *ball = &state->balls[i];
             if (ball->picked) continue; /* already removed */
 
+            /* Heavy damp on x/z to kill spin momentum immediately */
+            ball->vx *= 0.85f;
+            ball->vz *= 0.85f;
+
             ball->vy -= BALL_GRAVITY * delta_time;
+            ball->x  += ball->vx * delta_time;
             ball->y  += ball->vy * delta_time;
+            ball->z  += ball->vz * delta_time;
 
             float radial_sq = ball->x * ball->x + ball->z * ball->z;
             float inside    = (DRUM_RADIUS - BALL_RADIUS) * (DRUM_RADIUS - BALL_RADIUS) - radial_sq;
@@ -1287,6 +1303,21 @@ static void update_animation(GuiState3D *state, float delta_time)
                     ball->vy = 0.0f;
                 else
                     ball->vy = -ball->vy * BALL_BOUNCE_DAMPING;
+            }
+
+            /* Hard boundary: keep every ball inside drum */
+            float dist_sq = ball->x * ball->x + ball->y * ball->y + ball->z * ball->z;
+            float max_r   = DRUM_RADIUS - BALL_RADIUS;
+            if (dist_sq > max_r * max_r && dist_sq > 0.0001f)
+            {
+                float dist  = sqrtf(dist_sq);
+                float scale = max_r / dist;
+                ball->x *= scale;
+                ball->y *= scale;
+                ball->z *= scale;
+                ball->vx = 0.0f;
+                ball->vy = 0.0f;
+                ball->vz = 0.0f;
             }
         }
 
@@ -1345,7 +1376,6 @@ static void update_animation(GuiState3D *state, float delta_time)
 
     /* ROTATING PHASE: gravity + shell contact drive (around Z) */
     {
-    float omega_rad_per_sec = DRUM_ROTATION_SPEED_DEG * 3.14159265f / 180.0f;
     for (int i = 0; i < state->ball_count; i++)
     {
         DrumBall *ball = &state->balls[i];
@@ -1406,7 +1436,9 @@ static void update_animation(GuiState3D *state, float delta_time)
                 {
                     float tx = -ball->y / radial;
                     float ty = ball->x / radial;
-                    float target_tangential = omega_rad_per_sec * radial;
+                    /* Use effective omega (decelerating during STOPPING) */
+                    float effective_omega_rad = state->stop_omega * 3.14159265f / 180.0f;
+                    float target_tangential = effective_omega_rad * radial;
                     float current_tangential = ball->vx * tx + ball->vy * ty;
                     float min_follow = target_tangential * 0.35f;
                     if (current_tangential < min_follow)
