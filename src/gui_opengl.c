@@ -34,11 +34,11 @@
 
 /* Main drum */
 #define DRUM_RADIUS      250.0f
-#define DRUM_X          -390.0f   /* shifted left to make room for extra drum */
+#define DRUM_X             0.0f
 #define DRUM_Y            -0.2f
 /* Extra drum (smaller, to the right) */
 #define EXTRA_DRUM_RADIUS 150.0f
-#define EXTRA_DRUM_X      360.0f
+#define EXTRA_DRUM_X         0.0f
 #define EXTRA_DRUM_Y       -0.2f
 
 /* Ball simulation (initial state only) */
@@ -60,12 +60,20 @@
 #define GPU_COMPUTE_LOCAL_SIZE 64
 
 /* Drum color */
-#define COLOR_DRUM_R 0.20f
-#define COLOR_DRUM_G 0.55f
-#define COLOR_DRUM_B 0.95f
-#define COLOR_GRID_R 0.96f
-#define COLOR_GRID_G 0.98f
-#define COLOR_GRID_B 1.00f
+#define COLOR_DRUM_R 0.05f
+#define COLOR_DRUM_G 0.05f
+#define COLOR_DRUM_B 0.05f
+#define COLOR_GRID_R 0.30f
+#define COLOR_GRID_G 0.30f
+#define COLOR_GRID_B 0.30f
+
+/* Unified ball color for all balls (drum + picked overlay) */
+#define BALL_COLOR_R 0.20f
+#define BALL_COLOR_G 0.72f
+#define BALL_COLOR_B 0.35f
+#define SUPER_BALL_COLOR_R 0.95f
+#define SUPER_BALL_COLOR_G 0.82f
+#define SUPER_BALL_COLOR_B 0.20f
 
 typedef struct
 {
@@ -154,6 +162,7 @@ typedef struct
 
     /* Waiting for another drum to finish before starting */
     int waiting;  /* 1 = stays in FALLING until cleared externally */
+    int is_extra; /* 1 for superzahl/euro-number drum */
 } DrumInstance;
 
 typedef struct
@@ -235,6 +244,7 @@ static const char *BALL_COMPUTE_SHADER_SRC =
     "  vec3 g = vec3(-uGravity * sin(theta), -uGravity * cos(theta), 0.0);\n"
     "  vel += g * uDeltaTime;\n"
     "  vel *= uAirDamping;\n"
+    "  vel.z *= 0.88;\n"  /* drum spins around Z: kill Z drift each step */
     "  float collisionDist = 2.0 * uBallRadius;\n"
     "  for (int j = 0; j < uBallCount; ++j) {\n"
     "    if (j == int(i)) continue;\n"
@@ -605,7 +615,7 @@ static void draw_sphere_frame(float radius, int slices, int stacks)
 static void setup_opengl(void)
 {
     glEnable(GL_DEPTH_TEST);
-    glClearColor(0.05f, 0.05f, 0.1f, 1.0f);
+    glClearColor(0.90f, 0.90f, 0.90f, 1.0f);
     glClearDepth(1.0f);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -688,6 +698,7 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
         drum->stop_omega     = DRUM_ROTATION_SPEED_DEG;
         drum->current_pick_idx = -1;
         drum->waiting        = 0;
+        drum->is_extra       = 0;
 
         drum_instance_init_balls(drum);
         state->main_drum = drum;
@@ -719,6 +730,7 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
                 drum->stop_omega       = DRUM_ROTATION_SPEED_DEG;
                 drum->current_pick_idx = -1;
                 drum->waiting          = 1;  /* wait for main drum to finish */
+                drum->is_extra         = 1;
 
                 drum_instance_init_balls(drum);
                 state->extra_drum = drum;
@@ -793,8 +805,8 @@ static GLuint make_number_texture(TTF_Font *font, int number)
     char buf[8];
     snprintf(buf, sizeof(buf), "%d", number);
 
-    SDL_Color white = {255, 255, 255, 255};
-    SDL_Surface *text_surf = TTF_RenderText_Blended(font, buf, white);
+    SDL_Color black = {0, 0, 0, 255};
+    SDL_Surface *text_surf = TTF_RenderText_Blended(font, buf, black);
     if (!text_surf) return 0;
 
     /* Square canvas, power-of-two for compatibility */
@@ -884,6 +896,8 @@ static void init_ball_textures(GuiState3D *state)
 
 static void render_drum_instance(const DrumInstance *drum, float sim_time)
 {
+    (void)sim_time;
+
     float x = drum->world_x;
     float y = drum->world_y;
     float drum_radius = drum->drum_radius;
@@ -901,18 +915,15 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time)
     for (int i = 0; i < drum->ball_count; i++)
     {
         const DrumBall *ball = &drum->balls[i];
+        if (ball->picked)
+            continue; /* picked balls are removed from drum rendering */
+
         glPushMatrix();
         glTranslatef(ball->x, ball->y, ball->z);
-        if (ball->picked)
-        {
-            float pulse = 1.0f + 0.12f * sinf(sim_time * 6.0f);
-            glScalef(pulse, pulse, pulse);
-            glColor3f(1.0f, 0.82f, 0.0f);
-        }
+        if (drum->is_extra)
+            glColor3f(SUPER_BALL_COLOR_R, SUPER_BALL_COLOR_G, SUPER_BALL_COLOR_B);
         else
-        {
-            glColor3f(0.15f, 0.75f, 0.25f);
-        }
+            glColor3f(BALL_COLOR_R, BALL_COLOR_G, BALL_COLOR_B);
         draw_sphere(ball_radius, 18, 12);
         glPopMatrix();
     }
@@ -921,6 +932,7 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time)
     if (drum->number_textures)
     {
         glDisable(GL_LIGHTING);
+        glDisable(GL_DEPTH_TEST);
         glEnable(GL_TEXTURE_2D);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -929,6 +941,9 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time)
         for (int i = 0; i < drum->ball_count; i++)
         {
             const DrumBall *ball = &drum->balls[i];
+            if (ball->picked)
+                continue;
+
             int idx = ball->ball_number;
             if (idx < 0 || idx >= drum->texture_count) continue;
             if (!drum->number_textures[idx]) continue;
@@ -957,6 +972,7 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time)
 
         glBindTexture(GL_TEXTURE_2D, 0);
         glDisable(GL_TEXTURE_2D);
+        glEnable(GL_DEPTH_TEST);
         glEnable(GL_LIGHTING);
     }
 
@@ -969,62 +985,151 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time)
     /* Wireframe outline */
     draw_sphere_frame(drum_radius, 28, 20);
 
+    /* Asymmetric shell marker so Z-axis spin is always visible. */
+    glPushMatrix();
+    glTranslatef(drum_radius * 0.90f, 0.0f, 0.0f);
+    glColor3f(0.75f, 0.10f, 0.10f);
+    draw_sphere(BALL_RADIUS * 0.24f, 12, 8);
+    glPopMatrix();
+
+    /* Draw coordinate axes at drum center */
+    glDisable(GL_LIGHTING);
+    glLineWidth(3.0f);
+    glBegin(GL_LINES);
+    /* X axis - red */
+    glColor3f(1.0f, 0.0f, 0.0f);
+    glVertex3f(0.0f, 0.0f, 0.0f);
+    glVertex3f(drum_radius * 0.5f, 0.0f, 0.0f);
+    /* Y axis - green */
+    glColor3f(0.0f, 1.0f, 0.0f);
+    glVertex3f(0.0f, 0.0f, 0.0f);
+    glVertex3f(0.0f, drum_radius * 0.5f, 0.0f);
+    /* Z axis - blue */
+    glColor3f(0.0f, 0.0f, 1.0f);
+    glVertex3f(0.0f, 0.0f, 0.0f);
+    glVertex3f(0.0f, 0.0f, drum_radius * 0.5f);
+    glEnd();
+    glLineWidth(1.0f);
+    glEnable(GL_LIGHTING);
+
     glPopMatrix();
 }
 
-/* Render picked-ball result row for a drum (in world space, outside drum transform) */
-static void render_drum_result_row(const DrumInstance *drum, float sim_time)
+static void render_fixed_axes(void)
 {
-    if (drum->result_ball_count == 0) return;
+    /* Draw fixed coordinate axes at world origin (not rotating with camera) */
+    glDisable(GL_LIGHTING);
+    glLineWidth(4.0f);
+    glBegin(GL_LINES);
+    /* X axis - red */
+    glColor3f(1.0f, 0.0f, 0.0f);
+    glVertex3f(0.0f, 0.0f, 0.0f);
+    glVertex3f(400.0f, 0.0f, 0.0f);
+    /* Y axis - green */
+    glColor3f(0.0f, 1.0f, 0.0f);
+    glVertex3f(0.0f, 0.0f, 0.0f);
+    glVertex3f(0.0f, 400.0f, 0.0f);
+    /* Z axis - blue */
+    glColor3f(0.0f, 0.0f, 1.0f);
+    glVertex3f(0.0f, 0.0f, 0.0f);
+    glVertex3f(0.0f, 0.0f, 400.0f);
+    glEnd();
+    glLineWidth(1.0f);
+    glEnable(GL_LIGHTING);
+}
 
-    for (int s = 0; s < drum->result_ball_count; s++)
+static void render_overlay_ball_2d(const DrumInstance *drum,
+                                   const PickedBallDisplay *pb,
+                                   float cx, float cy,
+                                   float r, float g, float b)
+{
+    /* Draw a lit 3D sphere in fixed screen coordinates (orthographic overlay). */
+    glEnable(GL_LIGHTING);
+    glPushMatrix();
+    glTranslatef(cx, cy, 0.0f);
+    glColor3f(r, g, b);
+    draw_sphere(BALL_RADIUS, 18, 12);
+    glPopMatrix();
+    glDisable(GL_LIGHTING);
+
+    if (drum->number_textures)
     {
-        const PickedBallDisplay *pb = &drum->result_balls[s];
-
-        glPushMatrix();
-        glTranslatef(pb->x, pb->y, pb->z);
-
-        /* Gold sphere */
-        glColor3f(1.0f, 0.82f, 0.0f);
-        draw_sphere(BALL_RADIUS, 18, 12);
-
-        /* Number label */
-        if (drum->number_textures)
+        int idx = pb->ball_number;
+        if (idx >= 0 && idx < drum->texture_count && drum->number_textures[idx])
         {
-            int idx = pb->ball_number;
-            if (idx >= 0 && idx < drum->texture_count && drum->number_textures[idx])
-            {
-                glDisable(GL_LIGHTING);
-                glEnable(GL_TEXTURE_2D);
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-                glColor3f(1.0f, 1.0f, 1.0f);
+            glEnable(GL_TEXTURE_2D);
+            glColor3f(1.0f, 1.0f, 1.0f);
+            float s2 = BALL_RADIUS * 0.80f;
+            glBindTexture(GL_TEXTURE_2D, drum->number_textures[idx]);
+            glBegin(GL_QUADS);
+                glTexCoord2f(0.0f, 1.0f); glVertex3f(cx - s2, cy + s2, BALL_RADIUS * 0.70f);
+                glTexCoord2f(1.0f, 1.0f); glVertex3f(cx + s2, cy + s2, BALL_RADIUS * 0.70f);
+                glTexCoord2f(1.0f, 0.0f); glVertex3f(cx + s2, cy - s2, BALL_RADIUS * 0.70f);
+                glTexCoord2f(0.0f, 0.0f); glVertex3f(cx - s2, cy - s2, BALL_RADIUS * 0.70f);
+            glEnd();
 
-                float mv[16];
-                glGetFloatv(GL_MODELVIEW_MATRIX, mv);
-                mv[0] = 1.0f; mv[1] = 0.0f; mv[2] = 0.0f;
-                mv[4] = 0.0f; mv[5] = 1.0f; mv[6] = 0.0f;
-                mv[8] = 0.0f; mv[9] = 0.0f; mv[10] = 1.0f;
-                glLoadMatrixf(mv);
-
-                float s2 = BALL_RADIUS * 0.80f;
-                glBindTexture(GL_TEXTURE_2D, drum->number_textures[idx]);
-                glBegin(GL_QUADS);
-                    glTexCoord2f(0.0f, 1.0f); glVertex3f(-s2, -s2, 0.5f);
-                    glTexCoord2f(1.0f, 1.0f); glVertex3f( s2, -s2, 0.5f);
-                    glTexCoord2f(1.0f, 0.0f); glVertex3f( s2,  s2, 0.5f);
-                    glTexCoord2f(0.0f, 0.0f); glVertex3f(-s2,  s2, 0.5f);
-                glEnd();
-
-                glBindTexture(GL_TEXTURE_2D, 0);
-                glDisable(GL_TEXTURE_2D);
-                glEnable(GL_LIGHTING);
-            }
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glDisable(GL_TEXTURE_2D);
         }
-
-        glPopMatrix();
     }
-    (void)sim_time;
+}
+
+/* Render final result as one fixed on-screen line: main numbers + superzahl. */
+static void render_combined_result_overlay_2d(const GuiState3D *state, float row_y_px)
+{
+    const DrumInstance *main_drum = state->main_drum;
+    const DrumInstance *extra_drum = state->extra_drum;
+    int main_count = main_drum ? main_drum->result_ball_count : 0;
+    int extra_count = extra_drum ? extra_drum->result_ball_count : 0;
+
+    if (main_count == 0 && extra_count == 0)
+        return;
+
+    float slot_spacing = BALL_RADIUS * 2.2f;
+    int show_plus = (main_count > 0 && extra_count > 0) ? 1 : 0;
+    int total_slots = main_count + extra_count + show_plus;
+    float row_start_x = ((float)WINDOW_WIDTH * 0.5f) - (((float)total_slots - 1.0f) * 0.5f * slot_spacing);
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_LIGHTING);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    int slot = 0;
+    for (int i = 0; i < main_count; i++, slot++)
+    {
+        float cx = row_start_x + (float)slot * slot_spacing;
+        const PickedBallDisplay *pb = &main_drum->result_balls[i];
+        render_overlay_ball_2d(main_drum, pb, cx, row_y_px,
+                               BALL_COLOR_R, BALL_COLOR_G, BALL_COLOR_B);
+    }
+
+    if (show_plus)
+    {
+        float plus_x = row_start_x + (float)slot * slot_spacing;
+        float plus_size = BALL_RADIUS * 0.55f;
+        glColor3f(0.1f, 0.1f, 0.1f);
+        glLineWidth(3.0f);
+        glBegin(GL_LINES);
+            glVertex2f(plus_x - plus_size, row_y_px);
+            glVertex2f(plus_x + plus_size, row_y_px);
+            glVertex2f(plus_x, row_y_px - plus_size);
+            glVertex2f(plus_x, row_y_px + plus_size);
+        glEnd();
+        glLineWidth(1.0f);
+        slot++;
+    }
+
+    for (int i = 0; i < extra_count; i++, slot++)
+    {
+        float cx = row_start_x + (float)slot * slot_spacing;
+        const PickedBallDisplay *pb = &extra_drum->result_balls[i];
+        render_overlay_ball_2d(extra_drum, pb, cx, row_y_px,
+                               SUPER_BALL_COLOR_R, SUPER_BALL_COLOR_G, SUPER_BALL_COLOR_B);
+    }
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
 }
 
 static void render_scene(GuiState3D *state)
@@ -1049,16 +1154,42 @@ static void render_scene(GuiState3D *state)
     glRotatef(state->camera_yaw, 0.0f, 1.0f, 0.0f);
     glRotatef(state->camera_roll, 0.0f, 0.0f, 1.0f);
 
-    /* Main drum */
-    render_drum_instance(state->main_drum, state->main_drum->sim_time);
-    render_drum_result_row(state->main_drum, state->main_drum->sim_time);
+    /* Draw fixed coordinate axes in world space */
+    render_fixed_axes();
 
-    /* Extra drum (if present) */
-    if (state->extra_drum)
+    /* Show only one drum at a time:
+       - main drum until main draw is complete
+       - then extra drum (superzahl/euro numbers) */
+    int show_main_drum = (state->main_drum->phase != DRUM_PHASE_DRAW_COMPLETE) ||
+                         (state->extra_drum == NULL);
+    int show_extra_drum = (state->extra_drum != NULL) &&
+                          (state->main_drum->phase == DRUM_PHASE_DRAW_COMPLETE);
+
+    if (show_main_drum)
+        render_drum_instance(state->main_drum, state->main_drum->sim_time);
+
+    if (show_extra_drum)
     {
         render_drum_instance(state->extra_drum, state->extra_drum->sim_time);
-        render_drum_result_row(state->extra_drum, state->extra_drum->sim_time);
     }
+
+    /* Screen-fixed picked-ball rows (unaffected by camera orbit/zoom):
+       switch to 2D overlay projection after 3D scene. */
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0.0, (double)WINDOW_WIDTH, (double)WINDOW_HEIGHT, 0.0, -1000.0, 1000.0);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    render_combined_result_overlay_2d(state, (float)WINDOW_HEIGHT - 78.0f);
+
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
 
     check_gl_error("render_scene");
 }
@@ -1216,9 +1347,6 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
     /* ---- ROTATING ---- */
     if (drum->phase == DRUM_PHASE_ROTATING)
     {
-        drum->drum_rotation_z += DRUM_ROTATION_SPEED_DEG * delta_time;
-        while (drum->drum_rotation_z > 360.0f) drum->drum_rotation_z -= 360.0f;
-
         if (drum->phase_timer >= drum->spin_before_pick)
         {
             drum->phase = DRUM_PHASE_STOPPING;
@@ -1234,9 +1362,6 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
         float decel_time = 1.5f;
         drum->stop_omega = DRUM_ROTATION_SPEED_DEG * (1.0f - drum->phase_timer / decel_time);
         if (drum->stop_omega < 0.0f) drum->stop_omega = 0.0f;
-
-        drum->drum_rotation_z += drum->stop_omega * delta_time;
-        while (drum->drum_rotation_z > 360.0f) drum->drum_rotation_z -= 360.0f;
 
         if (drum->phase_timer >= decel_time)
         {
@@ -1326,7 +1451,10 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
             if (ball->picked) continue;
             ball->vx *= 0.85f;
             ball->vz *= 0.85f;
-            ball->vy -= BALL_GRAVITY * delta_time;
+            /* Drum stopped at angle theta — transform world gravity to local frame */
+            float theta_p = drum->drum_rotation_z * 3.14159265f / 180.0f;
+            ball->vx += -BALL_GRAVITY * sinf(theta_p) * delta_time;
+            ball->vy += -BALL_GRAVITY * cosf(theta_p) * delta_time;
             ball->x  += ball->vx * delta_time;
             ball->y  += ball->vy * delta_time;
             ball->z  += ball->vz * delta_time;
@@ -1395,8 +1523,11 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
     /* CPU physics for ROTATING / STOPPING */
     {
         float inner_r = drum_radius - BALL_RADIUS;
+        /* Gravity points along fixed world Y axis (0, -BALL_GRAVITY, 0).
+         * Transform to drum's local rotating frame by inverse rotation.
+         * Drum rotated by theta around Z, so transform by -theta. */
         float theta = drum->drum_rotation_z * 3.14159265f / 180.0f;
-        float gx = -BALL_GRAVITY * sinf(theta);
+        float gx = -BALL_GRAVITY * sinf(theta);     /* negative sin */
         float gy = -BALL_GRAVITY * cosf(theta);
 
         for (int i = 0; i < drum->ball_count; i++)
@@ -1404,6 +1535,17 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
             DrumBall *ball = &drum->balls[i];
             ball->vx += gx * delta_time;
             ball->vy += gy * delta_time;
+
+            /* Drum spins around Z: damp Z velocity every step so balls
+             * stay in the XY plane regardless of 3-D shell-bounce noise. */
+            ball->vz *= 0.88f;
+            if (drum->phase == DRUM_PHASE_STOPPING)
+            {
+                /* Extra kill on sideways drift while stopping for a pick. */
+                ball->vx *= 0.92f;
+                ball->vz *= 0.88f;  /* applied twice this step = 0.88*0.88 */
+            }
+
             ball->vx *= BALL_AIR_DAMPING;
             ball->vy *= BALL_AIR_DAMPING;
             ball->vz *= BALL_AIR_DAMPING;
@@ -1426,6 +1568,7 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
                     ball->vy -= (1.0f + rest) * vdn * ny;
                     ball->vz -= (1.0f + rest) * vdn * nz;
                 }
+                if (drum->phase != DRUM_PHASE_STOPPING)
                 {
                     float radial = sqrtf(ball->x*ball->x + ball->y*ball->y);
                     if (radial > 0.1f)
@@ -1524,8 +1667,14 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
     }
 
     float eff_omega = (drum->phase == DRUM_PHASE_STOPPING) ? drum->stop_omega : DRUM_ROTATION_SPEED_DEG;
+
+    /* Keep agreed behavior: rotate only around Z axis. */
     drum->drum_rotation_z += eff_omega * delta_time;
     while (drum->drum_rotation_z > 360.0f) drum->drum_rotation_z -= 360.0f;
+
+    /* Ensure no residual tumble on X/Y axes. */
+    drum->drum_rotation_x = 0.0f;
+    drum->drum_rotation_y = 0.0f;
 }
 
 static void update_animation(GuiState3D *state, float delta_time)
@@ -1546,9 +1695,16 @@ static void update_animation(GuiState3D *state, float delta_time)
                       state->extra_drum->phase == DRUM_PHASE_DRAW_COMPLETE);
     state->animation_complete = (main_done && extra_done) ? 1 : 0;
 
-    /* GPU compute path for main drum (ROTATING phase only) */
-    if (state->use_gpu_compute && state->main_drum->phase == DRUM_PHASE_ROTATING)
-        update_animation_gpu(state, delta_time);
+    /* GPU compute path for main drum (ROTATING phase only).
+       Keep buffers synchronized in non-rotating phases so picked balls
+       do not reappear when switching back to GPU updates. */
+    if (state->use_gpu_compute)
+    {
+        if (state->main_drum->phase == DRUM_PHASE_ROTATING)
+            update_animation_gpu(state, delta_time);
+        else
+            sync_cpu_balls_to_gpu(state);
+    }
 }
 
 /* ============================================================
