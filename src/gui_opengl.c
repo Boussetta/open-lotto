@@ -15,6 +15,15 @@
 
 /* Camera & view settings */
 #define CAMERA_Z -808.0f
+#define CAMERA_TRIMETRIC_X 0.0f
+#define CAMERA_TRIMETRIC_Y 143.0f
+#define CAMERA_TRIMETRIC_Z 0.0f
+#define CAMERA_PITCH_MIN -85.0f
+#define CAMERA_PITCH_MAX 85.0f
+#define MOUSE_ORBIT_SENSITIVITY 0.25f
+#define MOUSE_ZOOM_STEP 20.0f
+#define CAMERA_Z_MIN -1500.0f
+#define CAMERA_Z_MAX -120.0f
 
 /* Single large drum, sized for future 50-ball scene */
 #define DRUM_RADIUS 250.0f
@@ -37,6 +46,15 @@ typedef struct
     float drum_rotation_x;  /* Rotation angles for tumbling effect */
     float drum_rotation_y;
     float drum_rotation_z;
+
+    float camera_pitch;
+    float camera_yaw;
+    float camera_roll;
+    float camera_z;
+
+    int mouse_dragging;
+    int last_mouse_x;
+    int last_mouse_y;
     
     SDL_Window *window;
     SDL_GLContext gl_context;
@@ -76,18 +94,18 @@ static void draw_sphere(float radius, int slices, int stacks)
             float cos_theta = cosf(theta);
             float sin_theta = sinf(theta);
 
-            /* Vertex 1 - bottom of strip */
+            /* Vertex 1 - poles aligned on Z axis */
             float x1 = radius * sin_phi0 * cos_theta;
-            float y1 = radius * cos_phi0;
-            float z1 = radius * sin_phi0 * sin_theta;
+            float y1 = radius * sin_phi0 * sin_theta;
+            float z1 = radius * cos_phi0;
             
             glNormal3f(x1 / radius, y1 / radius, z1 / radius);
             glVertex3f(x1, y1, z1);
 
-            /* Vertex 2 - top of strip */
+            /* Vertex 2 - poles aligned on Z axis */
             float x2 = radius * sin_phi1 * cos_theta;
-            float y2 = radius * cos_phi1;
-            float z2 = radius * sin_phi1 * sin_theta;
+            float y2 = radius * sin_phi1 * sin_theta;
+            float z2 = radius * cos_phi1;
             
             glNormal3f(x2 / radius, y2 / radius, z2 / radius);
             glVertex3f(x2, y2, z2);
@@ -172,6 +190,12 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
     state->info = *info;
     state->animation_complete = 0;
 
+    state->camera_pitch = CAMERA_TRIMETRIC_X;
+    state->camera_yaw = CAMERA_TRIMETRIC_Y;
+    state->camera_roll = CAMERA_TRIMETRIC_Z;
+    state->camera_z = CAMERA_Z;
+    state->mouse_dragging = 0;
+
     return state;
 }
 
@@ -220,7 +244,12 @@ static void render_scene(GuiState3D *state)
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glTranslatef(0.0f, 0.6f, CAMERA_Z);
+    glTranslatef(0.0f, 0.6f, state->camera_z);
+
+    /* Trimetric camera view: three distinct axis rotations */
+    glRotatef(state->camera_pitch, 1.0f, 0.0f, 0.0f);
+    glRotatef(state->camera_yaw, 0.0f, 1.0f, 0.0f);
+    glRotatef(state->camera_roll, 0.0f, 0.0f, 1.0f);
 
     /* Single large drum preview */
     render_drum(DRUM_X, DRUM_Y, state->drum_rotation_x, state->drum_rotation_y,
@@ -241,16 +270,10 @@ static void on_draw_event(DrawEvent event, const LotteryResult *res)
 
 static void update_animation(GuiState3D *state, float delta_time)
 {
-    /* Rotate drums with multiple axes for realistic tumbling */
-    state->drum_rotation_x += 26.0f * delta_time;
-    state->drum_rotation_y += 42.0f * delta_time;
-    state->drum_rotation_z += 18.0f * delta_time;
+    /* Rotate drum around one axis only (Z axis) */
+    state->drum_rotation_z += 42.0f * delta_time;
 
     /* Normalize angles to prevent overflow */
-    while (state->drum_rotation_x > 360.0f)
-        state->drum_rotation_x -= 360.0f;
-    while (state->drum_rotation_y > 360.0f)
-        state->drum_rotation_y -= 360.0f;
     while (state->drum_rotation_z > 360.0f)
         state->drum_rotation_z -= 360.0f;
 }
@@ -285,7 +308,7 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
 
     state->window = SDL_CreateWindow(
         game_name, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN_DESKTOP);
 
     if (!state->window)
     {
@@ -315,6 +338,7 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
 
     log_info("Displaying %s - single large grid drum preview (capacity target: 50 balls)",
              game_name);
+    log_info("Mouse controls: hold left button and drag to orbit, wheel to zoom");
 
     /* Main loop */
     int running = 1;
@@ -335,7 +359,36 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
                         running = 0;
                     break;
                 case SDL_MOUSEBUTTONDOWN:
-                    running = 0;
+                    if (event.button.button == SDL_BUTTON_LEFT)
+                    {
+                        state->mouse_dragging = 1;
+                        state->last_mouse_x = event.button.x;
+                        state->last_mouse_y = event.button.y;
+                    }
+                    break;
+                case SDL_MOUSEBUTTONUP:
+                    if (event.button.button == SDL_BUTTON_LEFT)
+                    {
+                        state->mouse_dragging = 0;
+                    }
+                    break;
+                case SDL_MOUSEMOTION:
+                    if (state->mouse_dragging)
+                    {
+                        int dx = event.motion.x - state->last_mouse_x;
+
+                        state->camera_yaw += dx * MOUSE_ORBIT_SENSITIVITY;
+
+                        state->last_mouse_x = event.motion.x;
+                        state->last_mouse_y = event.motion.y;
+                    }
+                    break;
+                case SDL_MOUSEWHEEL:
+                    state->camera_z += event.wheel.y * MOUSE_ZOOM_STEP;
+                    if (state->camera_z < CAMERA_Z_MIN)
+                        state->camera_z = CAMERA_Z_MIN;
+                    if (state->camera_z > CAMERA_Z_MAX)
+                        state->camera_z = CAMERA_Z_MAX;
                     break;
             }
         }
