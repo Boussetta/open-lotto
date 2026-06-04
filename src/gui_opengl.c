@@ -97,6 +97,16 @@ typedef enum
     DRUM_PHASE_DRAW_COMPLETE /* all numbers drawn */
 } DrumPhase;
 
+/* A ball that has been drawn and is sitting outside the drum in the result row */
+typedef struct
+{
+    int   ball_number;
+    float x, y, z;       /* world position (outside drum) */
+    float vx, vy, vz;    /* velocity while flying to target */
+    float tx, ty, tz;    /* target world position */
+    int   arrived;       /* 1 once it has reached its slot */
+} PickedBallDisplay;
+
 typedef struct
 {
     LotteryInfo info;
@@ -117,6 +127,10 @@ typedef struct
     float spin_before_pick;   /* seconds of spinning before next stop */
     int   current_pick_idx;   /* index into balls[] of currently highlighted ball */
     float stop_omega;         /* current rotation speed during deceleration */
+
+    /* Result display row (outside drum) */
+    PickedBallDisplay result_balls[16]; /* max 7 main + 2 extra */
+    int result_ball_count;
 
     float camera_pitch;
     float camera_yaw;
@@ -640,6 +654,7 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
     state->spin_before_pick  = 3.0f + frand_range(0.0f, 2.0f); /* 3-5 s of spinning */
     state->current_pick_idx  = -1;
     state->stop_omega        = DRUM_ROTATION_SPEED_DEG;
+    state->result_ball_count = 0;
 
     /* Only attempt GPU compute if explicitly enabled via environment variable */
     /* This prevents freezing on systems with incomplete OpenGL 4.3 support */
@@ -864,6 +879,59 @@ static void render_scene(GuiState3D *state)
     /* Single large drum preview */
     render_drum(DRUM_X, DRUM_Y, state->drum_rotation_x, state->drum_rotation_y,
                 state->drum_rotation_z, state);
+
+    /* Result row: picked balls placed outside the drum in world space */
+    if (state->result_ball_count > 0)
+    {
+        for (int s = 0; s < state->result_ball_count; s++)
+        {
+            const PickedBallDisplay *pb = &state->result_balls[s];
+
+            glPushMatrix();
+            glTranslatef(pb->x, pb->y, pb->z);
+
+            /* Gold sphere */
+            glColor3f(1.0f, 0.82f, 0.0f);
+            draw_sphere(BALL_RADIUS, 18, 12);
+
+            /* Number label */
+            if (state->number_textures)
+            {
+                int idx = pb->ball_number - 1;
+                if (idx >= 0 && idx < state->ball_count && state->number_textures[idx])
+                {
+                    glDisable(GL_LIGHTING);
+                    glEnable(GL_TEXTURE_2D);
+                    glEnable(GL_BLEND);
+                    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                    glColor3f(1.0f, 1.0f, 1.0f);
+
+                    /* Billboard: read current MV, zero the rotation part */
+                    float mv[16];
+                    glGetFloatv(GL_MODELVIEW_MATRIX, mv);
+                    mv[0] = 1.0f; mv[1] = 0.0f; mv[2] = 0.0f;
+                    mv[4] = 0.0f; mv[5] = 1.0f; mv[6] = 0.0f;
+                    mv[8] = 0.0f; mv[9] = 0.0f; mv[10] = 1.0f;
+                    glLoadMatrixf(mv);
+
+                    float s2 = BALL_RADIUS * 0.80f;
+                    glBindTexture(GL_TEXTURE_2D, state->number_textures[idx]);
+                    glBegin(GL_QUADS);
+                        glTexCoord2f(0.0f, 1.0f); glVertex3f(-s2, -s2, 0.5f);
+                        glTexCoord2f(1.0f, 1.0f); glVertex3f( s2, -s2, 0.5f);
+                        glTexCoord2f(1.0f, 0.0f); glVertex3f( s2,  s2, 0.5f);
+                        glTexCoord2f(0.0f, 0.0f); glVertex3f(-s2,  s2, 0.5f);
+                    glEnd();
+
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    glDisable(GL_TEXTURE_2D);
+                    glEnable(GL_LIGHTING);
+                }
+            }
+
+            glPopMatrix();
+        }
+    }
 
     check_gl_error("render_scene");
 }
@@ -1112,7 +1180,7 @@ static void update_animation(GuiState3D *state, float delta_time)
                     pick_num = state->result.extra_numbers[extra_idx];
             }
 
-            /* Find the ball with that number */
+            /* Find the ball with that number and mark it picked */
             state->current_pick_idx = -1;
             for (int i = 0; i < state->ball_count; i++)
             {
@@ -1120,12 +1188,44 @@ static void update_animation(GuiState3D *state, float delta_time)
                 {
                     state->current_pick_idx = i;
                     state->balls[i].picked = 1;
-                    /* Give it an upward launch so it floats toward the top */
+                    /* Kill velocity — ball will settle with gravity like falling phase */
                     state->balls[i].vx = 0.0f;
-                    state->balls[i].vy = 120.0f;
+                    state->balls[i].vy = 0.0f;
                     state->balls[i].vz = 0.0f;
                     break;
                 }
+            }
+
+            /* Place the picked ball into the result row display.
+               Row sits below the drum in world space.
+               Slots spaced by 2.5 ball diameters, centred on X. */
+            if (state->current_pick_idx >= 0 && pick_num > 0)
+            {
+                int slot = state->result_ball_count;
+                int total = state->picks_total;
+                float slot_spacing = BALL_RADIUS * 2.5f;
+                float row_start_x = -((total - 1) * 0.5f) * slot_spacing;
+                float target_x = row_start_x + slot * slot_spacing;
+                float target_y = -(DRUM_RADIUS + BALL_RADIUS * 3.5f); /* below drum */
+                float target_z = 0.0f;
+
+                PickedBallDisplay *pb = &state->result_balls[slot];
+                pb->ball_number = pick_num;
+                /* Start at the ball's current drum position (drum-local → world offset) */
+                pb->x = state->balls[state->current_pick_idx].x + DRUM_X;
+                pb->y = state->balls[state->current_pick_idx].y + DRUM_Y;
+                pb->z = state->balls[state->current_pick_idx].z;
+                pb->tx = target_x;
+                pb->ty = target_y;
+                pb->tz = target_z;
+                pb->vx = pb->vy = pb->vz = 0.0f;
+                pb->arrived = 0;
+                state->result_ball_count++;
+
+                /* Hide the original ball inside drum (moved far away, it won't render) */
+                state->balls[state->current_pick_idx].x = 9999.0f;
+                state->balls[state->current_pick_idx].y = 9999.0f;
+                state->balls[state->current_pick_idx].z = 9999.0f;
             }
 
             state->picks_done++;
@@ -1136,21 +1236,90 @@ static void update_animation(GuiState3D *state, float delta_time)
         if (state->use_gpu_compute) return;
     }
 
-    /* ---- PICK_PAUSE: show picked ball for 2 s, then resume spin --------- */
+    /* ---- PICK_PAUSE: balls re-settle inside drum; picked ball flies to row */
     if (state->phase == DRUM_PHASE_PICK_PAUSE)
     {
-        /* Float the picked ball upward inside the drum */
-        if (state->current_pick_idx >= 0)
+        /* Animate the flying ball toward its result-row slot */
+        for (int s = 0; s < state->result_ball_count; s++)
         {
-            DrumBall *pb = &state->balls[state->current_pick_idx];
-            pb->vy += -BALL_GRAVITY * 0.15f * delta_time; /* gentle float */
-            pb->y  += pb->vy * delta_time;
-            /* Clamp inside drum so it doesn't escape */
-            float max_y = DRUM_RADIUS - BALL_RADIUS - 2.0f;
-            if (pb->y > max_y) { pb->y = max_y; pb->vy = 0.0f; }
+            PickedBallDisplay *pb = &state->result_balls[s];
+            if (pb->arrived) continue;
+
+            float dx = pb->tx - pb->x;
+            float dy = pb->ty - pb->y;
+            float dz = pb->tz - pb->z;
+            float dist = sqrtf(dx*dx + dy*dy + dz*dz);
+            if (dist < 2.0f)
+            {
+                pb->x = pb->tx; pb->y = pb->ty; pb->z = pb->tz;
+                pb->vx = pb->vy = pb->vz = 0.0f;
+                pb->arrived = 1;
+            }
+            else
+            {
+                /* Lerp toward target at constant speed */
+                float speed = 350.0f;
+                float step = speed * delta_time;
+                if (step > dist) step = dist;
+                pb->x += (dx / dist) * step;
+                pb->y += (dy / dist) * step;
+                pb->z += (dz / dist) * step;
+            }
         }
 
-        float pause_time = 2.0f;
+        /* Balls inside drum fall and re-settle (same as FALLING phase logic) */
+        for (int i = 0; i < state->ball_count; i++)
+        {
+            DrumBall *ball = &state->balls[i];
+            if (ball->picked) continue; /* already removed */
+
+            ball->vy -= BALL_GRAVITY * delta_time;
+            ball->y  += ball->vy * delta_time;
+
+            float radial_sq = ball->x * ball->x + ball->z * ball->z;
+            float inside    = (DRUM_RADIUS - BALL_RADIUS) * (DRUM_RADIUS - BALL_RADIUS) - radial_sq;
+            float floor_y   = (inside <= 0.0f) ? (-DRUM_RADIUS + BALL_RADIUS) : -sqrtf(inside);
+
+            if (ball->y <= floor_y)
+            {
+                ball->y = floor_y;
+                if (fabsf(ball->vy) < BALL_SETTLE_SPEED)
+                    ball->vy = 0.0f;
+                else
+                    ball->vy = -ball->vy * BALL_BOUNCE_DAMPING;
+            }
+        }
+
+        /* Light ball-to-ball separation so they don't stack oddly */
+        {
+            float cd = 2.0f * BALL_RADIUS;
+            for (int i = 0; i < state->ball_count; i++)
+            {
+                if (state->balls[i].picked) continue;
+                for (int j = i + 1; j < state->ball_count; j++)
+                {
+                    if (state->balls[j].picked) continue;
+                    float dx = state->balls[j].x - state->balls[i].x;
+                    float dy = state->balls[j].y - state->balls[i].y;
+                    float dz = state->balls[j].z - state->balls[i].z;
+                    float d2 = dx*dx + dy*dy + dz*dz;
+                    if (d2 < cd*cd && d2 > 1e-6f)
+                    {
+                        float d = sqrtf(d2);
+                        float overlap = (cd - d) * 0.5f;
+                        float nx = dx/d, ny = dy/d, nz = dz/d;
+                        state->balls[i].x -= nx * overlap;
+                        state->balls[i].y -= ny * overlap;
+                        state->balls[i].z -= nz * overlap;
+                        state->balls[j].x += nx * overlap;
+                        state->balls[j].y += ny * overlap;
+                        state->balls[j].z += nz * overlap;
+                    }
+                }
+            }
+        }
+
+        float pause_time = 2.5f;
         if (state->phase_timer >= pause_time)
         {
             if (state->picks_done >= state->picks_total)
