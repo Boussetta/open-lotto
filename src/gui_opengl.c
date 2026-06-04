@@ -113,6 +113,7 @@ typedef struct
     SDL_GLContext gl_context;
 
     int use_gpu_compute;
+    int _gpu_attempt_enabled;  /* Whether to attempt GPU compute initialization */
     GLuint compute_program;
     GLuint ball_ssbo;
     GpuBall *gpu_ball_cache;
@@ -247,6 +248,10 @@ static void sync_gpu_balls_to_cpu(GuiState3D *state)
     if (!state->use_gpu_compute)
         return;
 
+    /* Ensure all GPU operations are complete before reading data */
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT);
+    glFinish();
+
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, state->ball_ssbo);
     glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(GpuBall) * state->ball_count,
                        state->gpu_ball_cache);
@@ -336,6 +341,10 @@ static void destroy_gpu_compute(GuiState3D *state)
 
 static void update_animation_gpu(GuiState3D *state, float delta_time)
 {
+    /* Early return if GPU compute is not available */
+    if (!state->compute_program || state->compute_program == 0)
+        return;
+
     GLuint groups = (GLuint)((state->ball_count + GPU_COMPUTE_LOCAL_SIZE - 1) / GPU_COMPUTE_LOCAL_SIZE);
     float omega_rad_per_sec = DRUM_ROTATION_SPEED_DEG * 3.14159265f / 180.0f;
 
@@ -361,8 +370,8 @@ static void update_animation_gpu(GuiState3D *state, float delta_time)
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, state->ball_ssbo);
     glDispatchCompute(groups, 1, 1);
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT);
 
+    /* Sync data back from GPU (includes proper memory barriers) */
     sync_gpu_balls_to_cpu(state);
     glUseProgram(0);
 }
@@ -600,6 +609,22 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
 
     srand((unsigned int)time(NULL));
     init_balls(state);
+
+    /* Only attempt GPU compute if explicitly enabled via environment variable */
+    /* This prevents freezing on systems with incomplete OpenGL 4.3 support */
+    const char *enable_gpu = getenv("LOTTO_GPU_COMPUTE");
+    int try_gpu = (enable_gpu != NULL && (enable_gpu[0] == '1' || enable_gpu[0] == 'y' || enable_gpu[0] == 'Y'));
+    
+    if (try_gpu)
+    {
+        log_info("GPU compute mode requested (LOTTO_GPU_COMPUTE set)");
+    }
+    else
+    {
+        log_info("Using CPU physics (GPU compute disabled by default)");
+        log_info("To enable GPU compute, set: LOTTO_GPU_COMPUTE=1");
+    }
+    state->_gpu_attempt_enabled = try_gpu;
 
     return state;
 }
@@ -1058,10 +1083,14 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
             log_info("OpenGL runtime version: %s", gl_version);
     }
 
-    if (!init_gpu_compute(state))
+    if (state->_gpu_attempt_enabled && !init_gpu_compute(state))
     {
         state->use_gpu_compute = 0;
-        log_info("Using CPU physics path (GPU compute unavailable)");
+        log_info("GPU compute initialization failed; using CPU physics path");
+    }
+    else if (!state->_gpu_attempt_enabled)
+    {
+        state->use_gpu_compute = 0;
     }
 
     /* Generate the lottery draw (we won't display numbers yet, just show drums) */
