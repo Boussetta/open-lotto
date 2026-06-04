@@ -1,6 +1,6 @@
 #include "export.h"
-#include "gui_sdl.h"
 #include "gui_opengl.h"
+#include "gui_sdl.h"
 #include "log.h"
 #include "plugin_loader.h"
 #include "plugin_registry.h"

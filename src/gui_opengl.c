@@ -33,13 +33,13 @@
 #define CAMERA_Z_MAX -120.0f
 
 /* Main drum */
-#define DRUM_RADIUS      250.0f
-#define DRUM_X             0.0f
-#define DRUM_Y            -0.2f
+#define DRUM_RADIUS 250.0f
+#define DRUM_X 0.0f
+#define DRUM_Y -0.2f
 /* Extra drum (smaller, to the right) */
 #define EXTRA_DRUM_RADIUS 150.0f
-#define EXTRA_DRUM_X         0.0f
-#define EXTRA_DRUM_Y       -0.2f
+#define EXTRA_DRUM_X 0.0f
+#define EXTRA_DRUM_Y -0.2f
 
 /* Ball simulation (initial state only) */
 #define MAX_GAME_BALLS 128
@@ -56,7 +56,8 @@
 #define BALL_COLLISION_BURST_SPEED 13.0f
 #define COLLISION_CELL_SIZE (BALL_RADIUS * 2.2f)
 #define COLLISION_GRID_MAX_DIM 16
-#define COLLISION_GRID_MAX_CELLS (COLLISION_GRID_MAX_DIM * COLLISION_GRID_MAX_DIM * COLLISION_GRID_MAX_DIM)
+#define COLLISION_GRID_MAX_CELLS                                                                   \
+    (COLLISION_GRID_MAX_DIM * COLLISION_GRID_MAX_DIM * COLLISION_GRID_MAX_DIM)
 #define GPU_COMPUTE_LOCAL_SIZE 64
 
 /* Drum color */
@@ -112,11 +113,11 @@ typedef enum
 /* A ball that has been drawn and is sitting outside the drum in the result row */
 typedef struct
 {
-    int   ball_number;
-    float x, y, z;       /* world position (outside drum) */
-    float vx, vy, vz;    /* velocity while flying to target */
-    float tx, ty, tz;    /* target world position */
-    int   arrived;       /* 1 once it has reached its slot */
+    int ball_number;
+    float x, y, z;    /* world position (outside drum) */
+    float vx, vy, vz; /* velocity while flying to target */
+    float tx, ty, tz; /* target world position */
+    int arrived;      /* 1 once it has reached its slot */
 } PickedBallDisplay;
 
 /* Self-contained state for one physical drum (main or extra) */
@@ -124,29 +125,29 @@ typedef struct
 {
     /* Balls in this drum */
     DrumBall *balls;
-    int       ball_count;  /* total ball count for this drum */
-    int       ball_min;    /* ball_number = ball_min + i  (so Superzahl shows 0..9) */
+    int ball_count; /* total ball count for this drum */
+    int ball_min;   /* ball_number = ball_min + i  (so Superzahl shows 0..9) */
 
     /* Drum rotation */
     float drum_rotation_x;
     float drum_rotation_y;
     float drum_rotation_z;
-    float drum_radius;     /* physical radius of this drum */
+    float drum_radius; /* physical radius of this drum */
 
     /* Physics phase */
     DrumPhase phase;
-    float sim_time;        /* local time since drum was started (used for FALLING timeout) */
+    float sim_time; /* local time since drum was started (used for FALLING timeout) */
 
     /* Draw cycle */
-    int   picks_done;
-    int   picks_total;
+    int picks_done;
+    int picks_total;
     float phase_timer;
     float spin_before_pick;
-    int   current_pick_idx;
+    int current_pick_idx;
     float stop_omega;
 
     /* Numbers to draw (filled from LotteryResult before drum starts) */
-    int draw_numbers[16];  /* up to 12 extra or 7 main */
+    int draw_numbers[16]; /* up to 12 extra or 7 main */
 
     /* Result row for this drum */
     PickedBallDisplay result_balls[16];
@@ -157,8 +158,8 @@ typedef struct
     float world_y;
 
     /* Textures: one per ball, indexed by ball_number */
-    GLuint *number_textures;  /* size = ball_min + ball_count (use ball_number as index) */
-    int     texture_count;    /* = ball_min + ball_count */
+    GLuint *number_textures; /* size = ball_min + ball_count (use ball_number as index) */
+    int texture_count;       /* = ball_min + ball_count */
 
     /* Waiting for another drum to finish before starting */
     int waiting;  /* 1 = stays in FALLING until cleared externally */
@@ -167,12 +168,12 @@ typedef struct
 
 typedef struct
 {
-    LotteryInfo   info;
+    LotteryInfo info;
     LotteryResult result;
 
     /* Two independent drums */
-    DrumInstance *main_drum;   /* always present */
-    DrumInstance *extra_drum;  /* NULL if extra_count == 0 */
+    DrumInstance *main_drum;  /* always present */
+    DrumInstance *extra_drum; /* NULL if extra_count == 0 */
 
     /* Camera */
     float camera_pitch;
@@ -184,17 +185,17 @@ typedef struct
     int last_mouse_x;
     int last_mouse_y;
 
-    SDL_Window    *window;
-    SDL_GLContext  gl_context;
+    SDL_Window *window;
+    SDL_GLContext gl_context;
 
     /* GPU compute (main drum only) */
-    int    use_gpu_compute;
-    int    _gpu_attempt_enabled;
+    int use_gpu_compute;
+    int _gpu_attempt_enabled;
     GLuint compute_program;
     GLuint ball_ssbo;
     GpuBall *gpu_ball_cache;
 
-    TTF_Font *font;  /* shared font */
+    TTF_Font *font; /* shared font */
 
     int animation_complete;
 } GuiState3D;
@@ -244,7 +245,7 @@ static const char *BALL_COMPUTE_SHADER_SRC =
     "  vec3 g = vec3(-uGravity * sin(theta), -uGravity * cos(theta), 0.0);\n"
     "  vel += g * uDeltaTime;\n"
     "  vel *= uAirDamping;\n"
-    "  vel.z *= 0.88;\n"  /* drum spins around Z: kill Z drift each step */
+    "  vel.z *= 0.88;\n" /* drum spins around Z: kill Z drift each step */
     "  float collisionDist = 2.0 * uBallRadius;\n"
     "  for (int j = 0; j < uBallCount; ++j) {\n"
     "    if (j == int(i)) continue;\n"
@@ -339,9 +340,9 @@ static void sync_gpu_balls_to_cpu(GuiState3D *state)
 
     for (int i = 0; i < drum->ball_count; i++)
     {
-        drum->balls[i].x  = state->gpu_ball_cache[i].px;
-        drum->balls[i].y  = state->gpu_ball_cache[i].py;
-        drum->balls[i].z  = state->gpu_ball_cache[i].pz;
+        drum->balls[i].x = state->gpu_ball_cache[i].px;
+        drum->balls[i].y = state->gpu_ball_cache[i].py;
+        drum->balls[i].z = state->gpu_ball_cache[i].pz;
         drum->balls[i].vx = state->gpu_ball_cache[i].vx;
         drum->balls[i].vy = state->gpu_ball_cache[i].vy;
         drum->balls[i].vz = state->gpu_ball_cache[i].vz;
@@ -393,7 +394,8 @@ static int init_gpu_compute(GuiState3D *state)
 
     glGenBuffers(1, &state->ball_ssbo);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, state->ball_ssbo);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(GpuBall) * state->main_drum->ball_count, NULL, GL_DYNAMIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(GpuBall) * state->main_drum->ball_count, NULL,
+                 GL_DYNAMIC_DRAW);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
     state->use_gpu_compute = 1;
@@ -426,7 +428,8 @@ static void update_animation_gpu(GuiState3D *state, float delta_time)
         return;
 
     DrumInstance *drum = state->main_drum;
-    GLuint groups = (GLuint)((drum->ball_count + GPU_COMPUTE_LOCAL_SIZE - 1) / GPU_COMPUTE_LOCAL_SIZE);
+    GLuint groups =
+        (GLuint)((drum->ball_count + GPU_COMPUTE_LOCAL_SIZE - 1) / GPU_COMPUTE_LOCAL_SIZE);
     float omega_rad_per_sec = DRUM_ROTATION_SPEED_DEG * 3.14159265f / 180.0f;
 
     glUseProgram(state->compute_program);
@@ -438,7 +441,8 @@ static void update_animation_gpu(GuiState3D *state, float delta_time)
     glUniform1f(glGetUniformLocation(state->compute_program, "uGravity"), BALL_GRAVITY);
     glUniform1f(glGetUniformLocation(state->compute_program, "uAirDamping"), BALL_AIR_DAMPING);
     glUniform1f(glGetUniformLocation(state->compute_program, "uOmega"), omega_rad_per_sec);
-    glUniform1f(glGetUniformLocation(state->compute_program, "uDrumRotationZDeg"), drum->drum_rotation_z);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uDrumRotationZDeg"),
+                drum->drum_rotation_z);
     glUniform1f(glGetUniformLocation(state->compute_program, "uCollisionRestitution"),
                 BALL_COLLISION_RESTITUTION);
     glUniform1f(glGetUniformLocation(state->compute_program, "uCollisionTangentialTransfer"),
@@ -447,7 +451,8 @@ static void update_animation_gpu(GuiState3D *state, float delta_time)
                 BALL_COLLISION_IMPULSE_BOOST);
     glUniform1f(glGetUniformLocation(state->compute_program, "uCollisionBurstSpeed"),
                 BALL_COLLISION_BURST_SPEED);
-    glUniform1f(glGetUniformLocation(state->compute_program, "uContactFriction"), BALL_CONTACT_FRICTION);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uContactFriction"),
+                BALL_CONTACT_FRICTION);
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, state->ball_ssbo);
     glDispatchCompute(groups, 1, 1);
@@ -529,7 +534,7 @@ static void resolve_ball_collision(DrumBall *ball_i, DrumBall *ball_j, float col
 /* Initialise balls for a drum */
 static void drum_instance_init_balls(DrumInstance *drum)
 {
-    drum->phase    = DRUM_PHASE_FALLING;
+    drum->phase = DRUM_PHASE_FALLING;
     drum->sim_time = 0.0f;
 
     float spawn_r = drum->drum_radius * 0.60f;
@@ -549,7 +554,7 @@ static void drum_instance_init_balls(DrumInstance *drum)
         drum->balls[i].vy = 0.0f;
         drum->balls[i].vz = 0.0f;
         drum->balls[i].settled = 0;
-        drum->balls[i].picked  = 0;
+        drum->balls[i].picked = 0;
         drum->balls[i].ball_number = drum->ball_min + i;
     }
 }
@@ -577,7 +582,7 @@ static void draw_sphere(float radius, int slices, int stacks)
             float x1 = radius * sin_phi0 * cos_theta;
             float y1 = radius * sin_phi0 * sin_theta;
             float z1 = radius * cos_phi0;
-            
+
             glNormal3f(x1 / radius, y1 / radius, z1 / radius);
             glVertex3f(x1, y1, z1);
 
@@ -585,7 +590,7 @@ static void draw_sphere(float radius, int slices, int stacks)
             float x2 = radius * sin_phi1 * cos_theta;
             float y2 = radius * sin_phi1 * sin_theta;
             float z2 = radius * cos_phi1;
-            
+
             glNormal3f(x2 / radius, y2 / radius, z2 / radius);
             glVertex3f(x2, y2, z2);
         }
@@ -600,9 +605,9 @@ static void draw_sphere_frame(float radius, int slices, int stacks)
     glLineWidth(3.0f);
     glColor3f(COLOR_GRID_R, COLOR_GRID_G, COLOR_GRID_B);
     glDisable(GL_LIGHTING);
-    
+
     draw_sphere(radius * 1.005f, slices, stacks);
-    
+
     glEnable(GL_LIGHTING);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glLineWidth(1.0f);
@@ -670,35 +675,46 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
     state->animation_complete = 0;
 
     state->camera_pitch = CAMERA_TRIMETRIC_X;
-    state->camera_yaw   = CAMERA_TRIMETRIC_Y;
-    state->camera_roll  = CAMERA_TRIMETRIC_Z;
-    state->camera_z     = CAMERA_Z;
+    state->camera_yaw = CAMERA_TRIMETRIC_Y;
+    state->camera_roll = CAMERA_TRIMETRIC_Z;
+    state->camera_z = CAMERA_Z;
 
     srand((unsigned int)time(NULL));
 
     /* ---- Main drum ---- */
     {
         DrumInstance *drum = (DrumInstance *)calloc(1, sizeof(DrumInstance));
-        if (!drum) { free(state); return NULL; }
+        if (!drum)
+        {
+            free(state);
+            return NULL;
+        }
 
         int ball_count = info->main_max;
-        if (ball_count <= 0) ball_count = 50;
-        if (ball_count > MAX_GAME_BALLS) ball_count = MAX_GAME_BALLS;
+        if (ball_count <= 0)
+            ball_count = 50;
+        if (ball_count > MAX_GAME_BALLS)
+            ball_count = MAX_GAME_BALLS;
 
-        drum->balls      = (DrumBall *)calloc((size_t)ball_count, sizeof(DrumBall));
-        if (!drum->balls) { free(drum); free(state); return NULL; }
+        drum->balls = (DrumBall *)calloc((size_t)ball_count, sizeof(DrumBall));
+        if (!drum->balls)
+        {
+            free(drum);
+            free(state);
+            return NULL;
+        }
 
-        drum->ball_count     = ball_count;
-        drum->ball_min       = info->main_min;   /* e.g. 1 for Lotto/Eurojackpot */
-        drum->drum_radius    = DRUM_RADIUS;
-        drum->world_x        = DRUM_X;
-        drum->world_y        = DRUM_Y;
-        drum->picks_total    = info->main_count;
+        drum->ball_count = ball_count;
+        drum->ball_min = info->main_min; /* e.g. 1 for Lotto/Eurojackpot */
+        drum->drum_radius = DRUM_RADIUS;
+        drum->world_x = DRUM_X;
+        drum->world_y = DRUM_Y;
+        drum->picks_total = info->main_count;
         drum->spin_before_pick = 3.0f + frand_range(0.0f, 2.0f);
-        drum->stop_omega     = DRUM_ROTATION_SPEED_DEG;
+        drum->stop_omega = DRUM_ROTATION_SPEED_DEG;
         drum->current_pick_idx = -1;
-        drum->waiting        = 0;
-        drum->is_extra       = 0;
+        drum->waiting = 0;
+        drum->is_extra = 0;
 
         drum_instance_init_balls(drum);
         state->main_drum = drum;
@@ -714,23 +730,25 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
         if (drum)
         {
             int ball_count = info->extra_max - info->extra_min + 1;
-            if (ball_count <= 0) ball_count = 10;
-            if (ball_count > MAX_GAME_BALLS) ball_count = MAX_GAME_BALLS;
+            if (ball_count <= 0)
+                ball_count = 10;
+            if (ball_count > MAX_GAME_BALLS)
+                ball_count = MAX_GAME_BALLS;
 
             drum->balls = (DrumBall *)calloc((size_t)ball_count, sizeof(DrumBall));
             if (drum->balls)
             {
-                drum->ball_count       = ball_count;
-                drum->ball_min         = info->extra_min;
-                drum->drum_radius      = EXTRA_DRUM_RADIUS;
-                drum->world_x          = EXTRA_DRUM_X;
-                drum->world_y          = EXTRA_DRUM_Y;
-                drum->picks_total      = info->extra_count;
+                drum->ball_count = ball_count;
+                drum->ball_min = info->extra_min;
+                drum->drum_radius = EXTRA_DRUM_RADIUS;
+                drum->world_x = EXTRA_DRUM_X;
+                drum->world_y = EXTRA_DRUM_Y;
+                drum->picks_total = info->extra_count;
                 drum->spin_before_pick = 3.0f + frand_range(0.0f, 2.0f);
-                drum->stop_omega       = DRUM_ROTATION_SPEED_DEG;
+                drum->stop_omega = DRUM_ROTATION_SPEED_DEG;
                 drum->current_pick_idx = -1;
-                drum->waiting          = 1;  /* wait for main drum to finish */
-                drum->is_extra         = 1;
+                drum->waiting = 1; /* wait for main drum to finish */
+                drum->is_extra = 1;
 
                 drum_instance_init_balls(drum);
                 state->extra_drum = drum;
@@ -746,7 +764,8 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
 
     /* GPU compute opt-in */
     const char *enable_gpu = getenv("LOTTO_GPU_COMPUTE");
-    int try_gpu = (enable_gpu != NULL && (enable_gpu[0] == '1' || enable_gpu[0] == 'y' || enable_gpu[0] == 'Y'));
+    int try_gpu = (enable_gpu != NULL &&
+                   (enable_gpu[0] == '1' || enable_gpu[0] == 'y' || enable_gpu[0] == 'Y'));
     if (try_gpu)
         log_info("GPU compute mode requested (LOTTO_GPU_COMPUTE set)");
     else
@@ -800,33 +819,37 @@ static void gui_state_destroy(GuiState3D *state)
 /* Create an OpenGL texture from a ball number using SDL_ttf */
 static GLuint make_number_texture(TTF_Font *font, int number)
 {
-    if (!font) return 0;
+    if (!font)
+        return 0;
 
     char buf[8];
     snprintf(buf, sizeof(buf), "%d", number);
 
     SDL_Color black = {0, 0, 0, 255};
     SDL_Surface *text_surf = TTF_RenderText_Blended(font, buf, black);
-    if (!text_surf) return 0;
+    if (!text_surf)
+        return 0;
 
     /* Square canvas, power-of-two for compatibility */
     int tex_size = 64;
-    SDL_Surface *canvas = SDL_CreateRGBSurface(0, tex_size, tex_size, 32,
-        0x000000FFu, 0x0000FF00u, 0x00FF0000u, 0xFF000000u);
-    if (!canvas) { SDL_FreeSurface(text_surf); return 0; }
+    SDL_Surface *canvas = SDL_CreateRGBSurface(0, tex_size, tex_size, 32, 0x000000FFu, 0x0000FF00u,
+                                               0x00FF0000u, 0xFF000000u);
+    if (!canvas)
+    {
+        SDL_FreeSurface(text_surf);
+        return 0;
+    }
     SDL_FillRect(canvas, NULL, 0);
 
-    SDL_Rect dst = {
-        (tex_size - text_surf->w) / 2,
-        (tex_size - text_surf->h) / 2,
-        text_surf->w, text_surf->h
-    };
+    SDL_Rect dst = {(tex_size - text_surf->w) / 2, (tex_size - text_surf->h) / 2, text_surf->w,
+                    text_surf->h};
     SDL_BlitSurface(text_surf, NULL, canvas, &dst);
     SDL_FreeSurface(text_surf);
 
     SDL_Surface *conv = SDL_ConvertSurfaceFormat(canvas, SDL_PIXELFORMAT_RGBA32, 0);
     SDL_FreeSurface(canvas);
-    if (!conv) return 0;
+    if (!conv)
+        return 0;
 
     GLuint tex = 0;
     glGenTextures(1, &tex);
@@ -835,8 +858,8 @@ static GLuint make_number_texture(TTF_Font *font, int number)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, conv->w, conv->h, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, conv->pixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, conv->w, conv->h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 conv->pixels);
     SDL_FreeSurface(conv);
     glBindTexture(GL_TEXTURE_2D, 0);
     return tex;
@@ -855,7 +878,8 @@ static void init_ball_textures(GuiState3D *state)
     state->font = TTF_OpenFont(font_path, 36);
     if (!state->font)
     {
-        log_warn("Failed to load font '%s': %s — numbers will be hidden", font_path, TTF_GetError());
+        log_warn("Failed to load font '%s': %s — numbers will be hidden", font_path,
+                 TTF_GetError());
         return;
     }
 
@@ -863,7 +887,7 @@ static void init_ball_textures(GuiState3D *state)
     {
         DrumInstance *drum = state->main_drum;
         /* texture_count covers indices 0 .. (ball_min + ball_count - 1) */
-        drum->texture_count   = drum->ball_min + drum->ball_count;
+        drum->texture_count = drum->ball_min + drum->ball_count;
         drum->number_textures = (GLuint *)calloc((size_t)drum->texture_count, sizeof(GLuint));
         if (drum->number_textures)
         {
@@ -872,7 +896,8 @@ static void init_ball_textures(GuiState3D *state)
                 int num = drum->ball_min + i;
                 drum->number_textures[num] = make_number_texture(state->font, num);
             }
-            log_info("Main drum textures created (%d balls, min=%d)", drum->ball_count, drum->ball_min);
+            log_info("Main drum textures created (%d balls, min=%d)", drum->ball_count,
+                     drum->ball_min);
         }
     }
 
@@ -880,7 +905,7 @@ static void init_ball_textures(GuiState3D *state)
     if (state->extra_drum)
     {
         DrumInstance *drum = state->extra_drum;
-        drum->texture_count   = drum->ball_min + drum->ball_count;
+        drum->texture_count = drum->ball_min + drum->ball_count;
         drum->number_textures = (GLuint *)calloc((size_t)drum->texture_count, sizeof(GLuint));
         if (drum->number_textures)
         {
@@ -889,7 +914,8 @@ static void init_ball_textures(GuiState3D *state)
                 int num = drum->ball_min + i;
                 drum->number_textures[num] = make_number_texture(state->font, num);
             }
-            log_info("Extra drum textures created (%d balls, min=%d)", drum->ball_count, drum->ball_min);
+            log_info("Extra drum textures created (%d balls, min=%d)", drum->ball_count,
+                     drum->ball_min);
         }
     }
 }
@@ -945,26 +971,38 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time)
                 continue;
 
             int idx = ball->ball_number;
-            if (idx < 0 || idx >= drum->texture_count) continue;
-            if (!drum->number_textures[idx]) continue;
+            if (idx < 0 || idx >= drum->texture_count)
+                continue;
+            if (!drum->number_textures[idx])
+                continue;
 
             glPushMatrix();
             glTranslatef(ball->x, ball->y, ball->z);
 
             float mv[16];
             glGetFloatv(GL_MODELVIEW_MATRIX, mv);
-            mv[0] = 1.0f; mv[1] = 0.0f; mv[2] = 0.0f;
-            mv[4] = 0.0f; mv[5] = 1.0f; mv[6] = 0.0f;
-            mv[8] = 0.0f; mv[9] = 0.0f; mv[10] = 1.0f;
+            mv[0] = 1.0f;
+            mv[1] = 0.0f;
+            mv[2] = 0.0f;
+            mv[4] = 0.0f;
+            mv[5] = 1.0f;
+            mv[6] = 0.0f;
+            mv[8] = 0.0f;
+            mv[9] = 0.0f;
+            mv[10] = 1.0f;
             glLoadMatrixf(mv);
 
             float s = ball_radius * 0.80f;
             glBindTexture(GL_TEXTURE_2D, drum->number_textures[idx]);
             glBegin(GL_QUADS);
-                glTexCoord2f(0.0f, 1.0f); glVertex3f(-s, -s, 0.5f);
-                glTexCoord2f(1.0f, 1.0f); glVertex3f( s, -s, 0.5f);
-                glTexCoord2f(1.0f, 0.0f); glVertex3f( s,  s, 0.5f);
-                glTexCoord2f(0.0f, 0.0f); glVertex3f(-s,  s, 0.5f);
+            glTexCoord2f(0.0f, 1.0f);
+            glVertex3f(-s, -s, 0.5f);
+            glTexCoord2f(1.0f, 1.0f);
+            glVertex3f(s, -s, 0.5f);
+            glTexCoord2f(1.0f, 0.0f);
+            glVertex3f(s, s, 0.5f);
+            glTexCoord2f(0.0f, 0.0f);
+            glVertex3f(-s, s, 0.5f);
             glEnd();
 
             glPopMatrix();
@@ -988,10 +1026,8 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time)
     glPopMatrix();
 }
 
-static void render_overlay_ball_2d(const DrumInstance *drum,
-                                   const PickedBallDisplay *pb,
-                                   float cx, float cy,
-                                   float r, float g, float b)
+static void render_overlay_ball_2d(const DrumInstance *drum, const PickedBallDisplay *pb, float cx,
+                                   float cy, float r, float g, float b)
 {
     /* Draw a lit 3D sphere in fixed screen coordinates (orthographic overlay). */
     glEnable(GL_LIGHTING);
@@ -1012,10 +1048,14 @@ static void render_overlay_ball_2d(const DrumInstance *drum,
             float s2 = BALL_RADIUS * 0.80f;
             glBindTexture(GL_TEXTURE_2D, drum->number_textures[idx]);
             glBegin(GL_QUADS);
-                glTexCoord2f(0.0f, 1.0f); glVertex3f(cx - s2, cy + s2, BALL_RADIUS * 0.70f);
-                glTexCoord2f(1.0f, 1.0f); glVertex3f(cx + s2, cy + s2, BALL_RADIUS * 0.70f);
-                glTexCoord2f(1.0f, 0.0f); glVertex3f(cx + s2, cy - s2, BALL_RADIUS * 0.70f);
-                glTexCoord2f(0.0f, 0.0f); glVertex3f(cx - s2, cy - s2, BALL_RADIUS * 0.70f);
+            glTexCoord2f(0.0f, 1.0f);
+            glVertex3f(cx - s2, cy + s2, BALL_RADIUS * 0.70f);
+            glTexCoord2f(1.0f, 1.0f);
+            glVertex3f(cx + s2, cy + s2, BALL_RADIUS * 0.70f);
+            glTexCoord2f(1.0f, 0.0f);
+            glVertex3f(cx + s2, cy - s2, BALL_RADIUS * 0.70f);
+            glTexCoord2f(0.0f, 0.0f);
+            glVertex3f(cx - s2, cy - s2, BALL_RADIUS * 0.70f);
             glEnd();
 
             glBindTexture(GL_TEXTURE_2D, 0);
@@ -1038,7 +1078,8 @@ static void render_combined_result_overlay_2d(const GuiState3D *state, float row
     float slot_spacing = BALL_RADIUS * 2.2f;
     int show_plus = (main_count > 0 && extra_count > 0) ? 1 : 0;
     int total_slots = main_count + extra_count + show_plus;
-    float row_start_x = ((float)WINDOW_WIDTH * 0.5f) - (((float)total_slots - 1.0f) * 0.5f * slot_spacing);
+    float row_start_x =
+        ((float)WINDOW_WIDTH * 0.5f) - (((float)total_slots - 1.0f) * 0.5f * slot_spacing);
 
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_LIGHTING);
@@ -1050,8 +1091,8 @@ static void render_combined_result_overlay_2d(const GuiState3D *state, float row
     {
         float cx = row_start_x + (float)slot * slot_spacing;
         const PickedBallDisplay *pb = &main_drum->result_balls[i];
-        render_overlay_ball_2d(main_drum, pb, cx, row_y_px,
-                               BALL_COLOR_R, BALL_COLOR_G, BALL_COLOR_B);
+        render_overlay_ball_2d(main_drum, pb, cx, row_y_px, BALL_COLOR_R, BALL_COLOR_G,
+                               BALL_COLOR_B);
     }
 
     if (show_plus)
@@ -1061,10 +1102,10 @@ static void render_combined_result_overlay_2d(const GuiState3D *state, float row
         glColor3f(0.1f, 0.1f, 0.1f);
         glLineWidth(3.0f);
         glBegin(GL_LINES);
-            glVertex2f(plus_x - plus_size, row_y_px);
-            glVertex2f(plus_x + plus_size, row_y_px);
-            glVertex2f(plus_x, row_y_px - plus_size);
-            glVertex2f(plus_x, row_y_px + plus_size);
+        glVertex2f(plus_x - plus_size, row_y_px);
+        glVertex2f(plus_x + plus_size, row_y_px);
+        glVertex2f(plus_x, row_y_px - plus_size);
+        glVertex2f(plus_x, row_y_px + plus_size);
         glEnd();
         glLineWidth(1.0f);
         slot++;
@@ -1074,8 +1115,8 @@ static void render_combined_result_overlay_2d(const GuiState3D *state, float row
     {
         float cx = row_start_x + (float)slot * slot_spacing;
         const PickedBallDisplay *pb = &extra_drum->result_balls[i];
-        render_overlay_ball_2d(extra_drum, pb, cx, row_y_px,
-                               SUPER_BALL_COLOR_R, SUPER_BALL_COLOR_G, SUPER_BALL_COLOR_B);
+        render_overlay_ball_2d(extra_drum, pb, cx, row_y_px, SUPER_BALL_COLOR_R, SUPER_BALL_COLOR_G,
+                               SUPER_BALL_COLOR_B);
     }
 
     glEnable(GL_DEPTH_TEST);
@@ -1088,11 +1129,11 @@ static void render_scene(GuiState3D *state)
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    
+
     float aspect = (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT;
     float fov = 50.0f * M_PI / 180.0f;
     float f = 1.0f / tanf(fov / 2.0f);
-    
+
     glFrustum(-1.2f / f * aspect, 1.2f / f * aspect, -1.2f / f, 1.2f / f, 1.0f, 5000.0f);
 
     glMatrixMode(GL_MODELVIEW);
@@ -1107,10 +1148,10 @@ static void render_scene(GuiState3D *state)
     /* Show only one drum at a time:
        - main drum until main draw is complete
        - then extra drum (superzahl/euro numbers) */
-    int show_main_drum = (state->main_drum->phase != DRUM_PHASE_DRAW_COMPLETE) ||
-                         (state->extra_drum == NULL);
-    int show_extra_drum = (state->extra_drum != NULL) &&
-                          (state->main_drum->phase == DRUM_PHASE_DRAW_COMPLETE);
+    int show_main_drum =
+        (state->main_drum->phase != DRUM_PHASE_DRAW_COMPLETE) || (state->extra_drum == NULL);
+    int show_extra_drum =
+        (state->extra_drum != NULL) && (state->main_drum->phase == DRUM_PHASE_DRAW_COMPLETE);
 
     if (show_main_drum)
         render_drum_instance(state->main_drum, state->main_drum->sim_time);
@@ -1155,7 +1196,7 @@ static void on_draw_event(DrawEvent event, const LotteryResult *res)
 static void update_drum_instance(DrumInstance *drum, float delta_time)
 {
     if (drum->waiting)
-        return;  /* waiting for another drum to finish before starting */
+        return; /* waiting for another drum to finish before starting */
 
     drum->sim_time += delta_time;
     float drum_radius = drum->drum_radius;
@@ -1167,10 +1208,14 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
         for (int i = 0; i < drum->ball_count; i++)
         {
             DrumBall *ball = &drum->balls[i];
-            if (ball->settled) { settled_count++; continue; }
+            if (ball->settled)
+            {
+                settled_count++;
+                continue;
+            }
 
             ball->vy -= BALL_GRAVITY * delta_time;
-            ball->y  += ball->vy * delta_time;
+            ball->y += ball->vy * delta_time;
 
             float radial_sq = ball->x * ball->x + ball->z * ball->z;
             float inside = (drum_radius - BALL_RADIUS) * (drum_radius - BALL_RADIUS) - radial_sq;
@@ -1245,7 +1290,9 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
                 {
                     float dist = sqrtf(dist_sq);
                     float scale = inner_r / dist;
-                    ball->x *= scale; ball->y *= scale; ball->z *= scale;
+                    ball->x *= scale;
+                    ball->y *= scale;
+                    ball->z *= scale;
                     float vxr = ball->vx * (ball->x / dist);
                     float vyr = ball->vy * (ball->y / dist);
                     float vzr = ball->vz * (ball->z / dist);
@@ -1266,7 +1313,8 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
                 float sp = sqrtf(drum->balls[i].vx * drum->balls[i].vx +
                                  drum->balls[i].vy * drum->balls[i].vy +
                                  drum->balls[i].vz * drum->balls[i].vz);
-                if (sp > max_speed) max_speed = sp;
+                if (sp > max_speed)
+                    max_speed = sp;
             }
         }
         int calm = (settled_count >= min_settled) && (max_speed < 50.0f);
@@ -1308,12 +1356,13 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
     {
         float decel_time = 1.5f;
         drum->stop_omega = DRUM_ROTATION_SPEED_DEG * (1.0f - drum->phase_timer / decel_time);
-        if (drum->stop_omega < 0.0f) drum->stop_omega = 0.0f;
+        if (drum->stop_omega < 0.0f)
+            drum->stop_omega = 0.0f;
 
         if (drum->phase_timer >= decel_time)
         {
-            int pick_num = (drum->picks_done < drum->picks_total)
-                           ? drum->draw_numbers[drum->picks_done] : -1;
+            int pick_num =
+                (drum->picks_done < drum->picks_total) ? drum->draw_numbers[drum->picks_done] : -1;
 
             drum->current_pick_idx = -1;
             for (int i = 0; i < drum->ball_count; i++)
@@ -1342,7 +1391,9 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
                 pb->x = drum->balls[drum->current_pick_idx].x + drum->world_x;
                 pb->y = drum->balls[drum->current_pick_idx].y + drum->world_y;
                 pb->z = drum->balls[drum->current_pick_idx].z;
-                pb->tx = target_x; pb->ty = target_y; pb->tz = target_z;
+                pb->tx = target_x;
+                pb->ty = target_y;
+                pb->tz = target_z;
                 pb->vx = pb->vy = pb->vz = 0.0f;
                 pb->arrived = 0;
                 drum->result_ball_count++;
@@ -1373,19 +1424,23 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
         for (int s = 0; s < drum->result_ball_count; s++)
         {
             PickedBallDisplay *pb = &drum->result_balls[s];
-            if (pb->arrived) continue;
+            if (pb->arrived)
+                continue;
             float dx = pb->tx - pb->x, dy = pb->ty - pb->y, dz = pb->tz - pb->z;
-            float dist = sqrtf(dx*dx + dy*dy + dz*dz);
+            float dist = sqrtf(dx * dx + dy * dy + dz * dz);
             if (dist < 2.0f)
             {
-                pb->x = pb->tx; pb->y = pb->ty; pb->z = pb->tz;
+                pb->x = pb->tx;
+                pb->y = pb->ty;
+                pb->z = pb->tz;
                 pb->vx = pb->vy = pb->vz = 0.0f;
                 pb->arrived = 1;
             }
             else
             {
                 float step = 350.0f * delta_time;
-                if (step > dist) step = dist;
+                if (step > dist)
+                    step = dist;
                 pb->x += (dx / dist) * step;
                 pb->y += (dy / dist) * step;
                 pb->z += (dz / dist) * step;
@@ -1395,31 +1450,36 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
         for (int i = 0; i < drum->ball_count; i++)
         {
             DrumBall *ball = &drum->balls[i];
-            if (ball->picked) continue;
+            if (ball->picked)
+                continue;
             ball->vx *= 0.85f;
             ball->vz *= 0.85f;
             /* Drum stopped at angle theta — transform world gravity to local frame */
             float theta_p = drum->drum_rotation_z * 3.14159265f / 180.0f;
             ball->vx += -BALL_GRAVITY * sinf(theta_p) * delta_time;
             ball->vy += -BALL_GRAVITY * cosf(theta_p) * delta_time;
-            ball->x  += ball->vx * delta_time;
-            ball->y  += ball->vy * delta_time;
-            ball->z  += ball->vz * delta_time;
+            ball->x += ball->vx * delta_time;
+            ball->y += ball->vy * delta_time;
+            ball->z += ball->vz * delta_time;
             float rsq = ball->x * ball->x + ball->z * ball->z;
-            float ins  = (drum_radius - BALL_RADIUS) * (drum_radius - BALL_RADIUS) - rsq;
-            float fy   = (ins <= 0.0f) ? (-drum_radius + BALL_RADIUS) : -sqrtf(ins);
+            float ins = (drum_radius - BALL_RADIUS) * (drum_radius - BALL_RADIUS) - rsq;
+            float fy = (ins <= 0.0f) ? (-drum_radius + BALL_RADIUS) : -sqrtf(ins);
             if (ball->y <= fy)
             {
                 ball->y = fy;
-                if (fabsf(ball->vy) < BALL_SETTLE_SPEED) ball->vy = 0.0f;
-                else ball->vy = -ball->vy * BALL_BOUNCE_DAMPING;
+                if (fabsf(ball->vy) < BALL_SETTLE_SPEED)
+                    ball->vy = 0.0f;
+                else
+                    ball->vy = -ball->vy * BALL_BOUNCE_DAMPING;
             }
-            float dsq = ball->x*ball->x + ball->y*ball->y + ball->z*ball->z;
-            float mr  = drum_radius - BALL_RADIUS;
-            if (dsq > mr*mr && dsq > 0.0001f)
+            float dsq = ball->x * ball->x + ball->y * ball->y + ball->z * ball->z;
+            float mr = drum_radius - BALL_RADIUS;
+            if (dsq > mr * mr && dsq > 0.0001f)
             {
                 float d = sqrtf(dsq), sc = mr / d;
-                ball->x *= sc; ball->y *= sc; ball->z *= sc;
+                ball->x *= sc;
+                ball->y *= sc;
+                ball->z *= sc;
                 ball->vx = ball->vy = ball->vz = 0.0f;
             }
         }
@@ -1428,20 +1488,26 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
             float cd = 2.0f * BALL_RADIUS;
             for (int i = 0; i < drum->ball_count; i++)
             {
-                if (drum->balls[i].picked) continue;
+                if (drum->balls[i].picked)
+                    continue;
                 for (int j = i + 1; j < drum->ball_count; j++)
                 {
-                    if (drum->balls[j].picked) continue;
+                    if (drum->balls[j].picked)
+                        continue;
                     float dx = drum->balls[j].x - drum->balls[i].x;
                     float dy = drum->balls[j].y - drum->balls[i].y;
                     float dz = drum->balls[j].z - drum->balls[i].z;
-                    float d2 = dx*dx + dy*dy + dz*dz;
-                    if (d2 < cd*cd && d2 > 1e-6f)
+                    float d2 = dx * dx + dy * dy + dz * dz;
+                    if (d2 < cd * cd && d2 > 1e-6f)
                     {
                         float d = sqrtf(d2), ov = (cd - d) * 0.5f;
-                        float nx = dx/d, ny = dy/d, nz = dz/d;
-                        drum->balls[i].x -= nx*ov; drum->balls[i].y -= ny*ov; drum->balls[i].z -= nz*ov;
-                        drum->balls[j].x += nx*ov; drum->balls[j].y += ny*ov; drum->balls[j].z += nz*ov;
+                        float nx = dx / d, ny = dy / d, nz = dz / d;
+                        drum->balls[i].x -= nx * ov;
+                        drum->balls[i].y -= ny * ov;
+                        drum->balls[i].z -= nz * ov;
+                        drum->balls[j].x += nx * ov;
+                        drum->balls[j].y += ny * ov;
+                        drum->balls[j].z += nz * ov;
                     }
                 }
             }
@@ -1474,7 +1540,7 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
          * Transform to drum's local rotating frame by inverse rotation.
          * Drum rotated by theta around Z, so transform by -theta. */
         float theta = drum->drum_rotation_z * 3.14159265f / 180.0f;
-        float gx = -BALL_GRAVITY * sinf(theta);     /* negative sin */
+        float gx = -BALL_GRAVITY * sinf(theta); /* negative sin */
         float gy = -BALL_GRAVITY * cosf(theta);
 
         for (int i = 0; i < drum->ball_count; i++)
@@ -1490,24 +1556,26 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
             {
                 /* Extra kill on sideways drift while stopping for a pick. */
                 ball->vx *= 0.92f;
-                ball->vz *= 0.88f;  /* applied twice this step = 0.88*0.88 */
+                ball->vz *= 0.88f; /* applied twice this step = 0.88*0.88 */
             }
 
             ball->vx *= BALL_AIR_DAMPING;
             ball->vy *= BALL_AIR_DAMPING;
             ball->vz *= BALL_AIR_DAMPING;
-            ball->x  += ball->vx * delta_time;
-            ball->y  += ball->vy * delta_time;
-            ball->z  += ball->vz * delta_time;
+            ball->x += ball->vx * delta_time;
+            ball->y += ball->vy * delta_time;
+            ball->z += ball->vz * delta_time;
 
-            float dc_sq = ball->x*ball->x + ball->y*ball->y + ball->z*ball->z;
+            float dc_sq = ball->x * ball->x + ball->y * ball->y + ball->z * ball->z;
             if (dc_sq > inner_r * inner_r)
             {
                 float dc = sqrtf(dc_sq);
-                float nx = ball->x/dc, ny = ball->y/dc, nz = ball->z/dc;
+                float nx = ball->x / dc, ny = ball->y / dc, nz = ball->z / dc;
                 float ov = dc - inner_r;
-                ball->x -= nx*ov; ball->y -= ny*ov; ball->z -= nz*ov;
-                float vdn = ball->vx*nx + ball->vy*ny + ball->vz*nz;
+                ball->x -= nx * ov;
+                ball->y -= ny * ov;
+                ball->z -= nz * ov;
+                float vdn = ball->vx * nx + ball->vy * ny + ball->vz * nz;
                 if (vdn > 0.0f)
                 {
                     float rest = 0.55f;
@@ -1517,13 +1585,13 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
                 }
                 if (drum->phase != DRUM_PHASE_STOPPING)
                 {
-                    float radial = sqrtf(ball->x*ball->x + ball->y*ball->y);
+                    float radial = sqrtf(ball->x * ball->x + ball->y * ball->y);
                     if (radial > 0.1f)
                     {
-                        float tx = -ball->y/radial, ty = ball->x/radial;
+                        float tx = -ball->y / radial, ty = ball->x / radial;
                         float eff_omega = drum->stop_omega * 3.14159265f / 180.0f;
                         float tgt = eff_omega * radial;
-                        float cur = ball->vx*tx + ball->vy*ty;
+                        float cur = ball->vx * tx + ball->vy * ty;
                         float mf = tgt * 0.35f;
                         if (cur < mf)
                         {
@@ -1543,14 +1611,16 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
         float inner_r = drum_radius - BALL_RADIUS;
         float grid_min = -inner_r;
         int grid_dim = (int)ceilf((2.0f * inner_r) / COLLISION_CELL_SIZE);
-        if (grid_dim < 1) grid_dim = 1;
-        if (grid_dim > COLLISION_GRID_MAX_DIM) grid_dim = COLLISION_GRID_MAX_DIM;
+        if (grid_dim < 1)
+            grid_dim = 1;
+        if (grid_dim > COLLISION_GRID_MAX_DIM)
+            grid_dim = COLLISION_GRID_MAX_DIM;
         int cell_count = grid_dim * grid_dim * grid_dim;
-        int *cell_heads   = (int *)malloc((size_t)cell_count * sizeof(int));
+        int *cell_heads = (int *)malloc((size_t)cell_count * sizeof(int));
         int *next_in_cell = (int *)malloc((size_t)drum->ball_count * sizeof(int));
-        int *cx_arr       = (int *)malloc((size_t)drum->ball_count * sizeof(int));
-        int *cy_arr       = (int *)malloc((size_t)drum->ball_count * sizeof(int));
-        int *cz_arr       = (int *)malloc((size_t)drum->ball_count * sizeof(int));
+        int *cx_arr = (int *)malloc((size_t)drum->ball_count * sizeof(int));
+        int *cy_arr = (int *)malloc((size_t)drum->ball_count * sizeof(int));
+        int *cz_arr = (int *)malloc((size_t)drum->ball_count * sizeof(int));
 
         if (!cell_heads || !next_in_cell || !cx_arr || !cy_arr || !cz_arr)
         {
@@ -1560,27 +1630,40 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
         }
         else
         {
-            for (int c = 0; c < cell_count; c++) cell_heads[c] = -1;
+            for (int c = 0; c < cell_count; c++)
+                cell_heads[c] = -1;
             for (int i = 0; i < drum->ball_count; i++)
             {
                 int cx = (int)floorf((drum->balls[i].x - grid_min) / COLLISION_CELL_SIZE);
                 int cy = (int)floorf((drum->balls[i].y - grid_min) / COLLISION_CELL_SIZE);
                 int cz = (int)floorf((drum->balls[i].z - grid_min) / COLLISION_CELL_SIZE);
-                if (cx < 0) cx = 0; else if (cx >= grid_dim) cx = grid_dim - 1;
-                if (cy < 0) cy = 0; else if (cy >= grid_dim) cy = grid_dim - 1;
-                if (cz < 0) cz = 0; else if (cz >= grid_dim) cz = grid_dim - 1;
+                if (cx < 0)
+                    cx = 0;
+                else if (cx >= grid_dim)
+                    cx = grid_dim - 1;
+                if (cy < 0)
+                    cy = 0;
+                else if (cy >= grid_dim)
+                    cy = grid_dim - 1;
+                if (cz < 0)
+                    cz = 0;
+                else if (cz >= grid_dim)
+                    cz = grid_dim - 1;
                 int cid = (cz * grid_dim + cy) * grid_dim + cx;
-                cx_arr[i] = cx; cy_arr[i] = cy; cz_arr[i] = cz;
+                cx_arr[i] = cx;
+                cy_arr[i] = cy;
+                cz_arr[i] = cz;
                 next_in_cell[i] = cell_heads[cid];
                 cell_heads[cid] = i;
             }
             for (int i = 0; i < drum->ball_count; i++)
             {
                 int cx = cx_arr[i], cy = cy_arr[i], cz = cz_arr[i];
-                int nx0 = (cx>0)?cx-1:0, ny0=(cy>0)?cy-1:0, nz0=(cz>0)?cz-1:0;
-                int nx1 = (cx+1<grid_dim)?cx+1:grid_dim-1;
-                int ny1 = (cy+1<grid_dim)?cy+1:grid_dim-1;
-                int nz1 = (cz+1<grid_dim)?cz+1:grid_dim-1;
+                int nx0 = (cx > 0) ? cx - 1 : 0, ny0 = (cy > 0) ? cy - 1 : 0,
+                    nz0 = (cz > 0) ? cz - 1 : 0;
+                int nx1 = (cx + 1 < grid_dim) ? cx + 1 : grid_dim - 1;
+                int ny1 = (cy + 1 < grid_dim) ? cy + 1 : grid_dim - 1;
+                int nz1 = (cz + 1 < grid_dim) ? cz + 1 : grid_dim - 1;
                 for (int nzz = nz0; nzz <= nz1; nzz++)
                     for (int nyy = ny0; nyy <= ny1; nyy++)
                         for (int nxx = nx0; nxx <= nx1; nxx++)
@@ -1588,13 +1671,19 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
                             int nid = (nzz * grid_dim + nyy) * grid_dim + nxx;
                             for (int j = cell_heads[nid]; j != -1; j = next_in_cell[j])
                             {
-                                if (j <= i) continue;
-                                resolve_ball_collision(&drum->balls[i], &drum->balls[j], collision_dist);
+                                if (j <= i)
+                                    continue;
+                                resolve_ball_collision(&drum->balls[i], &drum->balls[j],
+                                                       collision_dist);
                             }
                         }
             }
         }
-        free(cell_heads); free(next_in_cell); free(cx_arr); free(cy_arr); free(cz_arr);
+        free(cell_heads);
+        free(next_in_cell);
+        free(cx_arr);
+        free(cy_arr);
+        free(cz_arr);
     }
 
     /* Final safety boundary pass */
@@ -1604,20 +1693,24 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
         for (int i = 0; i < drum->ball_count; i++)
         {
             DrumBall *ball = &drum->balls[i];
-            float dsq = ball->x*ball->x + ball->y*ball->y + ball->z*ball->z;
+            float dsq = ball->x * ball->x + ball->y * ball->y + ball->z * ball->z;
             if (dsq > inner_r_sq && dsq > 0.0001f)
             {
                 float d = sqrtf(dsq), sc = inner_r / d;
-                ball->x *= sc; ball->y *= sc; ball->z *= sc;
+                ball->x *= sc;
+                ball->y *= sc;
+                ball->z *= sc;
             }
         }
     }
 
-    float eff_omega = (drum->phase == DRUM_PHASE_STOPPING) ? drum->stop_omega : DRUM_ROTATION_SPEED_DEG;
+    float eff_omega =
+        (drum->phase == DRUM_PHASE_STOPPING) ? drum->stop_omega : DRUM_ROTATION_SPEED_DEG;
 
     /* Keep agreed behavior: rotate only around Z axis. */
     drum->drum_rotation_z += eff_omega * delta_time;
-    while (drum->drum_rotation_z > 360.0f) drum->drum_rotation_z -= 360.0f;
+    while (drum->drum_rotation_z > 360.0f)
+        drum->drum_rotation_z -= 360.0f;
 
     /* Ensure no residual tumble on X/Y axes. */
     drum->drum_rotation_x = 0.0f;
@@ -1637,9 +1730,9 @@ static void update_animation(GuiState3D *state, float delta_time)
     }
 
     /* Mark animation complete only once both drums finish */
-    int main_done  = (state->main_drum->phase == DRUM_PHASE_DRAW_COMPLETE);
-    int extra_done = (state->extra_drum == NULL ||
-                      state->extra_drum->phase == DRUM_PHASE_DRAW_COMPLETE);
+    int main_done = (state->main_drum->phase == DRUM_PHASE_DRAW_COMPLETE);
+    int extra_done =
+        (state->extra_drum == NULL || state->extra_drum->phase == DRUM_PHASE_DRAW_COMPLETE);
     state->animation_complete = (main_done && extra_done) ? 1 : 0;
 
     /* GPU compute path for main drum (ROTATING phase only).
@@ -1714,7 +1807,7 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
         return;
     }
 
-    SDL_GL_SetSwapInterval(1);  /* Enable vsync */
+    SDL_GL_SetSwapInterval(1); /* Enable vsync */
 
     setup_opengl();
     init_ball_textures(state);
@@ -1750,9 +1843,8 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
             state->extra_drum->draw_numbers[i] = state->result.extra_numbers[i];
     }
 
-    log_info("Displaying %s - %d main balls, %d extra balls",
-             game_name, state->main_drum->ball_count,
-             state->extra_drum ? state->extra_drum->ball_count : 0);
+    log_info("Displaying %s - %d main balls, %d extra balls", game_name,
+             state->main_drum->ball_count, state->extra_drum ? state->extra_drum->ball_count : 0);
     log_info("Mouse controls: hold left button and drag to orbit, wheel to zoom");
 
     /* Main loop */
@@ -1766,52 +1858,52 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
         {
             switch (event.type)
             {
-                case SDL_QUIT:
+            case SDL_QUIT:
+                running = 0;
+                break;
+            case SDL_KEYDOWN:
+                if (event.key.keysym.sym == SDLK_ESCAPE)
                     running = 0;
-                    break;
-                case SDL_KEYDOWN:
-                    if (event.key.keysym.sym == SDLK_ESCAPE)
-                        running = 0;
-                    break;
-                case SDL_MOUSEBUTTONDOWN:
-                    if (event.button.button == SDL_BUTTON_LEFT)
-                    {
-                        state->mouse_dragging = 1;
-                        state->last_mouse_x = event.button.x;
-                        state->last_mouse_y = event.button.y;
-                    }
-                    break;
-                case SDL_MOUSEBUTTONUP:
-                    if (event.button.button == SDL_BUTTON_LEFT)
-                    {
-                        state->mouse_dragging = 0;
-                    }
-                    break;
-                case SDL_MOUSEMOTION:
-                    if (state->mouse_dragging)
-                    {
-                        int dx = event.motion.x - state->last_mouse_x;
+                break;
+            case SDL_MOUSEBUTTONDOWN:
+                if (event.button.button == SDL_BUTTON_LEFT)
+                {
+                    state->mouse_dragging = 1;
+                    state->last_mouse_x = event.button.x;
+                    state->last_mouse_y = event.button.y;
+                }
+                break;
+            case SDL_MOUSEBUTTONUP:
+                if (event.button.button == SDL_BUTTON_LEFT)
+                {
+                    state->mouse_dragging = 0;
+                }
+                break;
+            case SDL_MOUSEMOTION:
+                if (state->mouse_dragging)
+                {
+                    int dx = event.motion.x - state->last_mouse_x;
 
-                        state->camera_yaw += dx * MOUSE_ORBIT_SENSITIVITY;
+                    state->camera_yaw += dx * MOUSE_ORBIT_SENSITIVITY;
 
-                        state->last_mouse_x = event.motion.x;
-                        state->last_mouse_y = event.motion.y;
-                    }
-                    break;
-                case SDL_MOUSEWHEEL:
-                    state->camera_z += event.wheel.y * MOUSE_ZOOM_STEP;
-                    if (state->camera_z < CAMERA_Z_MIN)
-                        state->camera_z = CAMERA_Z_MIN;
-                    if (state->camera_z > CAMERA_Z_MAX)
-                        state->camera_z = CAMERA_Z_MAX;
-                    break;
+                    state->last_mouse_x = event.motion.x;
+                    state->last_mouse_y = event.motion.y;
+                }
+                break;
+            case SDL_MOUSEWHEEL:
+                state->camera_z += event.wheel.y * MOUSE_ZOOM_STEP;
+                if (state->camera_z < CAMERA_Z_MIN)
+                    state->camera_z = CAMERA_Z_MIN;
+                if (state->camera_z > CAMERA_Z_MAX)
+                    state->camera_z = CAMERA_Z_MAX;
+                break;
             }
         }
 
         Uint32 current_time = SDL_GetTicks();
         float delta_time = (current_time - last_time) / 1000.0f;
         if (delta_time > 0.05f)
-            delta_time = 0.05f;  /* Cap at 50ms */
+            delta_time = 0.05f; /* Cap at 50ms */
         last_time = current_time;
 
         /* Update animation */
@@ -1821,7 +1913,7 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
         render_scene(state);
         SDL_GL_SwapWindow(state->window);
 
-        SDL_Delay(16);  /* ~60 FPS */
+        SDL_Delay(16); /* ~60 FPS */
     }
 
     log_info("Closing 3D Drum Display");

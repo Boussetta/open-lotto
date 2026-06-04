@@ -542,6 +542,19 @@ test_combogen/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/build
 .PHONY : test_combogen/fast
 
+#=============================================================================
+# Target rules for targets named benchmark
+
+# Build rule for target.
+benchmark: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 benchmark
+.PHONY : benchmark
+
+# fast build rule for target.
+benchmark/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/build
+.PHONY : benchmark/fast
+
 plugins/eurojackpot.o: plugins/eurojackpot.c.o
 .PHONY : plugins/eurojackpot.o
 
@@ -597,6 +610,7 @@ src/combogen.o: src/combogen.c.o
 src/combogen.c.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/combogen.c.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/combogen.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/combogen.c.o
 .PHONY : src/combogen.c.o
 
 src/combogen.i: src/combogen.c.i
@@ -606,6 +620,7 @@ src/combogen.i: src/combogen.c.i
 src/combogen.c.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/combogen.c.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/combogen.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/combogen.c.i
 .PHONY : src/combogen.c.i
 
 src/combogen.s: src/combogen.c.s
@@ -615,7 +630,56 @@ src/combogen.s: src/combogen.c.s
 src/combogen.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/combogen.c.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/combogen.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/combogen.c.s
 .PHONY : src/combogen.c.s
+
+src/export.o: src/export.c.o
+.PHONY : src/export.o
+
+# target to build an object file
+src/export.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/export.c.o
+.PHONY : src/export.c.o
+
+src/export.i: src/export.c.i
+.PHONY : src/export.i
+
+# target to preprocess a source file
+src/export.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/export.c.i
+.PHONY : src/export.c.i
+
+src/export.s: src/export.c.s
+.PHONY : src/export.s
+
+# target to generate assembly for a file
+src/export.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/export.c.s
+.PHONY : src/export.c.s
+
+src/gui_opengl.o: src/gui_opengl.c.o
+.PHONY : src/gui_opengl.o
+
+# target to build an object file
+src/gui_opengl.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/gui_opengl.c.o
+.PHONY : src/gui_opengl.c.o
+
+src/gui_opengl.i: src/gui_opengl.c.i
+.PHONY : src/gui_opengl.i
+
+# target to preprocess a source file
+src/gui_opengl.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/gui_opengl.c.i
+.PHONY : src/gui_opengl.c.i
+
+src/gui_opengl.s: src/gui_opengl.c.s
+.PHONY : src/gui_opengl.s
+
+# target to generate assembly for a file
+src/gui_opengl.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/gui_opengl.c.s
+.PHONY : src/gui_opengl.c.s
 
 src/gui_sdl.o: src/gui_sdl.c.o
 .PHONY : src/gui_sdl.o
@@ -648,6 +712,7 @@ src/log.o: src/log.c.o
 src/log.c.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/log.c.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/log.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/log.c.o
 .PHONY : src/log.c.o
 
 src/log.i: src/log.c.i
@@ -657,6 +722,7 @@ src/log.i: src/log.c.i
 src/log.c.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/log.c.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/log.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/log.c.i
 .PHONY : src/log.c.i
 
 src/log.s: src/log.c.s
@@ -666,6 +732,7 @@ src/log.s: src/log.c.s
 src/log.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/log.c.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/log.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/log.c.s
 .PHONY : src/log.c.s
 
 src/main.o: src/main.c.o
@@ -747,6 +814,7 @@ src/random_seed.o: src/random_seed.c.o
 src/random_seed.c.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/random_seed.c.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/random_seed.c.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/random_seed.c.o
 .PHONY : src/random_seed.c.o
 
 src/random_seed.i: src/random_seed.c.i
@@ -756,6 +824,7 @@ src/random_seed.i: src/random_seed.c.i
 src/random_seed.c.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/random_seed.c.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/random_seed.c.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/random_seed.c.i
 .PHONY : src/random_seed.c.i
 
 src/random_seed.s: src/random_seed.c.s
@@ -765,7 +834,32 @@ src/random_seed.s: src/random_seed.c.s
 src/random_seed.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/random_seed.c.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/random_seed.c.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/random_seed.c.s
 .PHONY : src/random_seed.c.s
+
+tests/benchmark.o: tests/benchmark.c.o
+.PHONY : tests/benchmark.o
+
+# target to build an object file
+tests/benchmark.c.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/tests/benchmark.c.o
+.PHONY : tests/benchmark.c.o
+
+tests/benchmark.i: tests/benchmark.c.i
+.PHONY : tests/benchmark.i
+
+# target to preprocess a source file
+tests/benchmark.c.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/tests/benchmark.c.i
+.PHONY : tests/benchmark.c.i
+
+tests/benchmark.s: tests/benchmark.c.s
+.PHONY : tests/benchmark.s
+
+# target to generate assembly for a file
+tests/benchmark.c.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/tests/benchmark.c.s
+.PHONY : tests/benchmark.c.s
 
 tests/test_combogen.o: tests/test_combogen.c.o
 .PHONY : tests/test_combogen.o
@@ -828,6 +922,7 @@ help:
 	@echo "... NightlySubmit"
 	@echo "... NightlyTest"
 	@echo "... NightlyUpdate"
+	@echo "... benchmark"
 	@echo "... eurojackpot"
 	@echo "... lotto"
 	@echo "... open-lotto"
@@ -841,6 +936,12 @@ help:
 	@echo "... src/combogen.o"
 	@echo "... src/combogen.i"
 	@echo "... src/combogen.s"
+	@echo "... src/export.o"
+	@echo "... src/export.i"
+	@echo "... src/export.s"
+	@echo "... src/gui_opengl.o"
+	@echo "... src/gui_opengl.i"
+	@echo "... src/gui_opengl.s"
 	@echo "... src/gui_sdl.o"
 	@echo "... src/gui_sdl.i"
 	@echo "... src/gui_sdl.s"
@@ -859,6 +960,9 @@ help:
 	@echo "... src/random_seed.o"
 	@echo "... src/random_seed.i"
 	@echo "... src/random_seed.s"
+	@echo "... tests/benchmark.o"
+	@echo "... tests/benchmark.i"
+	@echo "... tests/benchmark.s"
 	@echo "... tests/test_combogen.o"
 	@echo "... tests/test_combogen.i"
 	@echo "... tests/test_combogen.s"
