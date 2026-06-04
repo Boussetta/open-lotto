@@ -852,8 +852,33 @@ static void update_animation(GuiState3D *state, float delta_time)
             }
         }
 
-        /* Transition to rotating phase once all balls settle */
-        if (settled_count == state->ball_count)
+        /* Smart transition to rotating phase: 
+           - Wait minimum 0.5 seconds for initial settling
+           - Once 80% of balls are settled AND remaining balls have low kinetic energy
+           - Then transition (no need to wait for every single ball)
+        */
+        int settle_threshold = (state->ball_count * 4) / 5;  /* 80% */
+        int needs_more_time = (state->sim_time < 0.5f) ? 1 : 0;
+        
+        float max_remaining_speed = 0.0f;
+        for (int i = 0; i < state->ball_count; i++)
+        {
+            if (!state->balls[i].settled)
+            {
+                float speed_sq = state->balls[i].vx * state->balls[i].vx +
+                                 state->balls[i].vy * state->balls[i].vy +
+                                 state->balls[i].vz * state->balls[i].vz;
+                float speed = sqrtf(speed_sq);
+                if (speed > max_remaining_speed)
+                    max_remaining_speed = speed;
+            }
+        }
+        
+        int can_transition = (settled_count >= settle_threshold) && 
+                             (max_remaining_speed < 25.0f) &&
+                             !needs_more_time;
+        
+        if (can_transition)
         {
             state->phase = DRUM_PHASE_ROTATING;
             for (int i = 0; i < state->ball_count; i++)
@@ -865,7 +890,8 @@ static void update_animation(GuiState3D *state, float delta_time)
             }
             if (state->use_gpu_compute)
                 sync_cpu_balls_to_gpu(state);
-            log_info("Balls settled at drum bottom; starting drum rotation");
+            log_info("Balls settled (%.1f%% reached threshold); starting drum rotation at %.2f seconds",
+                     (100.0f * settled_count) / state->ball_count, state->sim_time);
         }
         else if ((int)(state->sim_time * 10) % 10 == 0)  /* Log every ~1 second */
         {
