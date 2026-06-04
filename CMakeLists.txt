@@ -15,9 +15,13 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)
 pkg_check_modules(SDL2TTF REQUIRED SDL2_ttf)
 
+# OpenGL support for 3D GUI
+find_package(OpenGL REQUIRED)
+
 include_directories(
     ${SDL2_INCLUDE_DIRS}
     ${SDL2TTF_INCLUDE_DIRS}
+    ${OPENGL_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/include
 )
 
@@ -29,6 +33,7 @@ add_executable(open-lotto
     src/plugin_registry.c
     src/random_seed.c
     src/gui_sdl.c
+    src/gui_opengl.c
     src/log.c
 )
 
@@ -36,6 +41,7 @@ target_link_libraries(open-lotto
     PRIVATE
         ${SDL2_LIBRARIES}
         ${SDL2TTF_LIBRARIES}
+        ${OPENGL_LIBRARIES}
         dl
         m
 )

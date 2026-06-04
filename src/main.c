@@ -1,5 +1,6 @@
 #include "export.h"
 #include "gui_sdl.h"
+#include "gui_opengl.h"
 #include "log.h"
 #include "plugin_loader.h"
 #include "plugin_registry.h"
@@ -164,9 +165,14 @@ static void print_usage(const char *prog)
 {
     fprintf(stderr,
             "Usage:\n"
-            "  %s --game NAME [--draws N] [--animate] [--gui] [--verbose LEVEL]\n"
+            "  %s --game NAME [--draws N] [--animate] [--gui [2D|3D]] [--verbose LEVEL]\n"
             "  %s --game NAME [--draws N] [--export csv|json] [--output FILE] [--verbose LEVEL]\n"
             "  %s --list-games\n"
+            "\n"
+            "GUI Modes:\n"
+            "  --gui        Launch 2D SDL2 GUI (default)\n"
+            "  --gui 2D     Launch 2D SDL2 GUI explicitly\n"
+            "  --gui 3D     Launch 3D OpenGL GUI\n"
             "\n"
             "Log Levels (for --verbose):\n"
             "  ERROR, WARN, INFO (default), DEBUG\n"
@@ -175,14 +181,15 @@ static void print_usage(const char *prog)
             "  %s --game \"Lotto 6aus49\"\n"
             "  %s --game \"Lotto 6aus49\" --draws 10\n"
             "  %s --game \"Lotto 6aus49\" --animate\n"
-            "  %s --game \"EuroJackpot\" --gui\n"
+            "  %s --game \"EuroJackpot\" --gui 2D\n"
+            "  %s --game \"EuroJackpot\" --gui 3D\n"
             "  %s --game \"Lotto 6aus49\" --draws 100 --export csv --output results.csv\n"
             "  %s --game \"Lotto 6aus49\" --draws 50 --export json --output results.json\n"
             "  %s --game \"Lotto 6aus49\" --verbose DEBUG\n"
             "\n"
             "Environment Variables:\n"
             "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n",
-            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
+            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 /* ---------------------------------------------------------
@@ -228,6 +235,7 @@ int main(int argc, char **argv)
     }
     int animate = 0;
     int gui = 0;
+    const char *gui_mode = "2D"; /* Default to 2D SDL2 */
     int draws = 1;
     LogLevel log_level = LOG_INFO;
     const char *export_format = NULL;
@@ -245,6 +253,11 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--gui") == 0)
         {
             gui = 1;
+            /* Check if next argument is a GUI mode specification */
+            if (i + 1 < argc && (strcmp(argv[i + 1], "2D") == 0 || strcmp(argv[i + 1], "3D") == 0))
+            {
+                gui_mode = argv[++i];
+            }
         }
         else if (strcmp(argv[i], "--verbose") == 0)
         {
@@ -360,8 +373,17 @@ int main(int argc, char **argv)
        --------------------------------------------------------- */
     if (gui)
     {
-        log_debug("Launching GUI mode");
-        gui_run(selected->name, &selected->info);
+        log_debug("Launching %s GUI mode", gui_mode);
+
+        if (strcmp(gui_mode, "3D") == 0)
+        {
+            gui_run_opengl(selected->name, &selected->info);
+        }
+        else /* Default to 2D */
+        {
+            gui_run(selected->name, &selected->info);
+        }
+
         registry_destroy(registry);
         return 0;
     }
