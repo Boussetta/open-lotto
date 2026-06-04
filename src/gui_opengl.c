@@ -36,8 +36,8 @@
 #define MAX_GAME_BALLS 128
 #define BALL_RADIUS 27.0f
 #define BALL_GRAVITY 620.0f
-#define BALL_BOUNCE_DAMPING 0.35f
-#define BALL_SETTLE_SPEED 8.0f
+#define BALL_BOUNCE_DAMPING 0.28f
+#define BALL_SETTLE_SPEED 10.0f
 #define DRUM_ROTATION_SPEED_DEG 140.0f
 #define BALL_AIR_DAMPING 0.9988f
 #define BALL_CONTACT_FRICTION 6.0f
@@ -774,6 +774,18 @@ static void update_animation(GuiState3D *state, float delta_time)
             }
         }
 
+        /* Ball-to-ball collisions during falling (prevent stacking) */
+        {
+            float collision_dist = 2.0f * BALL_RADIUS;
+            for (int i = 0; i < state->ball_count; i++)
+            {
+                for (int j = i + 1; j < state->ball_count; j++)
+                {
+                    resolve_ball_collision(&state->balls[i], &state->balls[j], collision_dist);
+                }
+            }
+        }
+
         /* Transition to rotating phase once all balls settle */
         if (settled_count == state->ball_count)
         {
@@ -788,6 +800,10 @@ static void update_animation(GuiState3D *state, float delta_time)
             if (state->use_gpu_compute)
                 sync_cpu_balls_to_gpu(state);
             log_info("Balls settled at drum bottom; starting drum rotation");
+        }
+        else if ((int)(state->sim_time * 10) % 10 == 0)  /* Log every ~1 second */
+        {
+            log_info("FALLING phase: %d/%d balls settled", settled_count, state->ball_count);
         }
 
         return;
