@@ -985,57 +985,7 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time)
     /* Wireframe outline */
     draw_sphere_frame(drum_radius, 28, 20);
 
-    /* Asymmetric shell marker so Z-axis spin is always visible. */
-    glPushMatrix();
-    glTranslatef(drum_radius * 0.90f, 0.0f, 0.0f);
-    glColor3f(0.75f, 0.10f, 0.10f);
-    draw_sphere(BALL_RADIUS * 0.24f, 12, 8);
     glPopMatrix();
-
-    /* Draw coordinate axes at drum center */
-    glDisable(GL_LIGHTING);
-    glLineWidth(3.0f);
-    glBegin(GL_LINES);
-    /* X axis - red */
-    glColor3f(1.0f, 0.0f, 0.0f);
-    glVertex3f(0.0f, 0.0f, 0.0f);
-    glVertex3f(drum_radius * 0.5f, 0.0f, 0.0f);
-    /* Y axis - green */
-    glColor3f(0.0f, 1.0f, 0.0f);
-    glVertex3f(0.0f, 0.0f, 0.0f);
-    glVertex3f(0.0f, drum_radius * 0.5f, 0.0f);
-    /* Z axis - blue */
-    glColor3f(0.0f, 0.0f, 1.0f);
-    glVertex3f(0.0f, 0.0f, 0.0f);
-    glVertex3f(0.0f, 0.0f, drum_radius * 0.5f);
-    glEnd();
-    glLineWidth(1.0f);
-    glEnable(GL_LIGHTING);
-
-    glPopMatrix();
-}
-
-static void render_fixed_axes(void)
-{
-    /* Draw fixed coordinate axes at world origin (not rotating with camera) */
-    glDisable(GL_LIGHTING);
-    glLineWidth(4.0f);
-    glBegin(GL_LINES);
-    /* X axis - red */
-    glColor3f(1.0f, 0.0f, 0.0f);
-    glVertex3f(0.0f, 0.0f, 0.0f);
-    glVertex3f(400.0f, 0.0f, 0.0f);
-    /* Y axis - green */
-    glColor3f(0.0f, 1.0f, 0.0f);
-    glVertex3f(0.0f, 0.0f, 0.0f);
-    glVertex3f(0.0f, 400.0f, 0.0f);
-    /* Z axis - blue */
-    glColor3f(0.0f, 0.0f, 1.0f);
-    glVertex3f(0.0f, 0.0f, 0.0f);
-    glVertex3f(0.0f, 0.0f, 400.0f);
-    glEnd();
-    glLineWidth(1.0f);
-    glEnable(GL_LIGHTING);
 }
 
 static void render_overlay_ball_2d(const DrumInstance *drum,
@@ -1153,9 +1103,6 @@ static void render_scene(GuiState3D *state)
     glRotatef(state->camera_pitch, 1.0f, 0.0f, 0.0f);
     glRotatef(state->camera_yaw, 0.0f, 1.0f, 0.0f);
     glRotatef(state->camera_roll, 0.0f, 0.0f, 1.0f);
-
-    /* Draw fixed coordinate axes in world space */
-    render_fixed_axes();
 
     /* Show only one drum at a time:
        - main drum until main draw is complete
