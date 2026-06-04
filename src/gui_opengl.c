@@ -54,6 +54,10 @@
 #define BALL_COLLISION_TANGENTIAL_TRANSFER 0.14f
 #define BALL_COLLISION_IMPULSE_BOOST 1.55f
 #define BALL_COLLISION_BURST_SPEED 13.0f
+#define BALL_ROLLING_FRICTION 0.45f /* rolling resistance damping */
+#define BALL_ANGULAR_DAMPING 0.985f /* air damping for rotation */
+#define BALL_SHELL_FRICTION 0.22f   /* friction coefficient on drum shell */
+#define BALL_MOMENT_OF_INERTIA 0.4f /* I = (2/5) * m * r^2 for sphere */
 #define COLLISION_CELL_SIZE (BALL_RADIUS * 2.2f)
 #define COLLISION_GRID_MAX_DIM 16
 #define COLLISION_GRID_MAX_CELLS                                                                   \
@@ -84,6 +88,9 @@ typedef struct
     float vx;
     float vy;
     float vz;
+    float rot_x; /* angular velocity (rotation around X axis) */
+    float rot_y; /* angular velocity (rotation around Y axis) */
+    float rot_z; /* angular velocity (rotation around Z axis) */
     int settled;
     int picked;      /* 1 = this ball has been drawn */
     int ball_number; /* 1-based number shown on the ball */
@@ -514,10 +521,10 @@ static void resolve_ball_collision(DrumBall *ball_i, DrumBall *ball_j, float col
         ball_j->vz += impulse * nz;
 
         /* Small tangential transfer for less perfectly mirrored paths */
+        float tvx = dvx - rel_vel_along_normal * nx;
+        float tvy = dvy - rel_vel_along_normal * ny;
+        float tvz = dvz - rel_vel_along_normal * nz;
         {
-            float tvx = dvx - rel_vel_along_normal * nx;
-            float tvy = dvy - rel_vel_along_normal * ny;
-            float tvz = dvz - rel_vel_along_normal * nz;
             float t_impulse = BALL_COLLISION_TANGENTIAL_TRANSFER * 0.5f;
 
             ball_i->vx += tvx * t_impulse;
@@ -527,6 +534,26 @@ static void resolve_ball_collision(DrumBall *ball_i, DrumBall *ball_j, float col
             ball_j->vx -= tvx * t_impulse;
             ball_j->vy -= tvy * t_impulse;
             ball_j->vz -= tvz * t_impulse;
+        }
+
+        /* Apply rotational impulses from collision (spin transfer) */
+        {
+            float friction_coeff = 0.15f;
+            float tangent_len = sqrtf(tvx * tvx + tvy * tvy + tvz * tvz);
+            if (tangent_len > 0.1f)
+            {
+                /* Create spin from tangential contact */
+                float rot_impulse = friction_coeff * impulse;
+
+                /* Cross product: tangent × normal gives rotation axis */
+                ball_i->rot_x += (tvy * nz - tvz * ny) * rot_impulse;
+                ball_i->rot_y += (tvz * nx - tvx * nz) * rot_impulse;
+                ball_i->rot_z += (tvx * ny - tvy * nx) * rot_impulse;
+
+                ball_j->rot_x -= (tvy * nz - tvz * ny) * rot_impulse;
+                ball_j->rot_y -= (tvz * nx - tvx * nz) * rot_impulse;
+                ball_j->rot_z -= (tvx * ny - tvy * nx) * rot_impulse;
+            }
         }
     }
 }
@@ -553,6 +580,9 @@ static void drum_instance_init_balls(DrumInstance *drum)
         drum->balls[i].vx = 0.0f;
         drum->balls[i].vy = 0.0f;
         drum->balls[i].vz = 0.0f;
+        drum->balls[i].rot_x = frand_range(-5.0f, 5.0f); /* Initial random spin */
+        drum->balls[i].rot_y = frand_range(-5.0f, 5.0f);
+        drum->balls[i].rot_z = frand_range(-5.0f, 5.0f);
         drum->balls[i].settled = 0;
         drum->balls[i].picked = 0;
         drum->balls[i].ball_number = drum->ball_min + i;
@@ -946,6 +976,15 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time)
 
         glPushMatrix();
         glTranslatef(ball->x, ball->y, ball->z);
+
+        /* Apply rotation to show tumbling animation */
+        if (ball->rot_x != 0.0f)
+            glRotatef(ball->rot_x * 0.5f, 1.0f, 0.0f, 0.0f);
+        if (ball->rot_y != 0.0f)
+            glRotatef(ball->rot_y * 0.5f, 0.0f, 1.0f, 0.0f);
+        if (ball->rot_z != 0.0f)
+            glRotatef(ball->rot_z * 0.5f, 0.0f, 0.0f, 1.0f);
+
         if (drum->is_extra)
             glColor3f(SUPER_BALL_COLOR_R, SUPER_BALL_COLOR_G, SUPER_BALL_COLOR_B);
         else
@@ -1192,6 +1231,45 @@ static void on_draw_event(DrawEvent event, const LotteryResult *res)
     (void)res;
 }
 
+/* Apply rolling friction and angular damping to a ball */
+static void apply_rolling_friction(DrumBall *ball, float delta_time, float contact_with_shell)
+{
+    (void)contact_with_shell; /* Parameter reserved for future enhancements */
+
+    /* Dampen angular velocity due to air resistance */
+    ball->rot_x *= BALL_ANGULAR_DAMPING;
+    ball->rot_y *= BALL_ANGULAR_DAMPING;
+    ball->rot_z *= BALL_ANGULAR_DAMPING;
+
+    /* If ball is in contact with the drum shell, apply rolling friction */
+    if (contact_with_shell > 0.5f)
+    {
+        /* Rolling resistance: friction torque opposes rotation */
+        float rot_speed = sqrtf(ball->rot_x * ball->rot_x + ball->rot_y * ball->rot_y +
+                                ball->rot_z * ball->rot_z);
+        if (rot_speed > 0.1f)
+        {
+            float friction_factor = BALL_ROLLING_FRICTION * delta_time;
+            ball->rot_x *= (1.0f - friction_factor);
+            ball->rot_y *= (1.0f - friction_factor);
+            ball->rot_z *= (1.0f - friction_factor);
+        }
+
+        /* Couple linear and angular motion: spin-up when rolling */
+        float linear_speed = sqrtf(ball->vx * ball->vx + ball->vy * ball->vy);
+        if (linear_speed > 5.0f)
+        {
+            /* Tangential velocity at surface = omega * radius */
+            float spin_coupling = 0.08f * delta_time;
+            if (fabsf(ball->vx) > 0.1f || fabsf(ball->vy) > 0.1f)
+            {
+                ball->rot_z += (ball->vx * spin_coupling);
+                ball->rot_x += (ball->vy * spin_coupling);
+            }
+        }
+    }
+}
+
 /* Generic per-drum animation update — works for both main and extra drums */
 static void update_drum_instance(DrumInstance *drum, float delta_time)
 {
@@ -1235,6 +1313,10 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
                     ball->vy = -ball->vy * BALL_BOUNCE_DAMPING;
                 }
             }
+
+            /* Apply rolling friction during falling phase */
+            float contact = ball->settled ? 1.0f : 0.0f;
+            apply_rolling_friction(ball, delta_time, contact);
         }
 
         /* Ball-to-ball collisions during falling (inelastic) */
@@ -1602,6 +1684,10 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
                     }
                 }
             }
+
+            /* Apply rolling friction when ball is near drum shell */
+            float contact_with_shell = (dc_sq > (inner_r * inner_r * 0.98f)) ? 1.0f : 0.0f;
+            apply_rolling_friction(ball, delta_time, contact_with_shell);
         }
     }
 
