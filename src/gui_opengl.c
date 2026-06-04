@@ -1,3 +1,4 @@
+#define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
@@ -32,11 +33,22 @@
 #define DRUM_Y -0.2f
 
 /* Ball simulation (initial state only) */
-#define DRUM_BALL_COUNT 50
+#define MAX_GAME_BALLS 128
 #define BALL_RADIUS 27.0f
-#define BALL_GRAVITY 360.0f
+#define BALL_GRAVITY 620.0f
 #define BALL_BOUNCE_DAMPING 0.35f
 #define BALL_SETTLE_SPEED 8.0f
+#define DRUM_ROTATION_SPEED_DEG 140.0f
+#define BALL_AIR_DAMPING 0.9988f
+#define BALL_CONTACT_FRICTION 6.0f
+#define BALL_COLLISION_RESTITUTION 0.97f
+#define BALL_COLLISION_TANGENTIAL_TRANSFER 0.14f
+#define BALL_COLLISION_IMPULSE_BOOST 1.55f
+#define BALL_COLLISION_BURST_SPEED 13.0f
+#define COLLISION_CELL_SIZE (BALL_RADIUS * 2.2f)
+#define COLLISION_GRID_MAX_DIM 16
+#define COLLISION_GRID_MAX_CELLS (COLLISION_GRID_MAX_DIM * COLLISION_GRID_MAX_DIM * COLLISION_GRID_MAX_DIM)
+#define GPU_COMPUTE_LOCAL_SIZE 64
 
 /* Drum color */
 #define COLOR_DRUM_R 0.20f
@@ -51,9 +63,23 @@ typedef struct
     float x;
     float y;
     float z;
+    float vx;
     float vy;
+    float vz;
     int settled;
 } DrumBall;
+
+typedef struct
+{
+    float px;
+    float py;
+    float pz;
+    float settled;
+    float vx;
+    float vy;
+    float vz;
+    float pad;
+} GpuBall;
 
 typedef enum
 {
@@ -70,7 +96,7 @@ typedef struct
     float drum_rotation_y;
     float drum_rotation_z;
 
-    DrumBall balls[DRUM_BALL_COUNT];
+    DrumBall *balls;
     int ball_count;
     DrumPhase phase;
 
@@ -85,7 +111,14 @@ typedef struct
     
     SDL_Window *window;
     SDL_GLContext gl_context;
-    
+
+    int use_gpu_compute;
+    GLuint compute_program;
+    GLuint ball_ssbo;
+    GpuBall *gpu_ball_cache;
+
+    float sim_time;
+
     int animation_complete;
 } GuiState3D;
 
@@ -107,9 +140,304 @@ static float frand_range(float a, float b)
     return a + (b - a) * ((float)rand() / (float)RAND_MAX);
 }
 
+static const char *BALL_COMPUTE_SHADER_SRC =
+    "#version 430\n"
+    "layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;\n"
+    "struct Ball { vec4 pos; vec4 vel; };\n"
+    "layout(std430, binding = 0) buffer BallBuffer { Ball balls[]; };\n"
+    "uniform int uBallCount;\n"
+    "uniform float uDeltaTime;\n"
+    "uniform float uDrumRadius;\n"
+    "uniform float uBallRadius;\n"
+    "uniform float uGravity;\n"
+    "uniform float uAirDamping;\n"
+    "uniform float uOmega;\n"
+    "uniform float uDrumRotationZDeg;\n"
+    "uniform float uCollisionRestitution;\n"
+    "uniform float uCollisionTangentialTransfer;\n"
+    "uniform float uCollisionImpulseBoost;\n"
+    "uniform float uCollisionBurstSpeed;\n"
+    "uniform float uContactFriction;\n"
+    "void main() {\n"
+    "  uint i = gl_GlobalInvocationID.x;\n"
+    "  if (i >= uint(uBallCount)) return;\n"
+    "  vec3 pos = balls[i].pos.xyz;\n"
+    "  vec3 vel = balls[i].vel.xyz;\n"
+    "  float theta = radians(uDrumRotationZDeg);\n"
+    "  vec3 g = vec3(-uGravity * sin(theta), -uGravity * cos(theta), 0.0);\n"
+    "  vel += g * uDeltaTime;\n"
+    "  vel *= uAirDamping;\n"
+    "  float collisionDist = 2.0 * uBallRadius;\n"
+    "  for (int j = 0; j < uBallCount; ++j) {\n"
+    "    if (j == int(i)) continue;\n"
+    "    vec3 op = balls[j].pos.xyz;\n"
+    "    vec3 ov = balls[j].vel.xyz;\n"
+    "    vec3 d = op - pos;\n"
+    "    float distSq = dot(d, d);\n"
+    "    if (distSq < collisionDist * collisionDist && distSq > 1e-6) {\n"
+    "      float dist = sqrt(distSq);\n"
+    "      vec3 n = d / dist;\n"
+    "      float overlap = collisionDist - dist;\n"
+    "      pos -= n * (overlap * 0.35);\n"
+    "      vec3 dv = ov - vel;\n"
+    "      float relN = dot(dv, n);\n"
+    "      if (relN < 0.0) {\n"
+    "        float impulse = -((1.0 + uCollisionRestitution) * relN) * 0.5;\n"
+    "        float burst = uCollisionBurstSpeed * (overlap / collisionDist);\n"
+    "        impulse = impulse * uCollisionImpulseBoost + burst;\n"
+    "        vel -= impulse * n;\n"
+    "        vec3 tv = dv - relN * n;\n"
+    "        vel += tv * (uCollisionTangentialTransfer * 0.5);\n"
+    "      }\n"
+    "    }\n"
+    "  }\n"
+    "  pos += vel * uDeltaTime;\n"
+    "  float innerR = uDrumRadius - uBallRadius;\n"
+    "  float distCenter = length(pos);\n"
+    "  if (distCenter > innerR && distCenter > 1e-6) {\n"
+    "    vec3 n = pos / distCenter;\n"
+    "    pos -= n * (distCenter - innerR);\n"
+    "    float vdotn = dot(vel, n);\n"
+    "    if (vdotn > 0.0) {\n"
+    "      float shellRestitution = 0.55;\n"
+    "      vel -= (1.0 + shellRestitution) * vdotn * n;\n"
+    "    }\n"
+    "    float radial = length(pos.xy);\n"
+    "    if (radial > 0.1) {\n"
+    "      vec2 t = vec2(-pos.y / radial, pos.x / radial);\n"
+    "      float targetTan = uOmega * radial;\n"
+    "      float currentTan = dot(vel.xy, t);\n"
+    "      float minFollow = targetTan * 0.35;\n"
+    "      if (currentTan < minFollow) {\n"
+    "        float grip = uContactFriction * 0.35;\n"
+    "        float deltaTan = (minFollow - currentTan) * grip * uDeltaTime;\n"
+    "        vel.xy += t * deltaTan;\n"
+    "      }\n"
+    "    }\n"
+    "  }\n"
+    "  balls[i].pos = vec4(pos, balls[i].pos.w);\n"
+    "  balls[i].vel = vec4(vel, 0.0);\n"
+    "}\n";
+
+static void sync_cpu_balls_to_gpu(GuiState3D *state)
+{
+    if (!state->use_gpu_compute)
+        return;
+
+    for (int i = 0; i < state->ball_count; i++)
+    {
+        state->gpu_ball_cache[i].px = state->balls[i].x;
+        state->gpu_ball_cache[i].py = state->balls[i].y;
+        state->gpu_ball_cache[i].pz = state->balls[i].z;
+        state->gpu_ball_cache[i].settled = (float)state->balls[i].settled;
+        state->gpu_ball_cache[i].vx = state->balls[i].vx;
+        state->gpu_ball_cache[i].vy = state->balls[i].vy;
+        state->gpu_ball_cache[i].vz = state->balls[i].vz;
+        state->gpu_ball_cache[i].pad = 0.0f;
+    }
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, state->ball_ssbo);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(GpuBall) * state->ball_count,
+                    state->gpu_ball_cache);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+static void sync_gpu_balls_to_cpu(GuiState3D *state)
+{
+    if (!state->use_gpu_compute)
+        return;
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, state->ball_ssbo);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(GpuBall) * state->ball_count,
+                       state->gpu_ball_cache);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    for (int i = 0; i < state->ball_count; i++)
+    {
+        state->balls[i].x = state->gpu_ball_cache[i].px;
+        state->balls[i].y = state->gpu_ball_cache[i].py;
+        state->balls[i].z = state->gpu_ball_cache[i].pz;
+        state->balls[i].vx = state->gpu_ball_cache[i].vx;
+        state->balls[i].vy = state->gpu_ball_cache[i].vy;
+        state->balls[i].vz = state->gpu_ball_cache[i].vz;
+        state->balls[i].settled = (state->gpu_ball_cache[i].settled > 0.5f) ? 1 : 0;
+    }
+}
+
+static int init_gpu_compute(GuiState3D *state)
+{
+    GLuint shader = glCreateShader(GL_COMPUTE_SHADER);
+    if (shader == 0)
+    {
+        log_warn("GPU compute unavailable: cannot create compute shader");
+        return 0;
+    }
+
+    glShaderSource(shader, 1, &BALL_COMPUTE_SHADER_SRC, NULL);
+    glCompileShader(shader);
+
+    GLint compiled = GL_FALSE;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+    if (compiled != GL_TRUE)
+    {
+        char logbuf[1024];
+        GLsizei len = 0;
+        glGetShaderInfoLog(shader, sizeof(logbuf), &len, logbuf);
+        log_warn("Compute shader compile failed: %s", logbuf);
+        glDeleteShader(shader);
+        return 0;
+    }
+
+    state->compute_program = glCreateProgram();
+    glAttachShader(state->compute_program, shader);
+    glLinkProgram(state->compute_program);
+    glDeleteShader(shader);
+
+    GLint linked = GL_FALSE;
+    glGetProgramiv(state->compute_program, GL_LINK_STATUS, &linked);
+    if (linked != GL_TRUE)
+    {
+        char logbuf[1024];
+        GLsizei len = 0;
+        glGetProgramInfoLog(state->compute_program, sizeof(logbuf), &len, logbuf);
+        log_warn("Compute program link failed: %s", logbuf);
+        glDeleteProgram(state->compute_program);
+        state->compute_program = 0;
+        return 0;
+    }
+
+    glGenBuffers(1, &state->ball_ssbo);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, state->ball_ssbo);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(GpuBall) * state->ball_count, NULL, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    state->use_gpu_compute = 1;
+    sync_cpu_balls_to_gpu(state);
+    log_info("GPU compute physics enabled (OpenGL 4.3 compute shader)");
+    return 1;
+}
+
+static void destroy_gpu_compute(GuiState3D *state)
+{
+    if (state->ball_ssbo != 0)
+    {
+        glDeleteBuffers(1, &state->ball_ssbo);
+        state->ball_ssbo = 0;
+    }
+
+    if (state->compute_program != 0)
+    {
+        glDeleteProgram(state->compute_program);
+        state->compute_program = 0;
+    }
+
+    state->use_gpu_compute = 0;
+}
+
+static void update_animation_gpu(GuiState3D *state, float delta_time)
+{
+    GLuint groups = (GLuint)((state->ball_count + GPU_COMPUTE_LOCAL_SIZE - 1) / GPU_COMPUTE_LOCAL_SIZE);
+    float omega_rad_per_sec = DRUM_ROTATION_SPEED_DEG * 3.14159265f / 180.0f;
+
+    glUseProgram(state->compute_program);
+
+    glUniform1i(glGetUniformLocation(state->compute_program, "uBallCount"), state->ball_count);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uDeltaTime"), delta_time);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uDrumRadius"), DRUM_RADIUS);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uBallRadius"), BALL_RADIUS);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uGravity"), BALL_GRAVITY);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uAirDamping"), BALL_AIR_DAMPING);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uOmega"), omega_rad_per_sec);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uDrumRotationZDeg"), state->drum_rotation_z);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uCollisionRestitution"),
+                BALL_COLLISION_RESTITUTION);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uCollisionTangentialTransfer"),
+                BALL_COLLISION_TANGENTIAL_TRANSFER);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uCollisionImpulseBoost"),
+                BALL_COLLISION_IMPULSE_BOOST);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uCollisionBurstSpeed"),
+                BALL_COLLISION_BURST_SPEED);
+    glUniform1f(glGetUniformLocation(state->compute_program, "uContactFriction"), BALL_CONTACT_FRICTION);
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, state->ball_ssbo);
+    glDispatchCompute(groups, 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT);
+
+    sync_gpu_balls_to_cpu(state);
+    glUseProgram(0);
+}
+
+static void resolve_ball_collision(DrumBall *ball_i, DrumBall *ball_j, float collision_dist)
+{
+    float dx = ball_j->x - ball_i->x;
+    float dy = ball_j->y - ball_i->y;
+    float dz = ball_j->z - ball_i->z;
+
+    float dist_sq = dx * dx + dy * dy + dz * dz;
+    if (dist_sq >= collision_dist * collision_dist || dist_sq <= 0.001f)
+        return;
+
+    float dist = sqrtf(dist_sq);
+    float nx = dx / dist;
+    float ny = dy / dist;
+    float nz = dz / dist;
+
+    /* Relative velocity of j relative to i */
+    float dvx = ball_j->vx - ball_i->vx;
+    float dvy = ball_j->vy - ball_i->vy;
+    float dvz = ball_j->vz - ball_i->vz;
+    float rel_vel_along_normal = dvx * nx + dvy * ny + dvz * nz;
+
+    /* Separate overlapping balls to avoid sticking */
+    float overlap = collision_dist - dist;
+    if (overlap > 0.0f)
+    {
+        float separation = overlap / 2.0f + 0.1f;
+        ball_i->x -= separation * nx;
+        ball_i->y -= separation * ny;
+        ball_i->z -= separation * nz;
+
+        ball_j->x += separation * nx;
+        ball_j->y += separation * ny;
+        ball_j->z += separation * nz;
+    }
+
+    /* Velocity impulse only if approaching */
+    if (rel_vel_along_normal < 0.0f)
+    {
+        /* Equal-mass billiard collision along contact normal */
+        float impulse = -((1.0f + BALL_COLLISION_RESTITUTION) * rel_vel_along_normal) / 2.0f;
+        float burst = BALL_COLLISION_BURST_SPEED * (overlap / collision_dist);
+        impulse = impulse * BALL_COLLISION_IMPULSE_BOOST + burst;
+
+        ball_i->vx -= impulse * nx;
+        ball_i->vy -= impulse * ny;
+        ball_i->vz -= impulse * nz;
+
+        ball_j->vx += impulse * nx;
+        ball_j->vy += impulse * ny;
+        ball_j->vz += impulse * nz;
+
+        /* Small tangential transfer for less perfectly mirrored paths */
+        {
+            float tvx = dvx - rel_vel_along_normal * nx;
+            float tvy = dvy - rel_vel_along_normal * ny;
+            float tvz = dvz - rel_vel_along_normal * nz;
+            float t_impulse = BALL_COLLISION_TANGENTIAL_TRANSFER * 0.5f;
+
+            ball_i->vx += tvx * t_impulse;
+            ball_i->vy += tvy * t_impulse;
+            ball_i->vz += tvz * t_impulse;
+
+            ball_j->vx -= tvx * t_impulse;
+            ball_j->vy -= tvy * t_impulse;
+            ball_j->vz -= tvz * t_impulse;
+        }
+    }
+}
+
 static void init_balls(GuiState3D *state)
 {
-    state->ball_count = DRUM_BALL_COUNT;
     state->phase = DRUM_PHASE_FALLING;
 
     for (int i = 0; i < state->ball_count; i++)
@@ -125,7 +453,9 @@ static void init_balls(GuiState3D *state)
         state->balls[i].x = x;
         state->balls[i].z = z;
         state->balls[i].y = frand_range(DRUM_RADIUS * 0.25f, DRUM_RADIUS * 0.75f);
+        state->balls[i].vx = 0.0f;
         state->balls[i].vy = 0.0f;
+        state->balls[i].vz = 0.0f;
         state->balls[i].settled = 0;
     }
 }
@@ -250,6 +580,23 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
     state->camera_roll = CAMERA_TRIMETRIC_Z;
     state->camera_z = CAMERA_Z;
     state->mouse_dragging = 0;
+    state->sim_time = 0.0f;
+
+    state->ball_count = state->info.main_max;
+    if (state->ball_count <= 0)
+        state->ball_count = 50;
+    if (state->ball_count > MAX_GAME_BALLS)
+        state->ball_count = MAX_GAME_BALLS;
+
+    state->balls = (DrumBall *)calloc((size_t)state->ball_count, sizeof(DrumBall));
+    state->gpu_ball_cache = (GpuBall *)calloc((size_t)state->ball_count, sizeof(GpuBall));
+    if (!state->balls || !state->gpu_ball_cache)
+    {
+        free(state->balls);
+        free(state->gpu_ball_cache);
+        free(state);
+        return NULL;
+    }
 
     srand((unsigned int)time(NULL));
     init_balls(state);
@@ -259,8 +606,12 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
 
 static void gui_state_destroy(GuiState3D *state)
 {
-    if (state)
-        free(state);
+    if (!state)
+        return;
+
+    free(state->balls);
+    free(state->gpu_ball_cache);
+    free(state);
 }
 
 /* ============================================================
@@ -345,8 +696,13 @@ static void on_draw_event(DrawEvent event, const LotteryResult *res)
 
 static void update_animation(GuiState3D *state, float delta_time)
 {
+    /* Calculate angular velocity for drum rotation */
+    float omega_rad_per_sec = DRUM_ROTATION_SPEED_DEG * 3.14159265f / 180.0f;
+    state->sim_time += delta_time;
+
     if (state->phase == DRUM_PHASE_FALLING)
     {
+        /* FALLING PHASE: Balls drop under gravity, drum stationary */
         int settled_count = 0;
 
         for (int i = 0; i < state->ball_count; i++)
@@ -359,9 +715,11 @@ static void update_animation(GuiState3D *state, float delta_time)
                 continue;
             }
 
+            /* Apply gravity only */
             ball->vy -= BALL_GRAVITY * delta_time;
             ball->y += ball->vy * delta_time;
 
+            /* Curved floor collision (ball inside spherical drum) */
             float radial_sq = ball->x * ball->x + ball->z * ball->z;
             float floor_y;
             float inside = (DRUM_RADIUS - BALL_RADIUS) * (DRUM_RADIUS - BALL_RADIUS) - radial_sq;
@@ -391,17 +749,239 @@ static void update_animation(GuiState3D *state, float delta_time)
             }
         }
 
+        /* Transition to rotating phase once all balls settle */
         if (settled_count == state->ball_count)
         {
             state->phase = DRUM_PHASE_ROTATING;
+            for (int i = 0; i < state->ball_count; i++)
+            {
+                /* Start rotation phase without shell-locking initial velocity */
+                state->balls[i].vx *= 0.25f;
+                state->balls[i].vy *= 0.25f;
+                state->balls[i].vz *= 0.25f;
+            }
+            if (state->use_gpu_compute)
+                sync_cpu_balls_to_gpu(state);
             log_info("Balls settled at drum bottom; starting drum rotation");
         }
 
         return;
     }
 
-    /* Rotate drum around one axis only (Z axis) */
-    state->drum_rotation_z += 70.0f * delta_time;
+    if (state->use_gpu_compute)
+    {
+        update_animation_gpu(state, delta_time);
+
+        /* Rotate drum around Z axis */
+        state->drum_rotation_z += DRUM_ROTATION_SPEED_DEG * delta_time;
+
+        while (state->drum_rotation_z > 360.0f)
+            state->drum_rotation_z -= 360.0f;
+        return;
+    }
+
+    /* ROTATING PHASE: gravity + shell contact drive (around Z) */
+    for (int i = 0; i < state->ball_count; i++)
+    {
+        DrumBall *ball = &state->balls[i];
+        float drum_interior_radius = DRUM_RADIUS - BALL_RADIUS;
+        float theta = state->drum_rotation_z * 3.14159265f / 180.0f;
+
+        /* Gravity in rotating frame: world-down direction rotates through local axes */
+        float gx = -BALL_GRAVITY * sinf(theta);
+        float gy = -BALL_GRAVITY * cosf(theta);
+
+        ball->vx += gx * delta_time;
+        ball->vy += gy * delta_time;
+
+        /* Air damping only (very light), motion stays free inside the sphere */
+        ball->vx *= BALL_AIR_DAMPING;
+        ball->vy *= BALL_AIR_DAMPING;
+        ball->vz *= BALL_AIR_DAMPING;
+
+        /* Update positions */
+        ball->x += ball->vx * delta_time;
+        ball->y += ball->vy * delta_time;
+        ball->z += ball->vz * delta_time;
+
+        /* Collision detection with drum interior */
+        float radial_sq = ball->x * ball->x + ball->z * ball->z;
+        float dist_from_center_sq = radial_sq + ball->y * ball->y;
+
+        if (dist_from_center_sq > drum_interior_radius * drum_interior_radius)
+        {
+            /* Ball is outside; reflect it back inside */
+            float dist_from_center = sqrtf(dist_from_center_sq);
+            
+            /* Normal vector pointing outward */
+            float nx = ball->x / dist_from_center;
+            float ny = ball->y / dist_from_center;
+            float nz = ball->z / dist_from_center;
+
+            /* Move ball back to interior surface */
+            float overlap = dist_from_center - drum_interior_radius;
+            ball->x -= nx * overlap;
+            ball->y -= ny * overlap;
+            ball->z -= nz * overlap;
+
+            /* Reflect only incoming normal component */
+            float v_dot_n = ball->vx * nx + ball->vy * ny + ball->vz * nz;
+            if (v_dot_n > 0.0f)
+            {
+                float restitution = 0.55f;
+                ball->vx -= (1.0f + restitution) * v_dot_n * nx;
+                ball->vy -= (1.0f + restitution) * v_dot_n * ny;
+                ball->vz -= (1.0f + restitution) * v_dot_n * nz;
+            }
+
+            /* Contact grip in drum direction (rotation around Z => XY tangent) */
+            {
+                float radial = sqrtf(ball->x * ball->x + ball->y * ball->y);
+                if (radial > 0.1f)
+                {
+                    float tx = -ball->y / radial;
+                    float ty = ball->x / radial;
+                    float target_tangential = omega_rad_per_sec * radial;
+                    float current_tangential = ball->vx * tx + ball->vy * ty;
+                    float min_follow = target_tangential * 0.35f;
+                    if (current_tangential < min_follow)
+                    {
+                        float grip = BALL_CONTACT_FRICTION * 0.35f;
+                        float delta_t = (min_follow - current_tangential) * grip * delta_time;
+                        ball->vx += tx * delta_t;
+                        ball->vy += ty * delta_t;
+                    }
+                }
+            }
+        }
+    }
+
+    /* Ball-to-ball collisions using uniform grid broad phase */
+    {
+        float collision_dist = 2.0f * BALL_RADIUS;
+
+        float drum_interior_radius = DRUM_RADIUS - BALL_RADIUS;
+        float grid_min = -drum_interior_radius;
+        int grid_dim = (int)ceilf((2.0f * drum_interior_radius) / COLLISION_CELL_SIZE);
+        if (grid_dim < 1)
+            grid_dim = 1;
+        if (grid_dim > COLLISION_GRID_MAX_DIM)
+            grid_dim = COLLISION_GRID_MAX_DIM;
+
+        int cell_count = grid_dim * grid_dim * grid_dim;
+        int *cell_heads = (int *)malloc((size_t)cell_count * sizeof(int));
+        int *next_in_cell = (int *)malloc((size_t)state->ball_count * sizeof(int));
+        int *cell_x = (int *)malloc((size_t)state->ball_count * sizeof(int));
+        int *cell_y = (int *)malloc((size_t)state->ball_count * sizeof(int));
+        int *cell_z = (int *)malloc((size_t)state->ball_count * sizeof(int));
+
+        if (!cell_heads || !next_in_cell || !cell_x || !cell_y || !cell_z)
+        {
+            /* Fallback to pairwise checks if temp buffers cannot be allocated */
+            for (int i = 0; i < state->ball_count; i++)
+            {
+                for (int j = i + 1; j < state->ball_count; j++)
+                {
+                    resolve_ball_collision(&state->balls[i], &state->balls[j], collision_dist);
+                }
+            }
+        }
+        else
+        {
+            for (int c = 0; c < cell_count; c++)
+                cell_heads[c] = -1;
+
+            /* Insert balls into grid cells */
+            for (int i = 0; i < state->ball_count; i++)
+            {
+                DrumBall *ball = &state->balls[i];
+
+                int cx = (int)floorf((ball->x - grid_min) / COLLISION_CELL_SIZE);
+                int cy = (int)floorf((ball->y - grid_min) / COLLISION_CELL_SIZE);
+                int cz = (int)floorf((ball->z - grid_min) / COLLISION_CELL_SIZE);
+
+                if (cx < 0)
+                    cx = 0;
+                else if (cx >= grid_dim)
+                    cx = grid_dim - 1;
+                if (cy < 0)
+                    cy = 0;
+                else if (cy >= grid_dim)
+                    cy = grid_dim - 1;
+                if (cz < 0)
+                    cz = 0;
+                else if (cz >= grid_dim)
+                    cz = grid_dim - 1;
+
+                int cell_id = (cz * grid_dim + cy) * grid_dim + cx;
+                cell_x[i] = cx;
+                cell_y[i] = cy;
+                cell_z[i] = cz;
+                next_in_cell[i] = cell_heads[cell_id];
+                cell_heads[cell_id] = i;
+            }
+
+            /* Resolve collisions only against balls in neighboring cells */
+            for (int i = 0; i < state->ball_count; i++)
+            {
+                int cx = cell_x[i];
+                int cy = cell_y[i];
+                int cz = cell_z[i];
+
+                int nx0 = (cx > 0) ? cx - 1 : 0;
+                int ny0 = (cy > 0) ? cy - 1 : 0;
+                int nz0 = (cz > 0) ? cz - 1 : 0;
+                int nx1 = (cx + 1 < grid_dim) ? cx + 1 : grid_dim - 1;
+                int ny1 = (cy + 1 < grid_dim) ? cy + 1 : grid_dim - 1;
+                int nz1 = (cz + 1 < grid_dim) ? cz + 1 : grid_dim - 1;
+
+                for (int nz = nz0; nz <= nz1; nz++)
+                {
+                    for (int ny = ny0; ny <= ny1; ny++)
+                    {
+                        for (int nx = nx0; nx <= nx1; nx++)
+                        {
+                            int neighbor_id = (nz * grid_dim + ny) * grid_dim + nx;
+                            for (int j = cell_heads[neighbor_id]; j != -1; j = next_in_cell[j])
+                            {
+                                if (j <= i)
+                                    continue;
+                                resolve_ball_collision(&state->balls[i], &state->balls[j], collision_dist);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        free(cell_heads);
+        free(next_in_cell);
+        free(cell_x);
+        free(cell_y);
+        free(cell_z);
+    }
+
+    /* Final safety pass: keep every ball strictly inside cage after pair separation */
+    {
+        float drum_interior_radius = DRUM_RADIUS - BALL_RADIUS;
+        float drum_interior_radius_sq = drum_interior_radius * drum_interior_radius;
+        for (int i = 0; i < state->ball_count; i++)
+        {
+            DrumBall *ball = &state->balls[i];
+            float dist_sq = ball->x * ball->x + ball->y * ball->y + ball->z * ball->z;
+            if (dist_sq > drum_interior_radius_sq && dist_sq > 0.0001f)
+            {
+                float dist = sqrtf(dist_sq);
+                float scale = drum_interior_radius / dist;
+                ball->x *= scale;
+                ball->y *= scale;
+                ball->z *= scale;
+            }
+        }
+    }
+
+    /* Rotate drum around Z axis */
+    state->drum_rotation_z += DRUM_ROTATION_SPEED_DEG * delta_time;
 
     /* Normalize angles to prevent overflow */
     while (state->drum_rotation_z > 360.0f)
@@ -431,8 +1011,6 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
         return;
     }
 
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
@@ -448,7 +1026,19 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
         return;
     }
 
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     state->gl_context = SDL_GL_CreateContext(state->window);
+
+    if (!state->gl_context)
+    {
+        log_warn("OpenGL 4.3 context unavailable, falling back to OpenGL 2.1");
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+        state->gl_context = SDL_GL_CreateContext(state->window);
+    }
+
     if (!state->gl_context)
     {
         log_error("OpenGL context creation failed: %s", SDL_GetError());
@@ -462,12 +1052,24 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
 
     setup_opengl();
 
+    {
+        const char *gl_version = (const char *)glGetString(GL_VERSION);
+        if (gl_version)
+            log_info("OpenGL runtime version: %s", gl_version);
+    }
+
+    if (!init_gpu_compute(state))
+    {
+        state->use_gpu_compute = 0;
+        log_info("Using CPU physics path (GPU compute unavailable)");
+    }
+
     /* Generate the lottery draw (we won't display numbers yet, just show drums) */
     generate_draw(info->main_count, info->main_min, info->main_max, info->extra_count,
                   info->extra_min, info->extra_max, &state->result, on_draw_event);
 
-    log_info("Displaying %s - 50 balls start inside, fall first, then drum rotates",
-             game_name);
+    log_info("Displaying %s - %d balls (from game rules) start inside, fall first, then drum rotates",
+             game_name, state->ball_count);
     log_info("Mouse controls: hold left button and drag to orbit, wheel to zoom");
 
     /* Main loop */
@@ -540,6 +1142,8 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
     }
 
     log_info("Closing 3D Drum Display");
+
+    destroy_gpu_compute(state);
 
     SDL_GL_DeleteContext(state->gl_context);
     SDL_DestroyWindow(state->window);
