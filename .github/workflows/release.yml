@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-artifacts:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake gcc pkg-config libsdl2-dev libsdl2-ttf-dev
+      
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      
+      - name: Build
+        run: cmake --build build --config Release
+      
+      - name: Create source tarball
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          tar --exclude='.git' --exclude='build*' --exclude='.github' \
+            -czf open-lotto-${VERSION}.tar.gz .
+      
+      - name: Create binary tarball
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          mkdir -p open-lotto-${VERSION}/bin
+          cp build/open-lotto open-lotto-${VERSION}/bin/
+          cp build/benchmark open-lotto-${VERSION}/bin/
+          tar -czf open-lotto-${VERSION}-linux-x64.tar.gz open-lotto-${VERSION}
+      
+      - name: Generate checksums
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          sha256sum open-lotto-${VERSION}.tar.gz > open-lotto-${VERSION}.tar.gz.sha256
+          sha256sum open-lotto-${VERSION}-linux-x64.tar.gz > open-lotto-${VERSION}-linux-x64.tar.gz.sha256
+      
+      - name: Generate changelog
+        id: changelog
+        run: |
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          git log $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo HEAD~10)..HEAD \
+            --oneline \
+            --grep='^feat\|^fix\|^perf' \
+            | sed 's/^/- /' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            open-lotto-*.tar.gz
+            open-lotto-*.tar.gz.sha256
+          body: |
+            ## Release Notes
+            
+            ### Changes in this release
+            ${{ steps.changelog.outputs.CHANGELOG }}
+            
+            ### Installation
+            Download the appropriate binary tarball for your platform:
+            - `open-lotto-${{ github.ref_name }}-linux-x64.tar.gz` - Linux x86_64 binaries
+            - `open-lotto-${{ github.ref_name }}.tar.gz` - Full source code
+            
+            ### Verification
+            Verify the integrity of downloaded files using the `.sha256` checksums:
+            ```bash
+            sha256sum -c open-lotto-*.tar.gz.sha256
+            ```
+            
+            ### Getting Started
+            See [README.md](../blob/${{ github.ref_name }}/README.md) for build and installation instructions.
