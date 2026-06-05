@@ -2306,9 +2306,13 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_ov
                 if (state->mouse_dragging)
                 {
                     int dx = event.motion.x - state->last_mouse_x;
-
-                    state->camera_yaw += dx * MOUSE_ORBIT_SENSITIVITY;
-
+                    int dy = event.motion.y - state->last_mouse_y;
+                    state->camera_yaw += (float)dx * MOUSE_ORBIT_SENSITIVITY;
+                    state->camera_pitch += (float)dy * MOUSE_ORBIT_SENSITIVITY;
+                    if (state->camera_pitch < CAMERA_PITCH_MIN)
+                        state->camera_pitch = CAMERA_PITCH_MIN;
+                    if (state->camera_pitch > CAMERA_PITCH_MAX)
+                        state->camera_pitch = CAMERA_PITCH_MAX;
                     state->last_mouse_x = event.motion.x;
                     state->last_mouse_y = event.motion.y;
                 }
