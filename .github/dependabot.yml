@@ -1,0 +1,34 @@
+version: 2
+updates:
+  # Enable version updates for dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    # Open PRs for all dependency updates
+    pull-request-branch-name:
+      separator: "/"
+    # Commit message prefix
+    commit-message:
+      prefix: "chore(deps)"
+    reviewers:
+      - "Boussetta"
+    # Automatically merge minor and patch updates with passing tests
+    auto-merge: true
+  
+  # GitHub Actions dependency updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:30"
+    pull-request-branch-name:
+      separator: "/"
+    commit-message:
+      prefix: "chore(deps)"
+    reviewers:
+      - "Boussetta"
+    auto-merge: true

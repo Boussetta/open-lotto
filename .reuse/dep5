@@ -1,0 +1,65 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: open-lotto
+Upstream-Contact: Wissem Boussetta <boussettawissem@gmail.com>
+Source: https://github.com/Boussetta/open-lotto
+
+# Main source code
+Files: src/* include/* plugins/
+Copyright: 2025 Wissem Boussetta
+License: MIT
+
+# Test files
+Files: tests/*
+Copyright: 2025 Wissem Boussetta
+License: MIT
+
+# Build and configuration files
+Files: CMakeLists.txt build/ build-sanitizer/ build-tidy/
+Copyright: 2025 Wissem Boussetta
+License: MIT
+
+# Documentation and configuration
+Files: README.md CONTRIBUTING.md RELEASES.md SECURITY.md VERSION
+Copyright: 2025 Wissem Boussetta
+License: MIT
+
+# CI/CD workflows
+Files: .github/workflows/*
+Copyright: 2025 Wissem Boussetta
+License: MIT
+
+# Git configuration
+Files: .git* .gitignore
+Copyright: 2025 Wissem Boussetta
+License: MIT
+
+# Pre-commit configuration
+Files: .githooks/* .pre-commit-config.yaml
+Copyright: 2025 Wissem Boussetta
+License: MIT
+
+# Clang-tidy configuration
+Files: .clang-tidy
+Copyright: 2025 Wissem Boussetta
+License: MIT
+
+# Third-party assets
+Files: fonts/Roboto-Bold.ttf
+Copyright: 2011 Google Inc.
+License: Apache-2.0
+Comment: Roboto font from Google Fonts
+
+# Scripts
+Files: scripts/*
+Copyright: 2025 Wissem Boussetta
+License: MIT
+
+# Results and generated files
+Files: results.csv results.json *.log Testing/*
+Copyright: 2025 Wissem Boussetta
+License: MIT
+
+# License and legal files
+Files: LICENSE
+Copyright: 2025 Wissem Boussetta
+License: MIT
