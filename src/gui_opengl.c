@@ -202,9 +202,17 @@ typedef struct
     GLuint ball_ssbo;
     GpuBall *gpu_ball_cache;
 
-    TTF_Font *font; /* shared font */
+    TTF_Font *font;         /* ball number font */
+    TTF_Font *overlay_font; /* smaller HUD font for debug overlay */
 
     int animation_complete;
+
+    /* Debug overlay & pause */
+    int debug_overlay;    /* 1 when --debug-overlay is active */
+    int paused;           /* 1 when animation is paused (Space bar) */
+    float fps_current;    /* smoothed frames-per-second */
+    int fps_frame_count;  /* frames counted since last FPS sample */
+    Uint32 fps_last_time; /* SDL ticks at last FPS sample */
 } GuiState3D;
 
 /* ============================================================
@@ -643,6 +651,167 @@ static void draw_sphere_frame(float radius, int slices, int stacks)
 }
 
 /* ============================================================
+   DEBUG OVERLAY
+   ============================================================ */
+
+/** Return a short name for a drum phase (for the debug overlay). */
+static const char *drum_phase_name(DrumPhase phase)
+{
+    switch (phase)
+    {
+    case DRUM_PHASE_FALLING:
+        return "FALLING";
+    case DRUM_PHASE_ROTATING:
+        return "ROTATING";
+    case DRUM_PHASE_STOPPING:
+        return "STOPPING";
+    case DRUM_PHASE_PICK_PAUSE:
+        return "PICK";
+    case DRUM_PHASE_DRAW_COMPLETE:
+        return "DONE";
+    default:
+        return "?";
+    }
+}
+
+/**
+ * @brief Render a text string at pixel position (x, y) in an already-active 2D
+ *        orthographic projection (top-left origin, y-down).  Creates and
+ *        destroys a temporary GL texture each call — intended for debug use.
+ */
+static void render_text_2d_at(TTF_Font *font, const char *text, float x, float y, float r, float g,
+                              float b)
+{
+    if (!font || !text || text[0] == '\0')
+        return;
+
+    SDL_Color color = {(Uint8)(r * 255.0f), (Uint8)(g * 255.0f), (Uint8)(b * 255.0f), 255};
+    SDL_Surface *surf = TTF_RenderText_Blended(font, text, color);
+    if (!surf)
+        return;
+
+    SDL_Surface *conv = SDL_ConvertSurfaceFormat(surf, SDL_PIXELFORMAT_RGBA32, 0);
+    SDL_FreeSurface(surf);
+    if (!conv)
+        return;
+
+    int tw = conv->w;
+    int th = conv->h;
+
+    GLuint tex = 0;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tw, th, 0, GL_RGBA, GL_UNSIGNED_BYTE, conv->pixels);
+    SDL_FreeSurface(conv);
+
+    glDisable(GL_LIGHTING);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor3f(1.0f, 1.0f, 1.0f);
+
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2f(x, y);
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex2f(x + (float)tw, y);
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2f(x + (float)tw, y + (float)th);
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex2f(x, y + (float)th);
+    glEnd();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_TEXTURE_2D);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
+
+    glDeleteTextures(1, &tex);
+}
+
+/**
+ * @brief Render the HUD debug overlay (top-left corner).
+ *        Must be called while an orthographic 2D projection is active.
+ */
+static void render_debug_overlay(const GuiState3D *state)
+{
+    if (!state->debug_overlay || !state->overlay_font)
+        return;
+
+    TTF_Font *font = state->overlay_font;
+    float x = 12.0f;
+    float y = 12.0f;
+    float line_h = 22.0f;
+    char buf[160];
+
+    /* Background tint so text is readable on any scene */
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_LIGHTING);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(0.0f, 0.0f, 0.0f, 0.45f);
+    float pad = 4.0f;
+    int lines = 4 + (state->extra_drum ? 1 : 0) + (state->paused ? 1 : 0) + 1;
+    float box_h = (float)lines * line_h + pad * 2.0f;
+    float box_w = 420.0f;
+    glBegin(GL_QUADS);
+    glVertex2f(x - pad, y - pad);
+    glVertex2f(x + box_w, y - pad);
+    glVertex2f(x + box_w, y + box_h);
+    glVertex2f(x - pad, y + box_h);
+    glEnd();
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
+
+    /* FPS */
+    snprintf(buf, sizeof(buf), "FPS: %.0f", state->fps_current);
+    render_text_2d_at(font, buf, x, y, 0.20f, 1.00f, 0.35f);
+    y += line_h;
+
+    /* Physics mode */
+    snprintf(buf, sizeof(buf), "Physics: %s", state->use_gpu_compute ? "GPU compute" : "CPU");
+    render_text_2d_at(font, buf, x, y, 0.20f, 1.00f, 0.35f);
+    y += line_h;
+
+    /* Main drum status */
+    if (state->main_drum)
+    {
+        snprintf(buf, sizeof(buf), "Main drum : %-8s  pick %d/%d  %d balls",
+                 drum_phase_name(state->main_drum->phase), state->main_drum->picks_done,
+                 state->main_drum->picks_total, state->main_drum->ball_count);
+        render_text_2d_at(font, buf, x, y, 0.20f, 1.00f, 0.35f);
+        y += line_h;
+    }
+
+    /* Extra drum status (if present) */
+    if (state->extra_drum)
+    {
+        snprintf(buf, sizeof(buf), "Extra drum: %-8s  pick %d/%d  %d balls",
+                 drum_phase_name(state->extra_drum->phase), state->extra_drum->picks_done,
+                 state->extra_drum->picks_total, state->extra_drum->ball_count);
+        render_text_2d_at(font, buf, x, y, 0.20f, 1.00f, 0.35f);
+        y += line_h;
+    }
+
+    /* Pause indicator */
+    if (state->paused)
+    {
+        render_text_2d_at(font, "[ PAUSED — press Space to resume ]", x, y, 1.00f, 0.80f, 0.10f);
+        y += line_h;
+    }
+
+    /* Controls hint */
+    render_text_2d_at(font, "Space: pause/resume   R: reset camera   Esc: quit", x, y, 0.65f, 0.65f,
+                      0.65f);
+}
+
+/* ============================================================
    SETUP & INITIALIZATION
    ============================================================ */
 
@@ -691,7 +860,8 @@ static void setup_opengl(void)
     check_gl_error("setup_opengl");
 }
 
-static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryInfo *info)
+static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryInfo *info,
+                                    int debug_overlay)
 {
     (void)unused_game_name;
 
@@ -702,6 +872,7 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
     memset(state, 0, sizeof(GuiState3D));
     state->info = *info;
     state->animation_complete = 0;
+    state->debug_overlay = debug_overlay;
 
     state->camera_pitch = CAMERA_TRIMETRIC_X;
     state->camera_yaw = CAMERA_TRIMETRIC_Y;
@@ -835,6 +1006,9 @@ static void gui_state_destroy(GuiState3D *state)
     if (state->font)
         TTF_CloseFont(state->font);
 
+    if (state->overlay_font)
+        TTF_CloseFont(state->overlay_font);
+
     free(state->gpu_ball_cache);
     free(state);
 }
@@ -909,6 +1083,11 @@ static void init_ball_textures(GuiState3D *state)
                  TTF_GetError());
         return;
     }
+
+    /* Smaller overlay font for the HUD debug display */
+    state->overlay_font = TTF_OpenFont(font_path, 18);
+    if (!state->overlay_font)
+        log_warn("Failed to load overlay font '%s': %s", font_path, TTF_GetError());
 
     /* Create textures for main drum */
     {
@@ -1209,6 +1388,7 @@ static void render_scene(GuiState3D *state)
     glLoadIdentity();
 
     render_combined_result_overlay_2d(state, (float)WINDOW_HEIGHT - 78.0f);
+    render_debug_overlay(state);
 
     glPopMatrix();
     glMatrixMode(GL_PROJECTION);
@@ -1834,11 +2014,11 @@ static void update_animation(GuiState3D *state, float delta_time)
    MAIN GUI FUNCTION
    ============================================================ */
 
-void gui_run_opengl(const char *game_name, const LotteryInfo *info)
+void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_overlay)
 {
     log_info("Launching 3D OpenGL GUI (Sphere Drums) for %s", game_name);
 
-    GuiState3D *state = gui_state_create(game_name, info);
+    GuiState3D *state = gui_state_create(game_name, info, debug_overlay);
     if (!state)
     {
         log_error("Failed to create GUI state");
@@ -1933,6 +2113,7 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
     /* Main loop */
     int running = 1;
     Uint32 last_time = SDL_GetTicks();
+    state->fps_last_time = last_time;
 
     while (running)
     {
@@ -1947,6 +2128,14 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
             case SDL_KEYDOWN:
                 if (event.key.keysym.sym == SDLK_ESCAPE)
                     running = 0;
+                else if (event.key.keysym.sym == SDLK_SPACE)
+                    state->paused = !state->paused;
+                else if (event.key.keysym.sym == SDLK_r)
+                {
+                    state->camera_pitch = CAMERA_TRIMETRIC_X;
+                    state->camera_yaw = CAMERA_TRIMETRIC_Y;
+                    state->camera_z = CAMERA_Z;
+                }
                 break;
             case SDL_MOUSEBUTTONDOWN:
                 if (event.button.button == SDL_BUTTON_LEFT)
@@ -1991,8 +2180,19 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
             delta_time = 0.05f; /* Cap at 50ms */
         last_time = current_time;
 
-        /* Update animation */
-        update_animation(state, delta_time);
+        /* FPS tracking — update sample every 500 ms */
+        state->fps_frame_count++;
+        if (current_time - state->fps_last_time >= 500)
+        {
+            float elapsed = (float)(current_time - state->fps_last_time) / 1000.0f;
+            state->fps_current = (elapsed > 0.0f) ? (float)state->fps_frame_count / elapsed : 0.0f;
+            state->fps_frame_count = 0;
+            state->fps_last_time = current_time;
+        }
+
+        /* Update animation (skip when paused) */
+        if (!state->paused)
+            update_animation(state, delta_time);
 
         /* Render */
         render_scene(state);

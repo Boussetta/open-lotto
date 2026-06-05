@@ -173,10 +173,11 @@ static void print_usage(const char *prog)
             "  %s --list-games\n"
             "\n"
             "Modes:\n"
-            "  --animate         Animated CLI draw display (spinner animation)\n"
-            "  --gui [2D|3D]     Graphical mode (default: 2D SDL2, or 3D OpenGL)\n"
-            "  --export FORMAT   Export results to file (csv or json)\n"
-            "  --validate-only   Validate configuration without running\n"
+            "  --animate              Animated CLI draw display (spinner animation)\n"
+            "  --gui [2D|3D]          Graphical mode (default: 2D SDL2, or 3D OpenGL)\n"
+            "  --debug-overlay        Show FPS/physics HUD in 3D GUI (requires --gui 3D)\n"
+            "  --export FORMAT        Export results to file (csv or json)\n"
+            "  --validate-only        Validate configuration without running\n"
             "\n"
             "Output Options:\n"
             "  --output FILE     Destination file for --export (required with --export)\n"
@@ -241,6 +242,7 @@ int main(int argc, char **argv)
     int animate = 0;
     int gui = 0;
     const char *gui_mode = NULL;
+    int debug_overlay = 0;
     int cli_log_level_set = 0;
     LogLevel log_level = LOG_INFO;
     const char *export_format = NULL;
@@ -274,6 +276,10 @@ int main(int argc, char **argv)
             {
                 gui_mode = argv[++i];
             }
+        }
+        else if (strcmp(argv[i], "--debug-overlay") == 0)
+        {
+            debug_overlay = 1;
         }
         else if (strcmp(argv[i], "--verbose") == 0)
         {
@@ -509,7 +515,7 @@ int main(int argc, char **argv)
 
         if (strcmp(gui_mode, "3D") == 0)
         {
-            gui_run_opengl(selected->name, &selected->info);
+            gui_run_opengl(selected->name, &selected->info, debug_overlay);
         }
         else /* Default to 2D */
         {
