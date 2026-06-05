@@ -83,7 +83,52 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
-    # CLI integration tests
+    # ----------------------------------------------------------------
+    # Plugin loader integration tests
+    # ----------------------------------------------------------------
+    add_library(stub_plugin SHARED tests/stub_plugin.c)
+    set_target_properties(stub_plugin PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins"
+    )
+
+    add_executable(test_plugin_loader
+        tests/test_plugin_loader.c
+        src/plugin_loader.c
+        src/log.c
+    )
+    target_link_libraries(test_plugin_loader PRIVATE dl)
+    target_compile_definitions(test_plugin_loader PRIVATE
+        LOTTO_PLUGIN_PATH="${CMAKE_BINARY_DIR}/plugins/liblotto.so"
+        STUB_PLUGIN_PATH="${CMAKE_BINARY_DIR}/plugins/libstub_plugin.so"
+    )
+    add_dependencies(test_plugin_loader lotto stub_plugin)
+
+    add_test(NAME unit_plugin_loader
+        COMMAND $<TARGET_FILE:test_plugin_loader>
+    )
+    set_tests_properties(unit_plugin_loader PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    # ----------------------------------------------------------------
+    # Export golden-file tests
+    # ----------------------------------------------------------------
+    add_executable(test_export
+        tests/test_export.c
+        src/export.c
+        src/log.c
+    )
+
+    add_test(NAME unit_export
+        COMMAND $<TARGET_FILE:test_export>
+    )
+    set_tests_properties(unit_export PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    # ----------------------------------------------------------------
+    # CLI integration tests – success paths
+    # ----------------------------------------------------------------
     add_test(NAME cli_lists_games
         COMMAND $<TARGET_FILE:open-lotto> --list-games
     )
@@ -105,7 +150,62 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "Main:"
     )
 
-    # Performance benchmarking tool
+    # ----------------------------------------------------------------
+    # CLI argument validation tests – all must exit non-zero
+    # ----------------------------------------------------------------
+    add_test(NAME cli_no_args
+        COMMAND $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(cli_no_args PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_missing_game_flag
+        COMMAND $<TARGET_FILE:open-lotto> "Lotto 6aus49"
+    )
+    set_tests_properties(cli_missing_game_flag PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_draws_zero
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --draws 0
+    )
+    set_tests_properties(cli_draws_zero PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_draws_negative
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --draws -1
+    )
+    set_tests_properties(cli_draws_negative PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_draws_not_a_number
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --draws abc
+    )
+    set_tests_properties(cli_draws_not_a_number PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_draws_missing_value
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --draws
+    )
+    set_tests_properties(cli_draws_missing_value PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_invalid_export_format
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --draws 1 --export xml
+    )
+    set_tests_properties(cli_invalid_export_format PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_export_missing_value
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --draws 1 --export
+    )
+    set_tests_properties(cli_export_missing_value PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_unknown_flag
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --invalid-flag
+    )
+    set_tests_properties(cli_unknown_flag PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_verbose_missing_value
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --verbose
+    )
+    set_tests_properties(cli_verbose_missing_value PROPERTIES WILL_FAIL TRUE)
+
+    # ----------------------------------------------------------------
+    # Performance benchmarking tool (utility, not a test)
+    # ----------------------------------------------------------------
     add_executable(benchmark
         tests/benchmark.c
         src/combogen.c
