@@ -25,12 +25,24 @@
 #define CAMERA_TRIMETRIC_X 0.0f
 #define CAMERA_TRIMETRIC_Y 143.0f
 #define CAMERA_TRIMETRIC_Z 0.0f
+#define CAMERA_TOP_X (-90.0f)
+#define CAMERA_TOP_Y 0.0f
+#define CAMERA_FRONT_X 0.0f
+#define CAMERA_FRONT_Y 0.0f
+#define CAMERA_SIDE_X 0.0f
+#define CAMERA_SIDE_Y 90.0f
 #define CAMERA_PITCH_MIN (-85.0f)
 #define CAMERA_PITCH_MAX 85.0f
 #define MOUSE_ORBIT_SENSITIVITY 0.25f
 #define MOUSE_ZOOM_STEP 20.0f
 #define CAMERA_Z_MIN (-1500.0f)
 #define CAMERA_Z_MAX (-120.0f)
+
+/* Animation speed control */
+#define ANIMATION_SPEED_MIN 0.1f
+#define ANIMATION_SPEED_MAX 4.0f
+#define ANIMATION_SPEED_STEP 0.2f
+#define ANIMATION_SPEED_DEFAULT 1.0f
 
 /* Main drum */
 #define DRUM_RADIUS 250.0f
@@ -221,6 +233,9 @@ typedef struct
     float fps_current;    /* smoothed frames-per-second */
     int fps_frame_count;  /* frames counted since last FPS sample */
     Uint32 fps_last_time; /* SDL ticks at last FPS sample */
+
+    /* Animation speed control */
+    float animation_speed_multiplier; /* 0.25 = 0.25x speed, 1.0 = normal, 4.0 = 4x speed */
 } GuiState3D;
 
 /* ============================================================
@@ -696,6 +711,16 @@ static const char *drum_phase_name(DrumPhase phase)
 }
 
 /**
+ * @brief Set camera pitch and yaw angles.
+ */
+static void set_camera_view(GuiState3D *state, float pitch, float yaw)
+{
+    state->camera_pitch = pitch;
+    state->camera_yaw = yaw;
+    state->camera_z = CAMERA_Z;
+}
+
+/**
  * @brief Render a text string at pixel position (x, y) in an already-active 2D
  *        orthographic projection (top-left origin, y-down).  Creates and
  *        destroys a temporary GL texture each call — intended for debug use.
@@ -778,7 +803,7 @@ static void render_debug_overlay(const GuiState3D *state)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glColor4f(0.0f, 0.0f, 0.0f, 0.45f);
     float pad = 4.0f;
-    int lines = 4 + (state->extra_drum ? 1 : 0) + (state->paused ? 1 : 0) + 1;
+    int lines = 5 + (state->extra_drum ? 1 : 0) + (state->paused ? 1 : 0) + 1;
     float box_h = (float)lines * line_h + pad * 2.0f;
     float box_w = 420.0f;
     glBegin(GL_QUADS);
@@ -797,6 +822,11 @@ static void render_debug_overlay(const GuiState3D *state)
 
     /* Physics mode */
     snprintf(buf, sizeof(buf), "Physics: %s", state->use_gpu_compute ? "GPU compute" : "CPU");
+    render_text_2d_at(font, buf, x, y, 0.20f, 1.00f, 0.35f);
+    y += line_h;
+
+    /* Animation speed */
+    snprintf(buf, sizeof(buf), "Speed: %.1fx  (press +/- or N)", state->animation_speed_multiplier);
     render_text_2d_at(font, buf, x, y, 0.20f, 1.00f, 0.35f);
     y += line_h;
 
@@ -828,8 +858,7 @@ static void render_debug_overlay(const GuiState3D *state)
     }
 
     /* Controls hint */
-    render_text_2d_at(font, "Space: pause/resume   R: reset camera   Esc: quit", x, y, 0.65f, 0.65f,
-                      0.65f);
+    render_text_2d_at(font, "Cam:R T F S I  Speed:+/- N  Esc", x, y, 0.65f, 0.65f, 0.65f);
 }
 
 /* ============================================================
@@ -899,6 +928,9 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
     state->camera_yaw = CAMERA_TRIMETRIC_Y;
     state->camera_roll = CAMERA_TRIMETRIC_Z;
     state->camera_z = CAMERA_Z;
+
+    /* Initialize animation speed control */
+    state->animation_speed_multiplier = ANIMATION_SPEED_DEFAULT;
 
     srand((unsigned int)time(NULL));
 
@@ -2259,7 +2291,9 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_ov
 
     log_info("Displaying %s - %d main balls, %d extra balls", game_name,
              state->main_drum->ball_count, state->extra_drum ? state->extra_drum->ball_count : 0);
-    log_info("Mouse controls: hold left button and drag to orbit, wheel to zoom");
+    log_info("Controls: drag to orbit | wheel to zoom | Space to pause | R/T/F/S/I: camera views");
+    if (state->debug_overlay)
+        log_info("Debug overlay enabled: shows FPS, physics mode, and drum status (+/- for speed)");
 
     /* Main loop */
     int running = 1;
@@ -2281,11 +2315,38 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_ov
                     running = 0;
                 else if (event.key.keysym.sym == SDLK_SPACE)
                     state->paused = !state->paused;
-                else if (event.key.keysym.sym == SDLK_r)
+                else if (event.key.keysym.sym == SDLK_r || event.key.keysym.sym == SDLK_i)
                 {
-                    state->camera_pitch = CAMERA_TRIMETRIC_X;
-                    state->camera_yaw = CAMERA_TRIMETRIC_Y;
-                    state->camera_z = CAMERA_Z;
+                    /* R: reset camera, I: isometric view (both use trimetric angles) */
+                    set_camera_view(state, CAMERA_TRIMETRIC_X, CAMERA_TRIMETRIC_Y);
+                }
+                else if (event.key.keysym.sym == SDLK_PLUS || event.key.keysym.sym == SDLK_EQUALS)
+                {
+                    state->animation_speed_multiplier += ANIMATION_SPEED_STEP;
+                    if (state->animation_speed_multiplier > ANIMATION_SPEED_MAX)
+                        state->animation_speed_multiplier = ANIMATION_SPEED_MAX;
+                }
+                else if (event.key.keysym.sym == SDLK_MINUS)
+                {
+                    state->animation_speed_multiplier -= ANIMATION_SPEED_STEP;
+                    if (state->animation_speed_multiplier < ANIMATION_SPEED_MIN)
+                        state->animation_speed_multiplier = ANIMATION_SPEED_MIN;
+                }
+                else if (event.key.keysym.sym == SDLK_n)
+                {
+                    state->animation_speed_multiplier = ANIMATION_SPEED_DEFAULT;
+                }
+                else if (event.key.keysym.sym == SDLK_t)
+                {
+                    set_camera_view(state, CAMERA_TOP_X, CAMERA_TOP_Y);
+                }
+                else if (event.key.keysym.sym == SDLK_f)
+                {
+                    set_camera_view(state, CAMERA_FRONT_X, CAMERA_FRONT_Y);
+                }
+                else if (event.key.keysym.sym == SDLK_s)
+                {
+                    set_camera_view(state, CAMERA_SIDE_X, CAMERA_SIDE_Y);
                 }
                 break;
             case SDL_MOUSEBUTTONDOWN:
@@ -2347,7 +2408,7 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_ov
 
         /* Update animation (skip when paused) */
         if (!state->paused)
-            update_animation(state, delta_time);
+            update_animation(state, delta_time * state->animation_speed_multiplier);
 
         /* Render */
         render_scene(state);
