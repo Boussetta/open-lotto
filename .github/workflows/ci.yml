@@ -159,6 +159,51 @@ jobs:
         with:
           fail-on: warning
 
+  performance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-perf-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: apt-perf-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake gcc pkg-config libsdl2-dev libsdl2-ttf-dev python3
+
+      - name: Clean build directory
+        run: rm -rf build
+
+      - name: Build Release
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++
+          cmake --build build --config Release
+
+      - name: Run benchmarks
+        run: ./scripts/run_benchmarks.sh build/benchmark_results.json build
+
+      - name: Check performance regressions
+        run: ./scripts/check_performance_regression.sh build/benchmark_results.json .github/benchmark_baseline.json 5
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.run_id }}
+          path: build/benchmark_results.json
+
   # TODO: Debug and re-enable static-analysis after resolving clang-tidy CI issues
   # static-analysis:
   #   runs-on: ubuntu-latest
