@@ -125,6 +125,8 @@ if(NOT OPENGL_FOUND)
         "  macOS         : included with Xcode Command Line Tools\n"
     )
 endif()
+# OpenMP support for parallel ball synchronization and physics
+find_package(OpenMP REQUIRED)
 
 include_directories(
     ${SDL2_INCLUDE_DIRS}
@@ -152,6 +154,7 @@ target_link_libraries(open-lotto
         ${SDL2_LIBRARIES}
         ${SDL2TTF_LIBRARIES}
         ${OPENGL_LIBRARIES}
+    OpenMP::OpenMP_C
         dl
         m
 )
@@ -325,4 +328,21 @@ if(BUILD_TESTING)
 
     # Benchmark is not a test but a utility - we don't add it as a test
     # Users can run it manually: ./benchmark [iterations] [verbose]
+
+    # ----------------------------------------------------------------
+    # OpenMP parallelization performance benchmarks (utility, not a test)
+    # ----------------------------------------------------------------
+    add_executable(benchmark_openmp
+        tests/benchmark_openmp.c
+    )
+
+    target_link_libraries(benchmark_openmp
+        PRIVATE OpenMP::OpenMP_C m
+    )
+
+    # OpenMP benchmark is not a test but a utility - we don't add it as a test
+    # Users can run it manually to see parallelization improvements:
+    # ./benchmark_openmp [ball_count] [iterations]
+    # ./benchmark_openmp --help
+    # OMP_NUM_THREADS=8 ./benchmark_openmp 10000
 endif()

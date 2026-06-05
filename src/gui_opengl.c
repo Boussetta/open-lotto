@@ -4,6 +4,7 @@
 #include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_ttf.h>
 #include <math.h>
+#include <omp.h> // NOLINT(clang-diagnostic-error)
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -236,6 +237,12 @@ typedef struct
 
     /* Animation speed control */
     float animation_speed_multiplier; /* 0.25 = 0.25x speed, 1.0 = normal, 4.0 = 4x speed */
+
+    /* CPU usage tracking (per-core percentages) */
+    float *cpu_usage;        /* [num_cores] usage percentages */
+    int num_cores;           /* number of CPU cores */
+    unsigned long *prev_cpu; /* [num_cores * 4] previous CPU stats (user, nice, system, idle) */
+    Uint32 cpu_last_update;  /* last time CPU stats were updated */
 } GuiState3D;
 
 /* ============================================================
@@ -254,6 +261,60 @@ static void check_gl_error(const char *context)
 static float frand_range(float a, float b)
 {
     return a + (b - a) * ((float)rand() / (float)RAND_MAX);
+}
+
+/* Read CPU usage statistics from /proc/stat and calculate per-core percentages */
+static void update_cpu_usage(GuiState3D *state)
+{
+    Uint32 now = SDL_GetTicks();
+    /* Update CPU stats every 500ms to avoid excessive file I/O */
+    if (now - state->cpu_last_update < 500)
+        return;
+    state->cpu_last_update = now;
+
+    FILE *fp = fopen("/proc/stat", "r");
+    if (!fp)
+        return;
+
+    char line[256];
+    int core_idx = 0;
+    while (fgets(line, sizeof(line), fp) && core_idx < state->num_cores)
+    {
+        if (strncmp(line, "cpu", 3) != 0)
+            break;
+        if (line[3] < '0' || line[3] > '9')
+            continue; /* skip "cpu" line, only process cpu0, cpu1, etc */
+
+        unsigned long user, nice, system, idle;
+        if (sscanf(line, "cpu%*d %lu %lu %lu %lu", &user, &nice, &system, &idle) == 4)
+        {
+            unsigned long prev_user = state->prev_cpu[core_idx * 4];
+            unsigned long prev_nice = state->prev_cpu[core_idx * 4 + 1];
+            unsigned long prev_system = state->prev_cpu[core_idx * 4 + 2];
+            unsigned long prev_idle = state->prev_cpu[core_idx * 4 + 3];
+
+            unsigned long total_diff =
+                (user + nice + system + idle) - (prev_user + prev_nice + prev_system + prev_idle);
+            unsigned long idle_diff = idle - prev_idle;
+
+            if (total_diff > 0)
+            {
+                state->cpu_usage[core_idx] = 100.0f * (1.0f - (float)idle_diff / (float)total_diff);
+            }
+            else
+            {
+                state->cpu_usage[core_idx] = 0.0f;
+            }
+
+            state->prev_cpu[core_idx * 4] = user;
+            state->prev_cpu[core_idx * 4 + 1] = nice;
+            state->prev_cpu[core_idx * 4 + 2] = system;
+            state->prev_cpu[core_idx * 4 + 3] = idle;
+            core_idx++;
+        }
+    }
+
+    fclose(fp);
 }
 
 static const char *BALL_COMPUTE_SHADER_SRC =
@@ -342,6 +403,7 @@ static void sync_cpu_balls_to_gpu(GuiState3D *state)
         return;
 
     DrumInstance *drum = state->main_drum;
+#pragma omp parallel for default(none) shared(state, drum)
     for (int i = 0; i < drum->ball_count; i++)
     {
         state->gpu_ball_cache[i].px = drum->balls[i].x;
@@ -376,6 +438,7 @@ static void sync_gpu_balls_to_cpu(GuiState3D *state)
                        state->gpu_ball_cache);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
+#pragma omp parallel for default(none) shared(state, drum)
     for (int i = 0; i < drum->ball_count; i++)
     {
         drum->balls[i].x = state->gpu_ball_cache[i].px;
@@ -595,6 +658,7 @@ static void drum_instance_init_balls(DrumInstance *drum)
     drum->sim_time = 0.0f;
 
     float spawn_r = drum->drum_radius * 0.60f;
+#pragma omp parallel for default(none) shared(drum, spawn_r)
     for (int i = 0; i < drum->ball_count; i++)
     {
         float x, z;
@@ -789,6 +853,9 @@ static void render_debug_overlay(const GuiState3D *state)
     if (!state->debug_overlay || !state->overlay_font)
         return;
 
+    /* Update CPU stats for display */
+    update_cpu_usage((GuiState3D *)state);
+
     TTF_Font *font = state->overlay_font;
     float x = 12.0f;
     float y = 12.0f;
@@ -803,9 +870,10 @@ static void render_debug_overlay(const GuiState3D *state)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glColor4f(0.0f, 0.0f, 0.0f, 0.45f);
     float pad = 4.0f;
-    int lines = 5 + (state->extra_drum ? 1 : 0) + (state->paused ? 1 : 0) + 1;
+    int lines = 8 + (state->num_cores > 0 ? 1 : 0) + (state->extra_drum ? 1 : 0) +
+                (state->paused ? 1 : 0) + 1;
     float box_h = (float)lines * line_h + pad * 2.0f;
-    float box_w = 420.0f;
+    float box_w = 520.0f;
     glBegin(GL_QUADS);
     glVertex2f(x - pad, y - pad);
     glVertex2f(x + box_w, y - pad);
@@ -829,6 +897,48 @@ static void render_debug_overlay(const GuiState3D *state)
     snprintf(buf, sizeof(buf), "Speed: %.1fx  (press +/- or N)", state->animation_speed_multiplier);
     render_text_2d_at(font, buf, x, y, 0.20f, 1.00f, 0.35f);
     y += line_h;
+
+    /* CPU usage (OpenMP threads + per-core percentages) */
+    {
+        int num_procs = omp_get_num_procs();
+        int max_threads = omp_get_max_threads();
+        snprintf(buf, sizeof(buf), "OpenMP: %d threads  Cores: %d", max_threads, num_procs);
+        render_text_2d_at(font, buf, x, y, 0.85f, 0.85f, 0.20f);
+        y += line_h;
+
+        /* Display per-core CPU usage */
+        if (state->cpu_usage && state->num_cores > 0)
+        {
+            int cols = (state->num_cores <= 4) ? state->num_cores : 4;
+            int rows = (state->num_cores + cols - 1) / cols;
+            for (int r = 0; r < rows; r++)
+            {
+                char *bp = buf;
+                int remaining = (int)sizeof(buf);
+                for (int c = 0; c < cols && r * cols + c < state->num_cores; c++)
+                {
+                    int core = r * cols + c;
+                    int len = snprintf(bp, (size_t)remaining, "CPU%d:%.0f%% ", core,
+                                       state->cpu_usage[core]);
+                    bp += len;
+                    remaining -= len;
+                }
+                render_text_2d_at(font, buf, x, y, 0.70f, 0.90f, 0.70f);
+                y += line_h;
+            }
+        }
+    }
+
+    /* GPU information */
+    {
+        const char *gpu_renderer = (const char *)glGetString(GL_RENDERER);
+        if (gpu_renderer)
+        {
+            snprintf(buf, sizeof(buf), "GPU: %s", gpu_renderer);
+            render_text_2d_at(font, buf, x, y, 0.20f, 0.85f, 1.00f);
+            y += line_h;
+        }
+    }
 
     /* Main drum status */
     if (state->main_drum)
@@ -1028,6 +1138,17 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
         }
     }
 
+    /* CPU usage tracking initialization */
+    state->num_cores = omp_get_num_procs();
+    if (state->num_cores > 0)
+    {
+        state->cpu_usage = (float *)calloc((size_t)state->num_cores, sizeof(float));
+        state->prev_cpu =
+            (unsigned long *)calloc((size_t)state->num_cores * 4, sizeof(unsigned long));
+        state->cpu_last_update = SDL_GetTicks();
+        log_info("CPU usage tracking initialized for %d cores", state->num_cores);
+    }
+
     /* GPU compute opt-in */
     const char *enable_gpu = getenv("LOTTO_GPU_COMPUTE");
     int try_gpu = (enable_gpu != NULL &&
@@ -1086,6 +1207,8 @@ static void gui_state_destroy(GuiState3D *state)
         TTF_CloseFont(state->overlay_font);
 
     free(state->gpu_ball_cache);
+    free(state->cpu_usage);
+    free(state->prev_cpu);
     free(state);
 }
 
@@ -1622,6 +1745,8 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
     {
         int settled_count = 0;
 
+#pragma omp parallel for default(none) shared(drum, delta_time, drum_radius)                       \
+    reduction(+ : settled_count)
         for (int i = 0; i < drum->ball_count; i++)
         {
             DrumBall *ball = &drum->balls[i];
@@ -1703,6 +1828,7 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
         {
             float inner_r = drum_radius - BALL_RADIUS;
             float inner_r_sq = inner_r * inner_r;
+#pragma omp parallel for default(none) shared(drum, inner_r, inner_r_sq)
             for (int i = 0; i < drum->ball_count; i++)
             {
                 DrumBall *ball = &drum->balls[i];
@@ -1727,6 +1853,7 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
         int force_timeout = (drum->sim_time >= 3.0f);
         int min_settled = drum->ball_count / 2;
         float max_speed = 0.0f;
+#pragma omp parallel for default(none) shared(drum) reduction(max : max_speed)
         for (int i = 0; i < drum->ball_count; i++)
         {
             if (!drum->balls[i].settled)
@@ -1743,6 +1870,7 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
         {
             drum->phase = DRUM_PHASE_ROTATING;
             drum->phase_timer = 0.0f;
+#pragma omp parallel for default(none) shared(drum)
             for (int i = 0; i < drum->ball_count; i++)
             {
                 drum->balls[i].vx *= 0.25f;
@@ -1827,6 +1955,7 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
             drum->picks_done++;
             drum->phase = DRUM_PHASE_PICK_PAUSE;
             drum->phase_timer = 0.0f;
+#pragma omp parallel for default(none) shared(drum)
             for (int i = 0; i < drum->ball_count; i++)
             {
                 if (!drum->balls[i].picked)
@@ -1842,6 +1971,7 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
     /* ---- PICK_PAUSE ---- */
     if (drum->phase == DRUM_PHASE_PICK_PAUSE)
     {
+#pragma omp parallel for default(none) shared(drum, delta_time)
         for (int s = 0; s < drum->result_ball_count; s++)
         {
             PickedBallDisplay *pb = &drum->result_balls[s];
@@ -1868,6 +1998,7 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
             }
         }
 
+#pragma omp parallel for default(none) shared(drum, delta_time, drum_radius)
         for (int i = 0; i < drum->ball_count; i++)
         {
             DrumBall *ball = &drum->balls[i];
