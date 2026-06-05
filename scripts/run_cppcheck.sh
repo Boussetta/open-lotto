@@ -6,6 +6,7 @@ cd "$repo_root"
 
 cppcheck \
   --enable=all \
+  --suppress=unmatchedSuppression \
   --suppress=missingIncludeSystem \
   --suppress=missingInclude \
   --suppress=unusedFunction \
