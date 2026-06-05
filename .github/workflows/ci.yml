@@ -147,6 +147,18 @@ jobs:
         env:
           ASAN_OPTIONS: "halt_on_error=1:exitcode=99"
 
+  security-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run REUSE compliance check
+        uses: fsfe/reuse-action@v3
+        with:
+          fail-on: warning
+
   # TODO: Debug and re-enable static-analysis after resolving clang-tidy CI issues
   # static-analysis:
   #   runs-on: ubuntu-latest
