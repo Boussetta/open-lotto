@@ -21,25 +21,25 @@
 #define WINDOW_HEIGHT 900
 
 /* Camera & view settings */
-#define CAMERA_Z -808.0f
+#define CAMERA_Z (-808.0f)
 #define CAMERA_TRIMETRIC_X 0.0f
 #define CAMERA_TRIMETRIC_Y 143.0f
 #define CAMERA_TRIMETRIC_Z 0.0f
-#define CAMERA_PITCH_MIN -85.0f
+#define CAMERA_PITCH_MIN (-85.0f)
 #define CAMERA_PITCH_MAX 85.0f
 #define MOUSE_ORBIT_SENSITIVITY 0.25f
 #define MOUSE_ZOOM_STEP 20.0f
-#define CAMERA_Z_MIN -1500.0f
-#define CAMERA_Z_MAX -120.0f
+#define CAMERA_Z_MIN (-1500.0f)
+#define CAMERA_Z_MAX (-120.0f)
 
 /* Main drum */
 #define DRUM_RADIUS 250.0f
 #define DRUM_X 0.0f
-#define DRUM_Y -0.2f
+#define DRUM_Y (-0.2f)
 /* Extra drum (smaller, to the right) */
 #define EXTRA_DRUM_RADIUS 150.0f
 #define EXTRA_DRUM_X 0.0f
-#define EXTRA_DRUM_Y -0.2f
+#define EXTRA_DRUM_Y (-0.2f)
 
 /* Ball simulation (initial state only) */
 #define MAX_GAME_BALLS 128
@@ -1917,12 +1917,12 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
 
     /* Copy draw results into per-drum draw_numbers arrays */
     {
-        for (int i = 0; i < state->result.main_count && i < 16; i++)
+        for (int i = 0; i < state->result.main_count && i < MAX_MAIN_NUMBERS; i++)
             state->main_drum->draw_numbers[i] = state->result.main_numbers[i];
     }
     if (state->extra_drum)
     {
-        for (int i = 0; i < state->result.extra_count && i < 16; i++)
+        for (int i = 0; i < state->result.extra_count && i < MAX_EXTRA_NUMBERS; i++)
             state->extra_drum->draw_numbers[i] = state->result.extra_numbers[i];
     }
 
@@ -1979,6 +1979,8 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info)
                     state->camera_z = CAMERA_Z_MIN;
                 if (state->camera_z > CAMERA_Z_MAX)
                     state->camera_z = CAMERA_Z_MAX;
+                break;
+            default:
                 break;
             }
         }

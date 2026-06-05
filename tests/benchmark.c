@@ -18,6 +18,7 @@
 
 #include "../include/combogen.h"
 #include "../include/random_seed.h"
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -233,9 +234,10 @@ int main(int argc, const char *argv[])
     /* Parse command-line arguments */
     if (argc > 1)
     {
-        iterations = atoi(argv[1]);
-        if (iterations <= 0)
-            iterations = 100000;
+        char *end;
+        long val = strtol(argv[1], &end, 10);
+        if (end != argv[1] && *end == '\0' && val > 0 && val <= INT_MAX)
+            iterations = (int)val;
     }
 
     printf("========================================\n");

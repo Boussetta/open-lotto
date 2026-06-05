@@ -12,12 +12,15 @@ typedef enum
     EVENT_DRAW_COMPLETE
 } DrawEvent;
 
+#define MAX_MAIN_NUMBERS 7  /* supports 6aus49 and EuroJackpot */
+#define MAX_EXTRA_NUMBERS 3 /* supports EuroJackpot (2 extras) */
+
 typedef struct
 {
-    int main_numbers[7]; // supports 6aus49 and EuroJackpot
+    int main_numbers[MAX_MAIN_NUMBERS];
     int main_count;
 
-    int extra_numbers[3]; // supports EuroJackpot (2 extras)
+    int extra_numbers[MAX_EXTRA_NUMBERS];
     int extra_count;
 } LotteryResult;
 

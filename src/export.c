@@ -62,7 +62,7 @@ static int export_result_csv(FILE *file, const char *game_name, int draw_num,
         }
 
         /* Write extra numbers (space-separated) */
-        for (int i = 0; i < result->extra_count; i++)
+        for (int i = 0; i < result->extra_count && i < MAX_EXTRA_NUMBERS; i++)
         {
             if (fprintf(file, "%d", result->extra_numbers[i]) < 0)
             {
@@ -237,7 +237,7 @@ int export_results_json_file(const char *filename, const char *game_name,
             return -1;
         }
 
-        for (int j = 0; j < result->extra_count; j++)
+        for (int j = 0; j < result->extra_count && j < MAX_EXTRA_NUMBERS; j++)
         {
             if (fprintf(file, "%d", result->extra_numbers[j]) < 0)
             {
