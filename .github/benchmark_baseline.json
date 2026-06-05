@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-06-05T08:08:32.086761Z",
+  "benchmarks": {
+    "rng": {
+      "value": 544781.0,
+      "unit": "draws/sec"
+    },
+    "eurojackpot": {
+      "value": 534676.0,
+      "unit": "draws/sec"
+    },
+    "lotto": {
+      "value": 570067.0,
+      "unit": "draws/sec"
+    },
+    "seed": {
+      "value": 5760369.0,
+      "unit": "seeds/sec"
+    }
+  }
+}
