@@ -9,15 +9,39 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - { cc: gcc,   cxx: g++   }
+          - { cc: clang, cxx: clang++ }
+
+    env:
+      CC: ${{ matrix.compiler.cc }}
+      CXX: ${{ matrix.compiler.cxx }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-build-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: apt-build-${{ runner.os }}-
+
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake gcc pkg-config libsdl2-dev libsdl2-ttf-dev
+          sudo apt-get install -y cmake gcc clang pkg-config libsdl2-dev libsdl2-ttf-dev
+
+      - name: Cache CMake build dir
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: cmake-build-${{ matrix.compiler.cc }}-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'src/**', 'plugins/**', 'include/**') }}
+          restore-keys: cmake-build-${{ matrix.compiler.cc }}-${{ runner.os }}-
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
@@ -35,6 +59,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-format-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: apt-format-${{ runner.os }}-
+
       - name: Install clang-format
         run: sudo apt-get update && sudo apt-get install -y clang-format
 
@@ -44,15 +75,39 @@ jobs:
 
   sanitizers:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler:
+          - { cc: gcc,   cxx: g++   }
+          - { cc: clang, cxx: clang++ }
+
+    env:
+      CC: ${{ matrix.compiler.cc }}
+      CXX: ${{ matrix.compiler.cxx }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-sanitizers-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: apt-sanitizers-${{ runner.os }}-
+
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake gcc pkg-config libsdl2-dev libsdl2-ttf-dev
+          sudo apt-get install -y cmake gcc clang pkg-config libsdl2-dev libsdl2-ttf-dev
+
+      - name: Cache CMake sanitizer build dir
+        uses: actions/cache@v4
+        with:
+          path: build-sanitizer
+          key: cmake-sanitizers-${{ matrix.compiler.cc }}-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'src/**', 'plugins/**', 'include/**') }}
+          restore-keys: cmake-sanitizers-${{ matrix.compiler.cc }}-${{ runner.os }}-
 
       - name: Configure with ASan/UBSan
         run: |
@@ -75,6 +130,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-static-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: apt-static-${{ runner.os }}-
 
       - name: Install cppcheck
         run: sudo apt-get update && sudo apt-get install -y cppcheck
