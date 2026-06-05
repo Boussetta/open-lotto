@@ -1,0 +1,57 @@
+# Code Owners
+# This file defines who is responsible for reviewing PRs affecting specific areas of the code.
+# Assign reviewers based on domain expertise.
+
+# Graphics and GUI (SDL2, OpenGL)
+src/gui_sdl.c @Boussetta
+src/gui_opengl.c @Boussetta
+include/gui_sdl.h @Boussetta
+include/gui_opengl.h @Boussetta
+
+# Physics Simulation
+src/combogen.c @Boussetta
+include/combogen.h @Boussetta
+
+# Randomness and Entropy
+src/random.c @Boussetta
+src/random_seed.c @Boussetta
+include/random.h @Boussetta
+include/random_seed.h @Boussetta
+
+# Plugin System
+src/plugin_loader.c @Boussetta
+src/plugin_registry.c @Boussetta
+plugins/ @Boussetta
+include/plugin_loader.h @Boussetta
+include/plugin_registry.h @Boussetta
+include/lottery_plugin.h @Boussetta
+
+# Configuration and Validation
+src/config.c @Boussetta
+src/validate.c @Boussetta
+include/config.h @Boussetta
+include/validate.h @Boussetta
+
+# Export and Logging
+src/export.c @Boussetta
+src/log.c @Boussetta
+include/export.h @Boussetta
+include/log.h @Boussetta
+
+# Main Entry Point
+src/main.c @Boussetta
+
+# Build Configuration
+CMakeLists.txt @Boussetta
+include/ @Boussetta
+
+# CI/CD and Automation
+.github/ @Boussetta
+scripts/ @Boussetta
+
+# Documentation
+*.md @Boussetta
+docs/ @Boussetta
+
+# Tests
+tests/ @Boussetta
