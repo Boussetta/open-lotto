@@ -134,24 +134,71 @@ No repetition within a draw
 
 Fast performance
 
+🏗 Architecture
+
+```mermaid
+graph TD
+    CLI["main.c\n(CLI / entry point)"]
+
+    subgraph Core Engine
+        PL["plugin_loader.c\n(dlopen + registry)"]
+        PR["plugin_registry.c\n(game list)"]
+        CG["combogen.c\n(draw generation)"]
+        RNG["random.c\n(PCG32 RNG)"]
+        SEED["random_seed.c\n(hybrid entropy)"]
+        EXP["export.c\n(CSV / JSON)"]
+        LOG["log.c\n(structured logging)"]
+    end
+
+    subgraph Plugins [Game Plugins .so]
+        LOTTO["liblotto.so\n(Lotto 6aus49)"]
+        EJ["libeurojackpot.so\n(EuroJackpot)"]
+    end
+
+    subgraph GUI
+        SDL["gui_sdl.c\n(2D SDL2)"]
+        OGL["gui_opengl.c\n(3D OpenGL)"]
+    end
+
+    CLI --> PL
+    CLI --> GUI
+    PL --> PR
+    PL --> LOTTO
+    PL --> EJ
+    LOTTO --> CG
+    EJ --> CG
+    CG --> RNG
+    RNG --> SEED
+    CLI --> EXP
+```
+
+Each game plugin is a self-contained `.so` that implements the `lottery_plugin.h` interface.
+The core engine never imports game-specific logic — plugins are discovered and loaded at
+runtime by `plugin_loader`.
+
+| Component | Responsibility |
+|-----------|---------------|
+| `main.c` | Parse CLI flags, select GUI mode, orchestrate draw loop |
+| `plugin_loader.c` | Scan `plugins/` directory, `dlopen` each `.so`, resolve symbols |
+| `plugin_registry.c` | Central list of loaded game plugins |
+| `combogen.c` | Fisher-Yates draw of main + extra numbers; event callback hook |
+| `random.c` | PCG32 random number generator |
+| `random_seed.c` | Hybrid entropy from `getrandom()`, RDRAND, and monotonic clock jitter |
+| `export.c` | Serialize results to CSV or JSON |
+| `gui_sdl.c` | 2D animated draw display via SDL2 + SDL_ttf |
+| `gui_opengl.c` | 3D drum simulation — dual `DrumInstance` physics + OpenGL rendering |
+
 📁 Project Structure
 ```
 open-lotto/
-├── include/
-│   ├── combogen.h
-│   ├── lottery_plugin.h
-│   ├── plugin_loader.h
-│   ├── random.h
-│   └── log.h
-├── src/
-│   ├── combogen.c
-│   ├── plugin_loader.c
-│   ├── random.c
-│   ├── log.c
-│   └── main.c
-├── plugins/
-│   ├── lotto.c
-│   └── eurojackpot.c
+├── include/          # Public headers (plugin ABI, combogen, RNG, …)
+├── src/              # Core engine source files
+├── plugins/          # Game plugin source files (compiled to .so)
+├── tests/            # Unit tests and benchmarks
+├── docs/
+│   ├── adr/          # Architecture Decision Records
+│   └── api/          # Generated Doxygen HTML (gitignored)
+├── scripts/          # Developer utility scripts
 ├── CMakeLists.txt
 └── README.md
 ```
@@ -173,6 +220,10 @@ Contributions, new lottery plugins, and improvements are welcome!
 - How to write new lottery plugins
 - Code style and testing requirements
 - How to submit pull requests
+
+**Writing a plugin?** See [docs/plugin-guide.md](docs/plugin-guide.md) for a step-by-step guide with a full example.
+
+**Architecture decisions?** See [docs/adr/](docs/adr/) for Architecture Decision Records covering the plugin system, ball physics, and GUI rendering.
 
 Feel free to open issues or submit pull requests. All contributions are valued!
 
