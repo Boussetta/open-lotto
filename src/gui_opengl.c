@@ -1309,6 +1309,56 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time, int d
         glEnable(GL_LIGHTING);
     }
 
+    /* Physics debug overlay: velocity vectors and collision hulls */
+    if (debug_overlay)
+    {
+        glDisable(GL_LIGHTING);
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        /* Velocity vectors: yellow line from ball centre along velocity direction */
+        glColor4f(1.0f, 0.95f, 0.15f, 0.80f);
+        glLineWidth(1.5f);
+        float vel_scale = 0.12f; /* scale factor: units / (units/sec) */
+        glBegin(GL_LINES);
+        for (int i = 0; i < drum->ball_count; i++)
+        {
+            const DrumBall *b = &drum->balls[i];
+            if (b->picked)
+                continue;
+            float ex = b->x + b->vx * vel_scale;
+            float ey = b->y + b->vy * vel_scale;
+            float ez = b->z + b->vz * vel_scale;
+            glVertex3f(b->x, b->y, b->z);
+            glVertex3f(ex, ey, ez);
+        }
+        glEnd();
+
+        /* Collision hulls: red circle at 2*BALL_RADIUS around each ball (XY plane) */
+        glColor4f(0.85f, 0.20f, 0.20f, 0.40f);
+        glLineWidth(1.0f);
+        int segs = 16;
+        for (int i = 0; i < drum->ball_count; i++)
+        {
+            const DrumBall *b = &drum->balls[i];
+            if (b->picked)
+                continue;
+            float r2 = 2.0f * ball_radius;
+            glBegin(GL_LINE_LOOP);
+            for (int s = 0; s < segs; s++)
+            {
+                float a = (float)s / (float)segs * 2.0f * (float)M_PI;
+                glVertex3f(b->x + r2 * cosf(a), b->y + r2 * sinf(a), b->z);
+            }
+            glEnd();
+        }
+
+        glLineWidth(1.0f);
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_LIGHTING);
+    }
+
     /* Transparent drum shell */
     glDepthMask(GL_FALSE);
     glColor4f(COLOR_DRUM_R, COLOR_DRUM_G, COLOR_DRUM_B, 0.12f);
