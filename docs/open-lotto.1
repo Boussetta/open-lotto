@@ -1,0 +1,205 @@
+.TH "OPEN-LOTTO" "1" "June 2026" "open-lotto 1.0" "User Commands"
+.SH NAME
+\fBopen-lotto\fR \- Modular, high-entropy lottery number generator
+.SH SYNOPSIS
+.B open-lotto
+\fB--game\fR \fINAME\fR [\fIOPTIONS\fR]
+.br
+.B open-lotto
+\fB--list-games\fR
+.SH DESCRIPTION
+.PP
+\fBopen-lotto\fR is a plugin-based lottery number generator written in C.
+It uses hybrid entropy sources, a PCG32 random number generator, and
+dynamically loaded plugins to simulate real lottery draws with high quality
+randomness and extensibility.
+.PP
+Each lottery game is implemented as a shared library (.so) that defines
+the number of picks, pick ranges, and game name. New games can be added
+without recompiling the core engine.
+.SH COMMANDS
+.SS "--list-games"
+Display all available lottery games and exit.
+.SH OPTIONS
+.TP
+.B \-\-game \fINAME\fR
+(Required) Select a lottery game to draw. Use \fB--list-games\fR to see
+available options (e.g., "Lotto 6aus49", "EuroJackpot").
+.TP
+.B \-\-draws \fIN\fR
+Number of independent draws to generate (default: 1).
+Must be a positive integer >= 1.
+.TP
+.B \-\-animate
+Display animated CLI with spinner animation for each number reveal.
+Cannot be used with \fB--gui\fR or \fB--export\fR.
+.TP
+.B \-\-gui \fI[2D|3D]\fR
+Launch graphical mode. Optionally specify "2D" (SDL2, default) or "3D" (OpenGL).
+Cannot be used with \fB--animate\fR or \fB--export\fR.
+.TP
+.B \-\-export \fIFORMAT\fR
+Export results to a file. Supported formats: "csv" or "json".
+Must be paired with \fB--output\fR.
+Cannot be used with \fB--animate\fR or \fB--gui\fR.
+.TP
+.B \-\-output \fIFILE\fR
+Destination file path for \fB--export\fR.
+Required when \fB--export\fR is used.
+.TP
+.B \-\-verbose \fILEVEL\fR
+Set logging level. Options: ERROR, WARN, INFO (default), DEBUG.
+.TP
+.B \-\-validate\-only
+Validate configuration and exit (useful for automation, CI, or pre-flight checks).
+Does not perform any draws.
+.SH EXAMPLES
+.SS Basic usage
+.TP
+List available games:
+.B open-lotto --list-games
+.TP
+Draw from Lotto 6aus49:
+.B open-lotto --game "Lotto 6aus49"
+.SS Multiple draws
+.TP
+Generate 10 draws:
+.B open-lotto --game "Lotto 6aus49" --draws 10
+.SS Animated mode
+.TP
+Show spinner animation for each number:
+.B open-lotto --game "Lotto 6aus49" --animate
+.SS Graphical mode
+.TP
+Launch 2D SDL2 GUI:
+.B open-lotto --game "EuroJackpot" --gui 2D
+.TP
+Launch 3D OpenGL GUI:
+.B open-lotto --game "EuroJackpot" --gui 3D
+.SS Export results
+.TP
+Export 100 draws to CSV:
+.B open-lotto --game "Lotto 6aus49" --draws 100 --export csv --output results.csv
+.TP
+Export 50 draws to JSON:
+.B open-lotto --game "EuroJackpot" --draws 50 --export json --output draws.json
+.SS Validation and debugging
+.TP
+Validate configuration without running:
+.B open-lotto --game "Lotto 6aus49" --draws 50 --export csv --output results.csv --validate-only
+.TP
+Enable debug logging:
+.B open-lotto --game "Lotto 6aus49" --verbose DEBUG
+.SH ENVIRONMENT
+.TP
+.B OPEN_LOTTO_PLUGIN_PATH
+Custom path to plugin directory. If not set, uses \fB./plugins/\fR relative
+to the binary.
+.SH CONFIG FILE
+.PP
+\fBopen-lotto\fR reads persistent defaults from \fB~/.lottorc\fR (if it exists).
+Command-line arguments always take precedence over config file values.
+.PP
+The file uses INI-style syntax with a \fB[defaults]\fR section:
+.PP
+.RS 4
+.nf
+[defaults]
+game = Lotto 6aus49
+draws = 10
+export = csv
+output = results.csv
+verbose = INFO
+gui = 2D
+.fi
+.RE
+.PP
+Supported keys:
+.TP
+.B game
+Default lottery game name (same value as \fB--game\fR).
+.TP
+.B draws
+Default number of draws (positive integer, same as \fB--draws\fR).
+.TP
+.B export
+Default export format: \fIcsv\fR or \fIjson\fR (same as \fB--export\fR).
+.TP
+.B output
+Default output filename for exports (same as \fB--output\fR).
+.TP
+.B verbose
+Default log level: ERROR, WARN, INFO, or DEBUG (same as \fB--verbose\fR).
+.TP
+.B gui
+Default GUI mode: \fI2D\fR or \fI3D\fR (same as \fB--gui\fR).
+.PP
+Lines beginning with \fB#\fR or \fB;\fR are treated as comments.
+.SH PLUGINS
+Plugins are shared libraries (.so) that define lottery games. Each plugin
+must export three symbols:
+.TP
+.B plugin_get_info()
+Returns static game configuration (number ranges, pick counts).
+.TP
+.B plugin_get_name()
+Returns a human-readable game name.
+.TP
+.B plugin_draw()
+Performs one draw and writes results to output structure.
+.PP
+For plugin development, see the plugin development guide in the documentation.
+.SH RANDOMNESS
+.PP
+\fBopen-lotto\fR uses a hybrid entropy source to seed each draw:
+.TP
+1. Linux kernel entropy via \fBgetrandom()\fR (primary source)
+.TP
+2. CPU hardware entropy via \fBRDRAND\fR (if available)
+.TP
+3. Monotonic clock jitter (timing uncertainty)
+.PP
+These sources are XOR-combined to produce a high-quality, unpredictable
+seed for the PCG32 random number generator.
+.SH DRAWING ALGORITHM
+.PP
+Numbers are drawn using the Fisher-Yates shuffle algorithm:
+.TP
+1. Initialize a pool of candidate numbers
+.TP
+2. Shuffle the pool using the seeded PRNG
+.TP
+3. Pick the first N numbers from the shuffled pool
+.PP
+This ensures:
+.TP
+\- No duplicates within a single draw
+.TP
+\- Uniform distribution across all possible combinations
+.TP
+\- Fast performance (O(n) time, no rejection sampling)
+.SH EXIT CODES
+.TP
+.B 0
+Success
+.TP
+.B 1
+Configuration error, validation failure, or runtime error
+.SH FILES
+.TP
+.B ./plugins/
+Default plugin directory (can be overridden via \fBOPEN_LOTTO_PLUGIN_PATH\fR).
+.TP
+.B ./fonts/
+Font directory for GUI text rendering (TTF fonts).
+.SH AUTHOR
+Wissem (Embedded Linux Developer & Firmware Architect, Saxony, Germany)
+.SH LICENSE
+MIT License. See LICENSE file in the repository for full text.
+.SH SEE ALSO
+Online documentation and source code:
+https://github.com/Boussetta/open-lotto
+.PP
+Plugin development guide: docs/plugin-guide.md
+.PP
+Architecture decisions: docs/adr/

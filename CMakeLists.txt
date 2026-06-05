@@ -34,12 +34,14 @@ add_executable(open-lotto
     src/main.c
     src/export.c
     src/combogen.c
+    src/config.c
     src/plugin_loader.c
     src/plugin_registry.c
     src/random_seed.c
     src/gui_sdl.c
     src/gui_opengl.c
     src/log.c
+    src/validate.c
 )
 
 target_link_libraries(open-lotto

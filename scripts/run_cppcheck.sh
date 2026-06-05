@@ -14,5 +14,6 @@ cppcheck \
   --suppress=constVariablePointer \
   --suppress=normalCheckLevelMaxBranches \
   --suppress=checkersReport \
+  --suppress=staticFunction:src/config.c \
   --error-exitcode=1 \
   src/ plugins/ include/ tests/

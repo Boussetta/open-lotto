@@ -37,7 +37,8 @@ LoadedPlugin *load_plugin(const char *path)
     /* Validate all function pointers were found */
     if (!get_info || !get_name || !draw_fn)
     {
-        log_error("Plugin %s missing required symbols (get_info, get_name, or draw)", path);
+        log_warn("Plugin %s missing required symbols (get_info, get_name, or draw) — skipping",
+                 path);
         dlclose(handle);
         return NULL;
     }

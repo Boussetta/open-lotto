@@ -1,3 +1,4 @@
+#include "config.h"
 #include "export.h"
 #include "gui_opengl.h"
 #include "gui_sdl.h"
@@ -5,6 +6,7 @@
 #include "plugin_loader.h"
 #include "plugin_registry.h"
 #include "random_seed.h"
+#include "validate.h"
 #include <errno.h>
 #include <limits.h>
 #include <stdint.h>
@@ -167,29 +169,44 @@ static void print_usage(const char *prog)
             "Usage:\n"
             "  %s --game NAME [--draws N] [--animate] [--gui [2D|3D]] [--verbose LEVEL]\n"
             "  %s --game NAME [--draws N] [--export csv|json] [--output FILE] [--verbose LEVEL]\n"
+            "  %s --game NAME --validate-only\n"
             "  %s --list-games\n"
             "\n"
-            "GUI Modes:\n"
-            "  --gui        Launch 2D SDL2 GUI (default)\n"
-            "  --gui 2D     Launch 2D SDL2 GUI explicitly\n"
-            "  --gui 3D     Launch 3D OpenGL GUI\n"
+            "Modes:\n"
+            "  --animate         Animated CLI draw display (spinner animation)\n"
+            "  --gui [2D|3D]     Graphical mode (default: 2D SDL2, or 3D OpenGL)\n"
+            "  --export FORMAT   Export results to file (csv or json)\n"
+            "  --validate-only   Validate configuration without running\n"
             "\n"
-            "Log Levels (for --verbose):\n"
+            "Output Options:\n"
+            "  --output FILE     Destination file for --export (required with --export)\n"
+            "  --draws N         Number of draws (default: 1)\n"
+            "  --verbose LEVEL   Log level: ERROR, WARN, INFO, DEBUG (default: INFO)\n"
+            "\n"
+            "Log Levels:\n"
             "  ERROR, WARN, INFO (default), DEBUG\n"
             "\n"
+            "Config File (~/.lottorc):\n"
+            "  Persistent defaults for any option. CLI arguments always override config.\n"
+            "  Example ~/.lottorc:\n"
+            "    [defaults]\n"
+            "    game = Lotto 6aus49\n"
+            "    draws = 10\n"
+            "    verbose = INFO\n"
+            "\n"
             "Examples:\n"
+            "  %s --list-games\n"
             "  %s --game \"Lotto 6aus49\"\n"
             "  %s --game \"Lotto 6aus49\" --draws 10\n"
             "  %s --game \"Lotto 6aus49\" --animate\n"
-            "  %s --game \"EuroJackpot\" --gui 2D\n"
-            "  %s --game \"EuroJackpot\" --gui 3D\n"
+            "  %s --game \"Lotto 6aus49\" --gui 3D\n"
             "  %s --game \"Lotto 6aus49\" --draws 100 --export csv --output results.csv\n"
-            "  %s --game \"Lotto 6aus49\" --draws 50 --export json --output results.json\n"
+            "  %s --game \"Lotto 6aus49\" --validate-only\n"
             "  %s --game \"Lotto 6aus49\" --verbose DEBUG\n"
             "\n"
             "Environment Variables:\n"
             "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n",
-            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
+            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 /* ---------------------------------------------------------
@@ -197,6 +214,10 @@ static void print_usage(const char *prog)
    --------------------------------------------------------- */
 int main(int argc, char **argv)
 {
+    /* Load config file early so defaults are available */
+    LoCalConfig cfg;
+    config_load_lottorc(&cfg);
+
     /* Handle --list-games command */
     if (argc >= 2 && strcmp(argv[1], "--list-games") == 0)
     {
@@ -204,49 +225,44 @@ int main(int argc, char **argv)
         if (!registry)
         {
             log_error("Failed to create plugin registry");
+            config_free(&cfg);
             return 1;
         }
         registry_discover_plugins(registry);
         registry_list_games(registry);
         registry_destroy(registry);
+        config_free(&cfg);
         return 0;
     }
 
-    if (argc < 3 || strcmp(argv[1], "--game") != 0)
-    {
-        print_usage(argv[0]);
-        return 1;
-    }
-
-    const char *game_name = argv[2];
-
-    /* Validate game name */
-    if (!game_name || game_name[0] == '\0')
-    {
-        fprintf(stderr, "Error: Game name is empty\n");
-        return 1;
-    }
-
-    size_t game_name_len = strlen(game_name);
-    if (game_name_len > 256)
-    {
-        fprintf(stderr, "Error: Game name too long (max 256 characters)\n");
-        return 1;
-    }
+    /* Variables for parsed CLI options; use sentinels to track what was set */
+    const char *game_name = NULL; /* NULL = not set by CLI */
+    int cli_draws = -1;           /* -1 = not set by CLI */
     int animate = 0;
     int gui = 0;
-    const char *gui_mode = "2D"; /* Default to 2D SDL2 */
-    int draws = 1;
+    const char *gui_mode = NULL;
+    int cli_log_level_set = 0;
     LogLevel log_level = LOG_INFO;
     const char *export_format = NULL;
     const char *export_filename = NULL;
+    int validate_only = 0;
 
     /* ---------------------------------------------------------
-       Parse arguments (first pass: collect all options)
+       Parse arguments (all options, --game may appear anywhere)
        --------------------------------------------------------- */
-    for (int i = 3; i < argc; i++)
+    for (int i = 1; i < argc; i++)
     {
-        if (strcmp(argv[i], "--animate") == 0)
+        if (strcmp(argv[i], "--game") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--game requires a game name.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            game_name = argv[++i];
+        }
+        else if (strcmp(argv[i], "--animate") == 0)
         {
             animate = 1;
         }
@@ -264,45 +280,47 @@ int main(int argc, char **argv)
             if (i + 1 >= argc)
             {
                 fprintf(stderr, "--verbose requires a log level (ERROR, WARN, INFO, DEBUG).\n");
+                config_free(&cfg);
                 return 1;
             }
-            log_level = parse_log_level(argv[++i]);
+
+            const char *level_str = argv[++i];
+            if (validate_log_level(level_str) != VALIDATE_OK)
+            {
+                config_free(&cfg);
+                return 1;
+            }
+            log_level = parse_log_level(level_str);
+            cli_log_level_set = 1;
         }
         else if (strcmp(argv[i], "--draws") == 0)
         {
             if (i + 1 >= argc)
             {
                 fprintf(stderr, "--draws requires a number.\n");
+                config_free(&cfg);
                 return 1;
             }
 
-            char *endptr;
-            errno = 0;
-            long val = strtol(argv[++i], &endptr, 10);
-
-            /* Validate: check for errors, non-numeric characters, and range */
-            if (errno == ERANGE || *endptr != '\0' || val < 1 || val > INT_MAX)
+            if (validate_draw_count(argv[++i], &cli_draws) != VALIDATE_OK)
             {
-                fprintf(stderr, "Error: Invalid number of draws '%s'\n", argv[i]);
-                fprintf(stderr, "Must be a positive integer between 1 and %d\n", INT_MAX);
+                config_free(&cfg);
                 return 1;
             }
-
-            draws = (int)val;
         }
         else if (strcmp(argv[i], "--export") == 0)
         {
             if (i + 1 >= argc)
             {
                 fprintf(stderr, "--export requires a format (csv or json).\n");
+                config_free(&cfg);
                 return 1;
             }
 
             export_format = argv[++i];
-            if (strcmp(export_format, "csv") != 0 && strcmp(export_format, "json") != 0)
+            if (validate_export_format(export_format) != VALIDATE_OK)
             {
-                fprintf(stderr, "Error: Invalid export format '%s' (use 'csv' or 'json')\n",
-                        export_format);
+                config_free(&cfg);
                 return 1;
             }
         }
@@ -311,42 +329,114 @@ int main(int argc, char **argv)
             if (i + 1 >= argc)
             {
                 fprintf(stderr, "--output requires a filename.\n");
+                config_free(&cfg);
                 return 1;
             }
 
             export_filename = argv[++i];
         }
+        else if (strcmp(argv[i], "--validate-only") == 0)
+        {
+            validate_only = 1;
+        }
         else
         {
             fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
             print_usage(argv[0]);
+            config_free(&cfg);
             return 1;
         }
     }
 
+    /* ---------------------------------------------------------
+       Apply config file defaults for options not set by CLI
+       --------------------------------------------------------- */
+    if (!game_name && cfg.game)
+    {
+        game_name = cfg.game;
+        log_debug("Using game from config file: %s", game_name);
+    }
+
+    int draws = 1; /* built-in default */
+    if (cli_draws >= 1)
+    {
+        draws = cli_draws;
+    }
+    else if (cfg.draws >= 1)
+    {
+        draws = cfg.draws;
+        log_debug("Using draws from config file: %d", draws);
+    }
+
+    if (!export_format && cfg.export_format)
+    {
+        export_format = cfg.export_format;
+        log_debug("Using export format from config file: %s", export_format);
+        if (validate_export_format(export_format) != VALIDATE_OK)
+        {
+            config_free(&cfg);
+            return 1;
+        }
+    }
+
+    if (!export_filename && cfg.output_file)
+    {
+        export_filename = cfg.output_file;
+        log_debug("Using output file from config file: %s", export_filename);
+    }
+
+    if (!cli_log_level_set && cfg.verbose_level)
+    {
+        if (validate_log_level(cfg.verbose_level) == VALIDATE_OK)
+        {
+            log_level = parse_log_level(cfg.verbose_level);
+            log_debug("Using verbose level from config file: %s", cfg.verbose_level);
+        }
+    }
+
+    if (!gui_mode && cfg.gui_mode)
+    {
+        gui_mode = cfg.gui_mode;
+        if (strcmp(gui_mode, "2D") == 0 || strcmp(gui_mode, "3D") == 0)
+        {
+            gui = 1;
+            log_debug("Using GUI mode from config file: %s", gui_mode);
+        }
+    }
+
+    /* Require --game (or game in config) */
+    if (!game_name)
+    {
+        fprintf(stderr, "Error: --game NAME is required.\n"
+                        "Hint: Set 'game = <name>' in ~/.lottorc for a persistent default.\n");
+        print_usage(argv[0]);
+        config_free(&cfg);
+        return 1;
+    }
+
     /* Validate option combinations */
-    if (animate && gui)
+    if (validate_option_conflicts(animate, gui, export_format) != VALIDATE_OK)
     {
-        fprintf(stderr, "Cannot use --animate and --gui together.\n");
+        config_free(&cfg);
         return 1;
     }
 
-    if (export_format && gui)
+    if (validate_export_pair(export_format, export_filename) != VALIDATE_OK)
     {
-        fprintf(stderr, "Cannot use --export and --gui together.\n");
+        config_free(&cfg);
         return 1;
     }
 
-    if (export_format && animate)
+    if (gui_mode && validate_gui_mode(gui_mode) != VALIDATE_OK)
     {
-        fprintf(stderr, "Cannot use --export and --animate together.\n");
+        config_free(&cfg);
         return 1;
     }
 
-    if (export_format && !export_filename)
+    /* Default GUI mode to 2D if not specified */
+    if (!gui_mode)
     {
-        fprintf(stderr, "--export requires --output filename.\n");
-        return 1;
+        gui_mode = "2D";
     }
 
     /* Set the log level early so all subsequent operations are logged */
@@ -360,18 +450,54 @@ int main(int argc, char **argv)
     if (!registry)
     {
         log_error("Failed to create plugin registry");
+        config_free(&cfg);
         return 1;
     }
 
     registry_discover_plugins(registry);
 
+    /* Validate game name against discovered plugins */
+    if (validate_game_name(game_name, registry) != VALIDATE_OK)
+    {
+        registry_destroy(registry);
+        config_free(&cfg);
+        return 1;
+    }
+
     LoadedPlugin *selected = registry_find_plugin(registry, game_name);
-    if (!selected)
+    if (!selected) /* Should not happen if validate_game_name passed, but defensive check */
     {
         log_error("Game '%s' not found", game_name);
-        log_info("Use --list-games to see available games");
         registry_destroy(registry);
+        config_free(&cfg);
         return 1;
+    }
+
+    /* If --validate-only flag is set, exit after successful validation */
+    if (validate_only)
+    {
+        printf("Configuration is valid:\n");
+        printf("  Game: %s\n", selected->name);
+        printf("  Draws: %d\n", draws);
+        if (export_format)
+        {
+            printf("  Export: %s -> %s\n", export_format, export_filename);
+        }
+        if (animate)
+        {
+            printf("  Mode: Animated CLI\n");
+        }
+        else if (gui)
+        {
+            printf("  Mode: GUI (%s)\n", gui_mode);
+        }
+        else
+        {
+            printf("  Mode: CLI\n");
+        }
+        registry_destroy(registry);
+        config_free(&cfg);
+        return 0;
     }
 
     /* ---------------------------------------------------------
@@ -391,6 +517,7 @@ int main(int argc, char **argv)
         }
 
         registry_destroy(registry);
+        config_free(&cfg);
         return 0;
     }
 
@@ -407,6 +534,7 @@ int main(int argc, char **argv)
         {
             log_error("Failed to allocate memory for results");
             registry_destroy(registry);
+            config_free(&cfg);
             return 1;
         }
 
@@ -434,6 +562,7 @@ int main(int argc, char **argv)
         {
             log_error("Export failed");
             registry_destroy(registry);
+            config_free(&cfg);
             return 1;
         }
     }
@@ -460,5 +589,6 @@ int main(int argc, char **argv)
 
     log_debug("Cleaning up resources");
     registry_destroy(registry);
+    config_free(&cfg);
     return 0;
 }
