@@ -58,6 +58,7 @@
 #define BALL_ANGULAR_DAMPING 0.985f /* air damping for rotation */
 #define BALL_SHELL_FRICTION 0.22f   /* friction coefficient on drum shell */
 #define BALL_MOMENT_OF_INERTIA 0.4f /* I = (2/5) * m * r^2 for sphere */
+#define BALL_TRAIL_LENGTH 10        /* ring-buffer depth for trail visualization */
 #define COLLISION_CELL_SIZE (BALL_RADIUS * 2.2f)
 #define COLLISION_GRID_MAX_DIM 16
 #define COLLISION_GRID_MAX_CELLS                                                                   \
@@ -171,6 +172,13 @@ typedef struct
     /* Waiting for another drum to finish before starting */
     int waiting;  /* 1 = stays in FALLING until cleared externally */
     int is_extra; /* 1 for superzahl/euro-number drum */
+
+    /* Ball trail ring buffers for debug visualization (NULL when not allocated) */
+    float *trail_x; /* [ball_count * BALL_TRAIL_LENGTH] */
+    float *trail_y;
+    float *trail_z;
+    int *trail_head;         /* [ball_count] next-write index per ball */
+    int trail_frame_counter; /* counts frames between trail recordings */
 } DrumInstance;
 
 typedef struct
@@ -593,6 +601,19 @@ static void drum_instance_init_balls(DrumInstance *drum)
         drum->balls[i].settled = 0;
         drum->balls[i].picked = 0;
         drum->balls[i].ball_number = drum->ball_min + i;
+
+        /* Pre-fill trail with the ball's starting position to avoid 0,0,0 artefacts */
+        if (drum->trail_x)
+        {
+            for (int j = 0; j < BALL_TRAIL_LENGTH; j++)
+            {
+                int base = i * BALL_TRAIL_LENGTH + j;
+                drum->trail_x[base] = drum->balls[i].x;
+                drum->trail_y[base] = drum->balls[i].y;
+                drum->trail_z[base] = drum->balls[i].z;
+            }
+            drum->trail_head[i] = 0;
+        }
     }
 }
 
@@ -916,6 +937,12 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
         drum->waiting = 0;
         drum->is_extra = 0;
 
+        /* Trail ring buffers for debug overlay (non-fatal if allocation fails) */
+        drum->trail_x = (float *)calloc((size_t)ball_count * BALL_TRAIL_LENGTH, sizeof(float));
+        drum->trail_y = (float *)calloc((size_t)ball_count * BALL_TRAIL_LENGTH, sizeof(float));
+        drum->trail_z = (float *)calloc((size_t)ball_count * BALL_TRAIL_LENGTH, sizeof(float));
+        drum->trail_head = (int *)calloc((size_t)ball_count, sizeof(int));
+
         drum_instance_init_balls(drum);
         state->main_drum = drum;
 
@@ -947,6 +974,15 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
                 drum->current_pick_idx = -1;
                 drum->waiting = 1; /* wait for main drum to finish */
                 drum->is_extra = 1;
+
+                /* Trail ring buffers for debug overlay (non-fatal if allocation fails) */
+                drum->trail_x =
+                    (float *)calloc((size_t)ball_count * BALL_TRAIL_LENGTH, sizeof(float));
+                drum->trail_y =
+                    (float *)calloc((size_t)ball_count * BALL_TRAIL_LENGTH, sizeof(float));
+                drum->trail_z =
+                    (float *)calloc((size_t)ball_count * BALL_TRAIL_LENGTH, sizeof(float));
+                drum->trail_head = (int *)calloc((size_t)ball_count, sizeof(int));
 
                 drum_instance_init_balls(drum);
                 state->extra_drum = drum;
@@ -988,6 +1024,10 @@ static void gui_state_destroy(GuiState3D *state)
             glDeleteTextures(state->main_drum->texture_count, state->main_drum->number_textures);
             free(state->main_drum->number_textures);
         }
+        free(state->main_drum->trail_x);
+        free(state->main_drum->trail_y);
+        free(state->main_drum->trail_z);
+        free(state->main_drum->trail_head);
         free(state->main_drum->balls);
         free(state->main_drum);
     }
@@ -999,6 +1039,10 @@ static void gui_state_destroy(GuiState3D *state)
             glDeleteTextures(state->extra_drum->texture_count, state->extra_drum->number_textures);
             free(state->extra_drum->number_textures);
         }
+        free(state->extra_drum->trail_x);
+        free(state->extra_drum->trail_y);
+        free(state->extra_drum->trail_z);
+        free(state->extra_drum->trail_head);
         free(state->extra_drum->balls);
         free(state->extra_drum);
     }
@@ -1126,7 +1170,7 @@ static void init_ball_textures(GuiState3D *state)
     }
 }
 
-static void render_drum_instance(const DrumInstance *drum, float sim_time)
+static void render_drum_instance(const DrumInstance *drum, float sim_time, int debug_overlay)
 {
     (void)sim_time;
 
@@ -1167,6 +1211,42 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time)
             glColor3f(BALL_COLOR_R, BALL_COLOR_G, BALL_COLOR_B);
         draw_sphere(ball_radius, 18, 12);
         glPopMatrix();
+    }
+
+    /* Ball trails — rendered only when debug overlay is active */
+    if (debug_overlay && drum->trail_x)
+    {
+        float tr = drum->is_extra ? SUPER_BALL_COLOR_R : BALL_COLOR_R;
+        float tg = drum->is_extra ? SUPER_BALL_COLOR_G : BALL_COLOR_G;
+        float tb = drum->is_extra ? SUPER_BALL_COLOR_B : BALL_COLOR_B;
+
+        glDisable(GL_LIGHTING);
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glLineWidth(2.0f);
+
+        for (int i = 0; i < drum->ball_count; i++)
+        {
+            if (drum->balls[i].picked)
+                continue;
+
+            int head = drum->trail_head[i];
+            glBegin(GL_LINE_STRIP);
+            for (int j = 0; j < BALL_TRAIL_LENGTH; j++)
+            {
+                int idx = (head + j) % BALL_TRAIL_LENGTH;
+                float alpha = (float)(j + 1) / (float)BALL_TRAIL_LENGTH * 0.55f;
+                glColor4f(tr, tg, tb, alpha);
+                int base = i * BALL_TRAIL_LENGTH + idx;
+                glVertex3f(drum->trail_x[base], drum->trail_y[base], drum->trail_z[base]);
+            }
+            glEnd();
+        }
+
+        glLineWidth(1.0f);
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_LIGHTING);
     }
 
     /* Draw number billboards */
@@ -1369,11 +1449,11 @@ static void render_scene(GuiState3D *state)
         (state->extra_drum != NULL) && (state->main_drum->phase == DRUM_PHASE_DRAW_COMPLETE);
 
     if (show_main_drum)
-        render_drum_instance(state->main_drum, state->main_drum->sim_time);
+        render_drum_instance(state->main_drum, state->main_drum->sim_time, state->debug_overlay);
 
     if (show_extra_drum)
     {
-        render_drum_instance(state->extra_drum, state->extra_drum->sim_time);
+        render_drum_instance(state->extra_drum, state->extra_drum->sim_time, state->debug_overlay);
     }
 
     /* Screen-fixed picked-ball rows (unaffected by camera orbit/zoom):
@@ -1974,6 +2054,27 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
     drum->drum_rotation_z += eff_omega * delta_time;
     while (drum->drum_rotation_z > 360.0f)
         drum->drum_rotation_z -= 360.0f;
+
+    /* Record ball positions for trail visualization (sampled every 3 frames) */
+    if (drum->trail_x)
+    {
+        drum->trail_frame_counter++;
+        if (drum->trail_frame_counter >= 3)
+        {
+            drum->trail_frame_counter = 0;
+            for (int i = 0; i < drum->ball_count; i++)
+            {
+                if (drum->balls[i].picked)
+                    continue;
+                int head = drum->trail_head[i];
+                int base = i * BALL_TRAIL_LENGTH + head;
+                drum->trail_x[base] = drum->balls[i].x;
+                drum->trail_y[base] = drum->balls[i].y;
+                drum->trail_z[base] = drum->balls[i].z;
+                drum->trail_head[i] = (head + 1) % BALL_TRAIL_LENGTH;
+            }
+        }
+    }
 
     /* Ensure no residual tumble on X/Y axes. */
     drum->drum_rotation_x = 0.0f;
