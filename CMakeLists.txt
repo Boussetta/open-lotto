@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
-project(open-lotto C)
+
+# Read version from VERSION file
+file(READ "${CMAKE_SOURCE_DIR}/VERSION" PROJECT_VERSION)
+string(STRIP "${PROJECT_VERSION}" PROJECT_VERSION)
+
+project(open-lotto VERSION ${PROJECT_VERSION} LANGUAGES C)
 
 include(CTest)
 
