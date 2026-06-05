@@ -1,0 +1,72 @@
+# Auto-labeler configuration for PRs
+# Maps file patterns to labels
+
+# Graphics and GUI
+graphics:
+  - src/gui_sdl.c
+  - src/gui_opengl.c
+  - include/gui_*.h
+
+# Physics and Game Logic
+physics:
+  - src/combogen.c
+  - include/combogen.h
+
+# Randomness and Entropy
+randomness:
+  - src/random.c
+  - src/random_seed.c
+  - include/random*.h
+
+# Plugin System
+plugins:
+  - src/plugin_loader.c
+  - src/plugin_registry.c
+  - plugins/
+  - include/plugin*.h
+
+# Configuration
+configuration:
+  - src/config.c
+  - include/config.h
+
+# Validation
+validation:
+  - src/validate.c
+  - include/validate.h
+
+# Export Functionality
+export:
+  - src/export.c
+  - include/export.h
+
+# Logging
+logging:
+  - src/log.c
+  - include/log.h
+
+# Tests
+tests:
+  - tests/
+  - test_*.c
+
+# Build System
+build:
+  - CMakeLists.txt
+  - cmake/
+
+# CI/CD
+ci:
+  - .github/workflows/
+  - scripts/
+
+# Documentation
+documentation:
+  - docs/
+  - "*.md"
+  - "*.1"
+
+# All code files
+code:
+  - src/
+  - include/
