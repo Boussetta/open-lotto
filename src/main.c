@@ -316,6 +316,12 @@ int main(int argc, char **argv)
 
             export_filename = argv[++i];
         }
+        else
+        {
+            fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
+            print_usage(argv[0]);
+            return 1;
+        }
     }
 
     /* Validate option combinations */
