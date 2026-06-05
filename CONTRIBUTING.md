@@ -318,8 +318,20 @@ Before submitting a PR, ensure:
 
 4. **Static analysis passes:**
    ```bash
-   cppcheck --enable=all --error-exitcode=1 src/ plugins/ include/ tests/
+    ./scripts/run_cppcheck.sh
    ```
+
+### Optional: Run Cppcheck On Every Commit
+
+Install the repository-managed git hooks once:
+
+```bash
+./scripts/install-git-hooks.sh
+```
+
+After this, `cppcheck` runs automatically on each `git commit` via `.githooks/pre-commit`.
+The pre-commit hook also runs `clang-format` validation and ASan/UBSan test checks, mirroring CI gates locally.
+Sanitizer checks use a local build folder (`.build-sanitizer-local/`) to avoid modifying tracked build artifacts.
 
 5. **Sanitizers detect no errors:**
    ```bash

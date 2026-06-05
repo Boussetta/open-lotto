@@ -18,7 +18,8 @@
  * Example:
  *   1,5 23 41 2 19,11 5
  */
-int export_result_csv(FILE *file, const char *game_name, int draw_num, const LotteryResult *result)
+static int export_result_csv(FILE *file, const char *game_name, int draw_num,
+                             const LotteryResult *result)
 {
     if (!file || !game_name || !result)
     {

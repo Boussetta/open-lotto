@@ -80,13 +80,5 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y cppcheck
 
       - name: Run cppcheck
-        run: |
-          cppcheck --enable=all \
-            --suppress=missingIncludeSystem \
-            --suppress=missingInclude \
-            --suppress=unusedFunction \
-            --suppress=constParameterPointer \
-            --suppress=constVariablePointer \
-            --error-exitcode=1 \
-            src/ plugins/ include/ tests/
+        run: ./scripts/run_cppcheck.sh
 

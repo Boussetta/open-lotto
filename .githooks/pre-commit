@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+
+printf '\n[pre-commit] Running format check...\n'
+"$repo_root/scripts/run_format_check.sh"
+printf '[pre-commit] Format check passed.\n'
+
+printf '\n[pre-commit] Running Cppcheck...\n'
+"$repo_root/scripts/run_cppcheck.sh"
+printf '[pre-commit] Cppcheck passed.\n'
+
+printf '\n[pre-commit] Running sanitizer build and tests...\n'
+"$repo_root/scripts/run_sanitizers.sh"
+printf '[pre-commit] Sanitizer checks passed.\n'

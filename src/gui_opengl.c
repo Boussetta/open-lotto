@@ -431,7 +431,7 @@ static void destroy_gpu_compute(GuiState3D *state)
 static void update_animation_gpu(GuiState3D *state, float delta_time)
 {
     /* Early return if GPU compute is not available */
-    if (!state->compute_program || state->compute_program == 0)
+    if (state->compute_program == 0)
         return;
 
     DrumInstance *drum = state->main_drum;
@@ -538,12 +538,11 @@ static void resolve_ball_collision(DrumBall *ball_i, DrumBall *ball_j, float col
 
         /* Apply rotational impulses from collision (spin transfer) */
         {
-            float friction_coeff = 0.15f;
             float tangent_len = sqrtf(tvx * tvx + tvy * tvy + tvz * tvz);
             if (tangent_len > 0.1f)
             {
                 /* Create spin from tangential contact */
-                float rot_impulse = friction_coeff * impulse;
+                float rot_impulse = 0.15f * impulse;
 
                 /* Cross product: tangent × normal gives rotation axis */
                 ball_i->rot_x += (tvy * nz - tvz * ny) * rot_impulse;
@@ -760,8 +759,6 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
         if (drum)
         {
             int ball_count = info->extra_max - info->extra_min + 1;
-            if (ball_count <= 0)
-                ball_count = 10;
             if (ball_count > MAX_GAME_BALLS)
                 ball_count = MAX_GAME_BALLS;
 
@@ -1695,7 +1692,6 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
     {
         float collision_dist = 2.0f * BALL_RADIUS;
         float inner_r = drum_radius - BALL_RADIUS;
-        float grid_min = -inner_r;
         int grid_dim = (int)ceilf((2.0f * inner_r) / COLLISION_CELL_SIZE);
         if (grid_dim < 1)
             grid_dim = 1;
@@ -1716,6 +1712,7 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
         }
         else
         {
+            float grid_min = -inner_r;
             for (int c = 0; c < cell_count; c++)
                 cell_heads[c] = -1;
             for (int i = 0; i < drum->ball_count; i++)

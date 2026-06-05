@@ -1,4 +1,5 @@
 build/
+.build-sanitizer-local/
 *.o
 *.so
 *.a
