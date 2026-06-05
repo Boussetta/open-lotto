@@ -171,3 +171,30 @@ jobs:
   #   steps:
   #     - run: ./scripts/run_coverage.sh
 
+  docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-docs-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: apt-docs-${{ runner.os }}-
+
+      - name: Install doxygen
+        run: sudo apt-get update && sudo apt-get install -y doxygen
+
+      - name: Generate API documentation
+        run: ./scripts/generate_docs.sh
+
+      - name: Upload HTML docs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-docs
+          path: docs/api/html/
+          retention-days: 30
+
