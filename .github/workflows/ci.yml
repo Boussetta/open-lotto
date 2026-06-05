@@ -144,3 +144,16 @@ jobs:
       - name: Run cppcheck
         run: ./scripts/run_cppcheck.sh
 
+      - name: Install clang-tidy
+        run: sudo apt-get install -y clang-tidy cmake pkg-config libsdl2-dev libsdl2-ttf-dev
+
+      - name: Generate compile commands
+        run: |
+          cmake -S . -B build-tidy \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DBUILD_TESTING=ON
+
+      - name: Run clang-tidy
+        run: ./scripts/run_clang_tidy.sh
+

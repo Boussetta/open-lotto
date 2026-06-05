@@ -32,8 +32,8 @@ static void registry_add_plugin(PluginRegistry *registry, LoadedPlugin *plugin)
     if (registry->count >= registry->capacity)
     {
         registry->capacity *= 2;
-        LoadedPlugin **new_plugins =
-            realloc(registry->plugins, registry->capacity * sizeof(LoadedPlugin *));
+        LoadedPlugin **new_plugins = (LoadedPlugin **)realloc(
+            registry->plugins, registry->capacity * sizeof(LoadedPlugin *));
         if (!new_plugins)
         {
             log_error("Failed to resize plugin registry");

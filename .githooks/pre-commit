@@ -11,6 +11,10 @@ printf '\n[pre-commit] Running Cppcheck...\n'
 "$repo_root/scripts/run_cppcheck.sh"
 printf '[pre-commit] Cppcheck passed.\n'
 
+printf '\n[pre-commit] Running clang-tidy...\n'
+"$repo_root/scripts/run_clang_tidy.sh"
+printf '[pre-commit] clang-tidy passed.\n'
+
 printf '\n[pre-commit] Running sanitizer build and tests...\n'
 "$repo_root/scripts/run_sanitizers.sh"
 printf '[pre-commit] Sanitizer checks passed.\n'
