@@ -13,8 +13,8 @@ jobs:
       fail-fast: false
       matrix:
         compiler:
-          - { cc: gcc,   cxx: g++   }
-    # TODO: Re-add clang after resolving compiler detection in CI environment
+          - { cc: gcc,   cxx: g++     }
+          - { cc: clang, cxx: clang++ }
 
     env:
       CC: ${{ matrix.compiler.cc }}
@@ -92,8 +92,8 @@ jobs:
       fail-fast: false
       matrix:
         compiler:
-          - { cc: gcc,   cxx: g++   }
-    # TODO: Re-add clang after resolving compiler detection in CI environment
+          - { cc: gcc,   cxx: g++     }
+          - { cc: clang, cxx: clang++ }
 
     env:
       CC: ${{ matrix.compiler.cc }}
