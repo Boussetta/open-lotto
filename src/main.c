@@ -168,8 +168,10 @@ static void print_usage(const char *prog)
 {
     fprintf(stderr,
             "Usage:\n"
-            "  %s --game NAME [--draws N] [--animate] [--gui [2D|3D]] [--reload-plugin] [--verbose LEVEL]\n"
-            "  %s --game NAME [--draws N] [--export csv|json] [--output FILE] [--reload-plugin] [--verbose LEVEL]\n"
+            "  %s --game NAME [--draws N] [--animate] [--gui [2D|3D]] [--reload-plugin] [--verbose "
+            "LEVEL]\n"
+            "  %s --game NAME [--draws N] [--export csv|json] [--output FILE] [--reload-plugin] "
+            "[--verbose LEVEL]\n"
             "  %s --game NAME --validate-only\n"
             "  %s --list-games\n"
             "\n"
@@ -246,7 +248,7 @@ int main(int argc, char **argv)
     int gui = 0;
     const char *gui_mode = NULL;
     int debug_overlay = 0;
-    int dark_mode = -1;  /* -1 = auto (detect from system), 0 = off, 1 = on */
+    int dark_mode = -1; /* -1 = auto (detect from system), 0 = off, 1 = on */
     int cli_log_level_set = 0;
     LogLevel log_level = LOG_INFO;
     const char *export_format = NULL;

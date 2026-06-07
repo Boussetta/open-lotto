@@ -237,7 +237,7 @@ typedef struct
     Uint32 fps_last_time; /* SDL ticks at last FPS sample */
 
     /* Theme & dark mode */
-    int dark_mode;        /* -1=auto, 0=off (light), 1=on (dark) */
+    int dark_mode; /* -1=auto, 0=off (light), 1=on (dark) */
 
     /* Animation speed control */
     float animation_speed_multiplier; /* 0.25 = 0.25x speed, 1.0 = normal, 4.0 = 4x speed */
@@ -299,10 +299,10 @@ static void update_cpu_usage(GuiState3D *state)
 
             unsigned long total_diff =
                 (user + nice + system + idle) - (prev_user + prev_nice + prev_system + prev_idle);
-            unsigned long idle_diff = idle - prev_idle;
 
             if (total_diff > 0)
             {
+                unsigned long idle_diff = idle - prev_idle;
                 state->cpu_usage[core_idx] = 100.0f * (1.0f - (float)idle_diff / (float)total_diff);
             }
             else
@@ -870,11 +870,11 @@ static void render_debug_overlay(const GuiState3D *state)
     Theme overlay_theme = theme_get(state->dark_mode);
     float obr = ((overlay_theme.overlay_bg >> 24) & 0xff) / 255.0f;
     float obg = ((overlay_theme.overlay_bg >> 16) & 0xff) / 255.0f;
-    float obb = ((overlay_theme.overlay_bg >> 8)  & 0xff) / 255.0f;
+    float obb = ((overlay_theme.overlay_bg >> 8) & 0xff) / 255.0f;
     float oba = (overlay_theme.overlay_bg & 0xff) / 255.0f;
     float txr = ((overlay_theme.text_primary >> 24) & 0xff) / 255.0f;
     float txg = ((overlay_theme.text_primary >> 16) & 0xff) / 255.0f;
-    float txb = ((overlay_theme.text_primary >> 8)  & 0xff) / 255.0f;
+    float txb = ((overlay_theme.text_primary >> 8) & 0xff) / 255.0f;
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_LIGHTING);
     glDisable(GL_DEPTH_TEST);
@@ -993,7 +993,7 @@ static void setup_opengl(int dark_mode)
     Theme t = theme_get(dark_mode);
     float r = ((t.background >> 24) & 0xff) / 255.0f;
     float g = ((t.background >> 16) & 0xff) / 255.0f;
-    float b = ((t.background >> 8)  & 0xff) / 255.0f;
+    float b = ((t.background >> 8) & 0xff) / 255.0f;
     glClearColor(r, g, b, 1.0f);
     glClearDepth(1.0f);
     glEnable(GL_BLEND);
@@ -1535,10 +1535,10 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time, int d
     /* Transparent drum shell */
     float dr = ((theme.drum >> 24) & 0xff) / 255.0f;
     float dg = ((theme.drum >> 16) & 0xff) / 255.0f;
-    float db = ((theme.drum >> 8)  & 0xff) / 255.0f;
+    float db = ((theme.drum >> 8) & 0xff) / 255.0f;
     float gr = ((theme.drum_grid >> 24) & 0xff) / 255.0f;
     float gg = ((theme.drum_grid >> 16) & 0xff) / 255.0f;
-    float gb = ((theme.drum_grid >> 8)  & 0xff) / 255.0f;
+    float gb = ((theme.drum_grid >> 8) & 0xff) / 255.0f;
     glDepthMask(GL_FALSE);
     glColor4f(dr, dg, db, 0.18f);
     draw_sphere(drum_radius, 64, 44);
@@ -2356,7 +2356,8 @@ static void update_animation(GuiState3D *state, float delta_time)
    MAIN GUI FUNCTION
    ============================================================ */
 
-void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_overlay, int dark_mode)
+void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_overlay,
+                    int dark_mode)
 {
     log_info("Launching 3D OpenGL GUI (Sphere Drums) for %s", game_name);
 

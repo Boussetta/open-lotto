@@ -30,19 +30,19 @@
 
 /** Minimum acceptable draw throughput (draws/second).
  *  Set conservatively to pass even on slow CI runners. */
-#define MIN_DRAWS_PER_SEC    5000
+#define MIN_DRAWS_PER_SEC 5000
 
 /** Minimum acceptable CSV export throughput (exports/second). */
-#define MIN_EXPORTS_PER_SEC   500
+#define MIN_EXPORTS_PER_SEC 500
 
 /** Maximum acceptable time for a single draw (microseconds). */
-#define MAX_SINGLE_DRAW_US    5000   /* 5 ms – only fails on pathological hang */
+#define MAX_SINGLE_DRAW_US 5000 /* 5 ms – only fails on pathological hang */
 
 /** Number of draws per throughput batch. */
-#define THROUGHPUT_BATCH     50000
+#define THROUGHPUT_BATCH 50000
 
 /** Number of CSV exports for the export throughput test. */
-#define EXPORT_BATCH          2000
+#define EXPORT_BATCH 2000
 
 /* ------------------------------------------------------------------ */
 /* Timing                                                               */
@@ -69,9 +69,18 @@ static void test_single_draw_latency(void)
 {
     test_suite("Perf Regression PR1 – Single-Draw Latency");
 
-    struct { const char *name; int mc; int mn; int mx; int ec; int en; int ex; } games[] = {
-        {"Eurojackpot",  5, 1, 50, 2,  1, 12},
-        {"Lotto 6aus49", 6, 1, 49, 1,  0,  9},
+    struct
+    {
+        const char *name;
+        int mc;
+        int mn;
+        int mx;
+        int ec;
+        int en;
+        int ex;
+    } games[] = {
+        {"Eurojackpot", 5, 1, 50, 2, 1, 12},
+        {"Lotto 6aus49", 6, 1, 49, 1, 0, 9},
     };
     int ngames = (int)(sizeof(games) / sizeof(games[0]));
 
@@ -79,15 +88,13 @@ static void test_single_draw_latency(void)
     {
         LotteryResult r;
         uint64_t t0 = now_us();
-        generate_draw(games[g].mc, games[g].mn, games[g].mx,
-                      games[g].ec, games[g].en, games[g].ex,
+        generate_draw(games[g].mc, games[g].mn, games[g].mx, games[g].ec, games[g].en, games[g].ex,
                       &r, silent_cb);
         uint64_t elapsed = now_us() - t0;
 
         char msg[128];
-        snprintf(msg, sizeof(msg),
-                 "[%s] single draw < %d µs (got %llu µs)",
-                 games[g].name, MAX_SINGLE_DRAW_US, (unsigned long long)elapsed);
+        snprintf(msg, sizeof(msg), "[%s] single draw < %d µs (got %llu µs)", games[g].name,
+                 MAX_SINGLE_DRAW_US, (unsigned long long)elapsed);
         assert_true(elapsed < MAX_SINGLE_DRAW_US, msg);
     }
 }
@@ -100,9 +107,18 @@ static void test_batch_throughput(void)
 {
     test_suite("Perf Regression PR2 – Batch Throughput");
 
-    struct { const char *name; int mc; int mn; int mx; int ec; int en; int ex; } games[] = {
-        {"Eurojackpot",  5, 1, 50, 2,  1, 12},
-        {"Lotto 6aus49", 6, 1, 49, 1,  0,  9},
+    struct
+    {
+        const char *name;
+        int mc;
+        int mn;
+        int mx;
+        int ec;
+        int en;
+        int ex;
+    } games[] = {
+        {"Eurojackpot", 5, 1, 50, 2, 1, 12},
+        {"Lotto 6aus49", 6, 1, 49, 1, 0, 9},
     };
     int ngames = (int)(sizeof(games) / sizeof(games[0]));
 
@@ -112,21 +128,19 @@ static void test_batch_throughput(void)
         for (int i = 0; i < THROUGHPUT_BATCH; i++)
         {
             LotteryResult r;
-            generate_draw(games[g].mc, games[g].mn, games[g].mx,
-                          games[g].ec, games[g].en, games[g].ex,
-                          &r, silent_cb);
+            generate_draw(games[g].mc, games[g].mn, games[g].mx, games[g].ec, games[g].en,
+                          games[g].ex, &r, silent_cb);
         }
         uint64_t elapsed_us = now_us() - t0;
         double elapsed_s = elapsed_us / 1e6;
         double dps = THROUGHPUT_BATCH / elapsed_s;
 
-        printf("  [%s] %d draws in %.3f s  →  %.0f draws/s  (min: %d)\n",
-               games[g].name, THROUGHPUT_BATCH, elapsed_s, dps, MIN_DRAWS_PER_SEC);
+        printf("  [%s] %d draws in %.3f s  →  %.0f draws/s  (min: %d)\n", games[g].name,
+               THROUGHPUT_BATCH, elapsed_s, dps, MIN_DRAWS_PER_SEC);
 
         char msg[128];
-        snprintf(msg, sizeof(msg),
-                 "[%s] throughput ≥ %d draws/s (got %.0f)",
-                 games[g].name, MIN_DRAWS_PER_SEC, dps);
+        snprintf(msg, sizeof(msg), "[%s] throughput ≥ %d draws/s (got %.0f)", games[g].name,
+                 MIN_DRAWS_PER_SEC, dps);
         assert_true(dps >= MIN_DRAWS_PER_SEC, msg);
     }
 }
@@ -139,14 +153,12 @@ static void test_export_throughput(void)
 {
     test_suite("Perf Regression PR3 – Export Throughput");
 
-    const char *csv_path  = "/tmp/open_lotto_perf_export.csv";
-    const char *json_path = "/tmp/open_lotto_perf_export.json";
-
     LotteryResult r;
     generate_draw(5, 1, 50, 2, 1, 12, &r, silent_cb);
 
     /* CSV */
     {
+        const char *csv_path = "/tmp/open_lotto_perf_export.csv";
         uint64_t t0 = now_us();
         for (int i = 0; i < EXPORT_BATCH; i++)
             export_results_csv_file(csv_path, "Eurojackpot", &r, 1);
@@ -155,17 +167,18 @@ static void test_export_throughput(void)
         double eps = EXPORT_BATCH / elapsed_s;
         remove(csv_path);
 
-        printf("  [CSV]  %d exports in %.3f s  →  %.0f exports/s  (min: %d)\n",
-               EXPORT_BATCH, elapsed_s, eps, MIN_EXPORTS_PER_SEC);
+        printf("  [CSV]  %d exports in %.3f s  →  %.0f exports/s  (min: %d)\n", EXPORT_BATCH,
+               elapsed_s, eps, MIN_EXPORTS_PER_SEC);
 
         char msg[64];
-        snprintf(msg, sizeof(msg),
-                 "CSV export throughput ≥ %d/s (got %.0f)", MIN_EXPORTS_PER_SEC, eps);
+        snprintf(msg, sizeof(msg), "CSV export throughput ≥ %d/s (got %.0f)", MIN_EXPORTS_PER_SEC,
+                 eps);
         assert_true(eps >= MIN_EXPORTS_PER_SEC, msg);
     }
 
     /* JSON */
     {
+        const char *json_path = "/tmp/open_lotto_perf_export.json";
         uint64_t t0 = now_us();
         for (int i = 0; i < EXPORT_BATCH; i++)
             export_results_json_file(json_path, "Eurojackpot", &r, 1);
@@ -174,12 +187,12 @@ static void test_export_throughput(void)
         double eps = EXPORT_BATCH / elapsed_s;
         remove(json_path);
 
-        printf("  [JSON] %d exports in %.3f s  →  %.0f exports/s  (min: %d)\n",
-               EXPORT_BATCH, elapsed_s, eps, MIN_EXPORTS_PER_SEC);
+        printf("  [JSON] %d exports in %.3f s  →  %.0f exports/s  (min: %d)\n", EXPORT_BATCH,
+               elapsed_s, eps, MIN_EXPORTS_PER_SEC);
 
         char msg[64];
-        snprintf(msg, sizeof(msg),
-                 "JSON export throughput ≥ %d/s (got %.0f)", MIN_EXPORTS_PER_SEC, eps);
+        snprintf(msg, sizeof(msg), "JSON export throughput ≥ %d/s (got %.0f)", MIN_EXPORTS_PER_SEC,
+                 eps);
         assert_true(eps >= MIN_EXPORTS_PER_SEC, msg);
     }
 }
@@ -194,9 +207,9 @@ static void test_export_throughput(void)
 /* average-throughput test.                                              */
 /* ------------------------------------------------------------------ */
 
-#define SEGMENTS      5
-#define SEGMENT_SIZE  (THROUGHPUT_BATCH / SEGMENTS)
-#define SLOWDOWN_FACTOR 5.0   /* slowest segment may be at most 5× fastest */
+#define SEGMENTS 5
+#define SEGMENT_SIZE (THROUGHPUT_BATCH / SEGMENTS)
+#define SLOWDOWN_FACTOR 5.0 /* slowest segment may be at most 5× fastest */
 
 static void test_throughput_consistency(void)
 {
@@ -221,17 +234,17 @@ static void test_throughput_consistency(void)
     double fastest = seg_dps[0], slowest = seg_dps[0];
     for (int s = 1; s < SEGMENTS; s++)
     {
-        if (seg_dps[s] > fastest) fastest = seg_dps[s];
-        if (seg_dps[s] < slowest) slowest = seg_dps[s];
+        if (seg_dps[s] > fastest)
+            fastest = seg_dps[s];
+        if (seg_dps[s] < slowest)
+            slowest = seg_dps[s];
     }
 
     double ratio = (slowest > 0) ? fastest / slowest : SLOWDOWN_FACTOR + 1;
-    printf("  Fastest/slowest ratio: %.2f×  (max allowed: %.1f×)\n",
-           ratio, SLOWDOWN_FACTOR);
+    printf("  Fastest/slowest ratio: %.2f×  (max allowed: %.1f×)\n", ratio, SLOWDOWN_FACTOR);
 
     char msg[128];
-    snprintf(msg, sizeof(msg),
-             "PR4: throughput consistent across batches (ratio %.2f× ≤ %.1f×)",
+    snprintf(msg, sizeof(msg), "PR4: throughput consistent across batches (ratio %.2f× ≤ %.1f×)",
              ratio, SLOWDOWN_FACTOR);
     assert_true(ratio <= SLOWDOWN_FACTOR, msg);
 }
