@@ -28,6 +28,12 @@ endif()
 add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 
 # ---------------------------------------------------------------------------
+# Fuzzing support (requires clang + compiler-rt)
+# Enable with:  cmake -DOPEN_LOTTO_FUZZ=ON -DCMAKE_C_COMPILER=clang ...
+# ---------------------------------------------------------------------------
+option(OPEN_LOTTO_FUZZ "Build libFuzzer targets (requires clang + compiler-rt)" OFF)
+
+# ---------------------------------------------------------------------------
 # Dependency resolution
 # ---------------------------------------------------------------------------
 # Run  ./scripts/install_deps.sh  to install all required packages.
@@ -392,4 +398,85 @@ if(BUILD_TESTING)
     # ./benchmark_openmp [ball_count] [iterations]
     # ./benchmark_openmp --help
     # OMP_NUM_THREADS=8 ./benchmark_openmp 10000
+
+    # ----------------------------------------------------------------
+    # Property-based tests – RNG invariants and export well-formedness
+    # ----------------------------------------------------------------
+    add_executable(test_property
+        tests/test_property.c
+        src/combogen.c
+        src/export.c
+        src/random_seed.c
+        src/log.c
+    )
+
+    add_test(NAME unit_property
+        COMMAND $<TARGET_FILE:test_property>
+    )
+    set_tests_properties(unit_property PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    # ----------------------------------------------------------------
+    # Stress tests – high-volume draws and export pipeline under load
+    # ----------------------------------------------------------------
+    add_executable(test_stress
+        tests/test_stress.c
+        src/combogen.c
+        src/export.c
+        src/random_seed.c
+        src/log.c
+    )
+
+    add_test(NAME unit_stress
+        COMMAND $<TARGET_FILE:test_stress>
+    )
+    set_tests_properties(unit_stress PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+        TIMEOUT 120
+    )
+
+    # ----------------------------------------------------------------
+    # Performance regression tests – throughput lower-bound guards
+    # ----------------------------------------------------------------
+    add_executable(test_perf_regression
+        tests/test_perf_regression.c
+        src/combogen.c
+        src/export.c
+        src/random_seed.c
+        src/log.c
+    )
+    target_link_libraries(test_perf_regression PRIVATE m)
+
+    add_test(NAME unit_perf_regression
+        COMMAND $<TARGET_FILE:test_perf_regression>
+    )
+    set_tests_properties(unit_perf_regression PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+        TIMEOUT 120
+    )
+
+endif()
+
+# ---------------------------------------------------------------------------
+# libFuzzer targets (opt-in; compiled separately from normal test suite)
+# ---------------------------------------------------------------------------
+if(OPEN_LOTTO_FUZZ)
+    if(NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")
+        message(FATAL_ERROR
+            "OPEN_LOTTO_FUZZ requires clang.  "
+            "Re-configure with -DCMAKE_C_COMPILER=clang.")
+    endif()
+
+    add_executable(fuzz_validate
+        tests/fuzz_validate.c
+        src/validate.c
+        src/plugin_loader.c
+        src/plugin_registry.c
+        src/log.c
+    )
+    target_compile_options(fuzz_validate PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_options(fuzz_validate   PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_libraries(fuzz_validate PRIVATE dl m)
+    message(STATUS "libFuzzer target enabled: fuzz_validate")
 endif()
