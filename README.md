@@ -46,12 +46,76 @@ Generate any number of independent draws:
 
 ./open-lotto --game lotto --draws 10
 
+📦 Dependencies
+
+The following packages are required to build open‑lotto:
+
+| Dependency | Min version | Purpose |
+|---|---|---|
+| **CMake** | 3.10 | Build system |
+| **GCC** or **Clang** | C11 support | C compiler |
+| **make** | any | Build driver |
+| **pkg-config** | any | Library discovery |
+| **SDL2** | 2.0 | 2D GUI rendering and event loop |
+| **SDL2_ttf** | 2.0 | Font rendering in the SDL2 GUI |
+| **OpenGL / Mesa** | any | 3D drum simulation (`gui_opengl.c`) |
+
+### Quick install (recommended)
+
+Run the bundled helper script — it detects your OS and installs everything automatically:
+
+```bash
+./scripts/install_deps.sh
+```
+
+Supported platforms: Ubuntu/Debian, Fedora, RHEL/CentOS/Rocky/Alma, Arch/Manjaro, openSUSE, macOS (Homebrew).
+
+### Manual install
+
+**Ubuntu / Debian / Pop!_OS / Linux Mint**
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential cmake pkg-config \
+    libsdl2-dev libsdl2-ttf-dev libgl-dev mesa-common-dev
+```
+
+**Fedora**
+```bash
+sudo dnf install -y gcc cmake pkgconf-pkg-config make \
+    SDL2-devel SDL2_ttf-devel mesa-libGL-devel
+```
+
+**Arch Linux / Manjaro**
+```bash
+sudo pacman -S base-devel cmake pkgconf sdl2 sdl2_ttf mesa
+```
+
+**macOS (Homebrew)**
+```bash
+brew install cmake sdl2 sdl2_ttf pkg-config
+# OpenGL is provided by the macOS SDK — no extra package needed
+```
+
+> **Missing dependency?**  If `cmake ..` fails with a *not found* error the
+> CMake output will print the exact install command for your platform.
+
+---
+
 📦 Build Instructions
 
 mkdir build
 cd build
 cmake ..
 make -j
+
+> **Cross-build environment (Buildroot / Yocto / ROS)?**  
+> If another project has overridden `PKG_CONFIG_PATH` in your shell, CMake may
+> not find the system SDL2/OpenGL libraries even though they are installed.
+> Use the configure wrapper instead of calling `cmake` directly:
+> ```bash
+> ./scripts/configure.sh        # → writes into build/
+> cmake --build build -j
+> ```
 
 This produces:
 

@@ -16,12 +16,115 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 
+# ---------------------------------------------------------------------------
+# Dependency resolution
+# ---------------------------------------------------------------------------
+# Run  ./scripts/install_deps.sh  to install all required packages.
+# See README.md § Dependencies for the full list.
+# ---------------------------------------------------------------------------
+
+# ---- Guard against cross-build environment pollution (Buildroot / Yocto) --
+#
+# When a cross-toolchain (e.g. Buildroot) is on PATH it ships its own
+# pkg-config binary whose compiled-in default search path points at the
+# cross-sysroot, not the host system.  Using that binary causes every
+# pkg_check_modules() call to return cross-sysroot headers and libraries,
+# which then fail to compile with the host GCC.
+#
+# Fix: locate the SYSTEM pkg-config (in /usr/bin or /usr/local/bin) before
+# letting find_package(PkgConfig) search PATH, and set PKG_CONFIG_LIBDIR
+# and PKG_CONFIG_PATH exclusively to host system directories so that no
+# cross-sysroot .pc file can leak in.
+
+# 1. Find the system pkg-config, explicitly skipping cross-toolchain dirs.
+find_program(PKG_CONFIG_EXECUTABLE
+    NAMES pkg-config
+    HINTS /usr/bin /usr/local/bin /opt/homebrew/bin
+    NO_DEFAULT_PATH   # do NOT search PATH (buildroot binary would win)
+)
+if(NOT PKG_CONFIG_EXECUTABLE)
+    # Fallback for unusual layouts (e.g. pure Homebrew on macOS)
+    find_program(PKG_CONFIG_EXECUTABLE NAMES pkg-config)
+endif()
+if(NOT PKG_CONFIG_EXECUTABLE)
+    message(FATAL_ERROR
+        "pkg-config not found in standard system locations.\n"
+        "Install it with:\n"
+        "  Ubuntu/Debian : sudo apt-get install pkg-config\n"
+        "  macOS         : brew install pkg-config\n"
+    )
+endif()
+message(STATUS "Using pkg-config: ${PKG_CONFIG_EXECUTABLE}")
+
+# 2. Build a path string from known system pkgconfig directories.
+#    Setting PKG_CONFIG_LIBDIR (not just PKG_CONFIG_PATH) overrides the
+#    compiled-in default inside the buildroot pkg-config binary, preventing
+#    its cross-sysroot from being searched.
+set(_SYSTEM_PC_DIRS
+    /usr/lib/x86_64-linux-gnu/pkgconfig
+    /usr/lib/aarch64-linux-gnu/pkgconfig
+    /usr/lib/arm-linux-gnueabihf/pkgconfig
+    /usr/lib/pkgconfig
+    /usr/share/pkgconfig
+    /usr/local/lib/pkgconfig
+    /usr/local/share/pkgconfig
+)
+set(_SYS_PC_PATH "")
+foreach(_d IN LISTS _SYSTEM_PC_DIRS)
+    if(IS_DIRECTORY "${_d}")
+        set(_SYS_PC_PATH "${_SYS_PC_PATH}${_d}:")
+    endif()
+endforeach()
+string(REGEX REPLACE ":$" "" _SYS_PC_PATH "${_SYS_PC_PATH}")
+
+# Override both variables so no cross-sysroot path can slip through.
+set(ENV{PKG_CONFIG_LIBDIR} "${_SYS_PC_PATH}")
+set(ENV{PKG_CONFIG_PATH}   "${_SYS_PC_PATH}")
+
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(SDL2 REQUIRED sdl2)
-pkg_check_modules(SDL2TTF REQUIRED SDL2_ttf)
+
+pkg_check_modules(SDL2 sdl2)
+if(NOT SDL2_FOUND)
+    message(FATAL_ERROR
+        "SDL2 not found.\n"
+        "Install build dependencies by running:\n"
+        "  ./scripts/install_deps.sh\n"
+        "Or install SDL2 manually:\n"
+        "  Ubuntu/Debian : sudo apt-get install libsdl2-dev\n"
+        "  Fedora        : sudo dnf install SDL2-devel\n"
+        "  Arch          : sudo pacman -S sdl2\n"
+        "  macOS         : brew install sdl2\n"
+    )
+endif()
+
+pkg_check_modules(SDL2TTF SDL2_ttf)
+if(NOT SDL2TTF_FOUND)
+    message(FATAL_ERROR
+        "SDL2_ttf not found.\n"
+        "Install build dependencies by running:\n"
+        "  ./scripts/install_deps.sh\n"
+        "Or install SDL2_ttf manually:\n"
+        "  Ubuntu/Debian : sudo apt-get install libsdl2-ttf-dev\n"
+        "  Fedora        : sudo dnf install SDL2_ttf-devel\n"
+        "  Arch          : sudo pacman -S sdl2_ttf\n"
+        "  macOS         : brew install sdl2_ttf\n"
+    )
+endif()
 
 # OpenGL support for 3D GUI
-find_package(OpenGL REQUIRED)
+find_package(OpenGL)
+if(NOT OPENGL_FOUND)
+    message(FATAL_ERROR
+        "OpenGL not found.\n"
+        "Install build dependencies by running:\n"
+        "  ./scripts/install_deps.sh\n"
+        "Or install OpenGL/Mesa manually:\n"
+        "  Ubuntu/Debian : sudo apt-get install libgl-dev mesa-common-dev\n"
+        "  Fedora        : sudo dnf install mesa-libGL-devel\n"
+        "  Arch          : sudo pacman -S mesa\n"
+        "  macOS         : included with Xcode Command Line Tools\n"
+    )
+endif()
 
 include_directories(
     ${SDL2_INCLUDE_DIRS}
