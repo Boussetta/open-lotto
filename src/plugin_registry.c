@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 
 #include "log.h"
@@ -13,6 +14,23 @@
 static int is_plugin_file(const char *filename)
 {
     return strstr(filename, ".so") != NULL;
+}
+
+static int registry_find_plugin_index(PluginRegistry *registry, const char *game_name)
+{
+    if (!registry || !game_name)
+        return -1;
+
+    for (int i = 0; i < registry->count; i++)
+    {
+        if (!registry->plugins[i])
+            continue;
+
+        if (strcasecmp(registry->plugins[i]->name, game_name) == 0)
+            return i;
+    }
+
+    return -1;
 }
 
 static void registry_add_plugin(PluginRegistry *registry, LoadedPlugin *plugin)
@@ -173,22 +191,64 @@ LoadedPlugin *registry_find_plugin(PluginRegistry *registry, const char *game_na
         return NULL;
     }
 
-    for (int i = 0; i < registry->count; i++)
+    int index = registry_find_plugin_index(registry, game_name);
+    if (index >= 0)
     {
-        if (!registry->plugins[i])
-        {
-            log_error("Invalid plugin at index %d", i);
-            continue;
-        }
-        if (strcasecmp(registry->plugins[i]->name, game_name) == 0)
-        {
-            log_info("Found plugin: %s", game_name);
-            return registry->plugins[i];
-        }
+        log_info("Found plugin: %s", game_name);
+        return registry->plugins[index];
     }
 
     log_error("Plugin not found: %s", game_name);
     return NULL;
+}
+
+int registry_reload_plugin(PluginRegistry *registry, const char *game_name)
+{
+    if (!registry)
+    {
+        log_error("Invalid registry");
+        return -1;
+    }
+
+    if (!game_name || game_name[0] == '\0')
+    {
+        log_error("Invalid game name for reload");
+        return -1;
+    }
+
+    int index = registry_find_plugin_index(registry, game_name);
+    if (index < 0)
+    {
+        log_error("Cannot reload unknown plugin: %s", game_name);
+        return -1;
+    }
+
+    LoadedPlugin *current = registry->plugins[index];
+    if (!current || current->path[0] == '\0')
+    {
+        log_error("Plugin %s has no reloadable source path", game_name);
+        return -1;
+    }
+
+    LoadedPlugin *replacement = load_plugin(current->path);
+    if (!replacement)
+    {
+        log_error("Failed to reload plugin from %s", current->path);
+        return -1;
+    }
+
+    if (strcasecmp(replacement->name, current->name) != 0)
+    {
+        log_error("Reloaded plugin name mismatch: expected %s, got %s", current->name,
+                  replacement->name);
+        unload_plugin(replacement);
+        return -1;
+    }
+
+    registry->plugins[index] = replacement;
+    unload_plugin(current);
+    log_info("Reloaded plugin: %s", replacement->name);
+    return 0;
 }
 
 void registry_list_games(PluginRegistry *registry)

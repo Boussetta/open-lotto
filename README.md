@@ -134,6 +134,10 @@ Run a game
 
 ./open-lotto --game lotto
 
+Reload a plugin from disk before running
+
+./open-lotto --game "Lotto 6aus49" --reload-plugin --validate-only
+
 Animated draw
 
 ./open-lotto --game eurojackpot --animate
@@ -148,10 +152,11 @@ Combine options
 
 🧩 Plugin Architecture
 
-Each plugin must implement two functions:
+Each plugin must implement three symbols from `include/lottery_plugin.h`:
 
-const LotteryInfo* lottery_get_info(void);
-void lottery_generate(LotteryResult *out, draw_event_callback cb);
+const LotteryInfo *plugin_get_info(void);
+const char *plugin_get_name(void);
+void plugin_draw(LotteryResult *out, draw_event_callback cb);
 
 Plugins are compiled as shared libraries and placed in:
 
@@ -160,6 +165,14 @@ build/plugins/
 ```
 
 The loader extracts the game name from the plugin metadata, not from the .so filename.
+
+Plugin tooling:
+
+- Scaffold a new plugin with `./scripts/generate_plugin.sh`
+- Validate a built plugin with `./build/open-lotto-plugin-validator path/to/plugin.so`
+- Reload a selected plugin in-process with `./build/open-lotto --game "Name" --reload-plugin`
+
+Detailed workflow docs live in `docs/plugin-guide.md` and `docs/plugin-marketplace.md`.
 
 Example plugin structure
 ```

@@ -162,6 +162,22 @@ target_link_libraries(open-lotto
 
 target_link_options(open-lotto PRIVATE -Wl,-export-dynamic)
 
+add_executable(open-lotto-plugin-validator
+    src/plugin_validator.c
+    src/plugin_loader.c
+    src/combogen.c
+    src/random_seed.c
+    src/log.c
+)
+
+target_link_libraries(open-lotto-plugin-validator
+    PRIVATE
+        dl
+        m
+)
+
+target_link_options(open-lotto-plugin-validator PRIVATE -Wl,-export-dynamic)
+
 add_library(lotto SHARED plugins/lotto.c)
 add_library(eurojackpot SHARED plugins/eurojackpot.c)
 
@@ -263,6 +279,25 @@ if(BUILD_TESTING)
     set_tests_properties(cli_runs_eurojackpot_once PROPERTIES
         PASS_REGULAR_EXPRESSION "Main:"
     )
+
+    add_test(NAME cli_reloads_selected_plugin
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --reload-plugin --validate-only
+    )
+    set_tests_properties(cli_reloads_selected_plugin PROPERTIES
+        PASS_REGULAR_EXPRESSION "Plugin reload: enabled"
+    )
+
+    add_test(NAME plugin_validator_accepts_valid_plugin
+        COMMAND $<TARGET_FILE:open-lotto-plugin-validator> "${CMAKE_BINARY_DIR}/plugins/liblotto.so"
+    )
+    set_tests_properties(plugin_validator_accepts_valid_plugin PROPERTIES
+        PASS_REGULAR_EXPRESSION "VALID Lotto 6aus49"
+    )
+
+    add_test(NAME plugin_validator_rejects_invalid_plugin
+        COMMAND $<TARGET_FILE:open-lotto-plugin-validator> "${CMAKE_BINARY_DIR}/plugins/libstub_plugin.so"
+    )
+    set_tests_properties(plugin_validator_rejects_invalid_plugin PROPERTIES WILL_FAIL TRUE)
 
     # ----------------------------------------------------------------
     # CLI argument validation tests – all must exit non-zero
