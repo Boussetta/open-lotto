@@ -556,8 +556,9 @@ static void update_revealed_counts(GuiState *st)
 /* Public entry                                              */
 /* --------------------------------------------------------- */
 
-void gui_run(const char *game_name, const LotteryInfo *info)
+void gui_run(const char *game_name, const LotteryInfo *info, int dark_mode)
 {
+    (void)dark_mode; /* Parameter for future theming; currently unused */
     /* Validate input parameters */
     if (!game_name || game_name[0] == '\0')
     {

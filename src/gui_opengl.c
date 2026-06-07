@@ -17,6 +17,7 @@
 #include "combogen.h"
 #include "gui_opengl.h"
 #include "log.h"
+#include "theme.h"
 
 #define WINDOW_WIDTH 1400
 #define WINDOW_HEIGHT 900
@@ -234,6 +235,9 @@ typedef struct
     float fps_current;    /* smoothed frames-per-second */
     int fps_frame_count;  /* frames counted since last FPS sample */
     Uint32 fps_last_time; /* SDL ticks at last FPS sample */
+
+    /* Theme & dark mode */
+    int dark_mode;        /* -1=auto, 0=off (light), 1=on (dark) */
 
     /* Animation speed control */
     float animation_speed_multiplier; /* 0.25 = 0.25x speed, 1.0 = normal, 4.0 = 4x speed */
@@ -736,11 +740,11 @@ static void draw_sphere(float radius, int slices, int stacks)
 }
 
 /* Draw a wireframe outline of the sphere for definition */
-static void draw_sphere_frame(float radius, int slices, int stacks)
+static void draw_sphere_frame(float radius, int slices, int stacks, float gr, float gg, float gb)
 {
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glLineWidth(3.0f);
-    glColor3f(COLOR_GRID_R, COLOR_GRID_G, COLOR_GRID_B);
+    glColor3f(gr, gg, gb);
     glDisable(GL_LIGHTING);
 
     draw_sphere(radius * 1.005f, slices, stacks);
@@ -863,12 +867,20 @@ static void render_debug_overlay(const GuiState3D *state)
     char buf[160];
 
     /* Background tint so text is readable on any scene */
+    Theme overlay_theme = theme_get(state->dark_mode);
+    float obr = ((overlay_theme.overlay_bg >> 24) & 0xff) / 255.0f;
+    float obg = ((overlay_theme.overlay_bg >> 16) & 0xff) / 255.0f;
+    float obb = ((overlay_theme.overlay_bg >> 8)  & 0xff) / 255.0f;
+    float oba = (overlay_theme.overlay_bg & 0xff) / 255.0f;
+    float txr = ((overlay_theme.text_primary >> 24) & 0xff) / 255.0f;
+    float txg = ((overlay_theme.text_primary >> 16) & 0xff) / 255.0f;
+    float txb = ((overlay_theme.text_primary >> 8)  & 0xff) / 255.0f;
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_LIGHTING);
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glColor4f(0.0f, 0.0f, 0.0f, 0.45f);
+    glColor4f(obr, obg, obb, oba);
     float pad = 4.0f;
     int lines = 8 + (state->num_cores > 0 ? 1 : 0) + (state->extra_drum ? 1 : 0) +
                 (state->paused ? 1 : 0) + 1;
@@ -885,17 +897,17 @@ static void render_debug_overlay(const GuiState3D *state)
 
     /* FPS */
     snprintf(buf, sizeof(buf), "FPS: %.0f", state->fps_current);
-    render_text_2d_at(font, buf, x, y, 0.20f, 1.00f, 0.35f);
+    render_text_2d_at(font, buf, x, y, txr, txg, txb);
     y += line_h;
 
     /* Physics mode */
     snprintf(buf, sizeof(buf), "Physics: %s", state->use_gpu_compute ? "GPU compute" : "CPU");
-    render_text_2d_at(font, buf, x, y, 0.20f, 1.00f, 0.35f);
+    render_text_2d_at(font, buf, x, y, txr, txg, txb);
     y += line_h;
 
     /* Animation speed */
     snprintf(buf, sizeof(buf), "Speed: %.1fx  (press +/- or N)", state->animation_speed_multiplier);
-    render_text_2d_at(font, buf, x, y, 0.20f, 1.00f, 0.35f);
+    render_text_2d_at(font, buf, x, y, txr, txg, txb);
     y += line_h;
 
     /* CPU usage (OpenMP threads + per-core percentages) */
@@ -946,7 +958,7 @@ static void render_debug_overlay(const GuiState3D *state)
         snprintf(buf, sizeof(buf), "Main drum : %-8s  pick %d/%d  %d balls",
                  drum_phase_name(state->main_drum->phase), state->main_drum->picks_done,
                  state->main_drum->picks_total, state->main_drum->ball_count);
-        render_text_2d_at(font, buf, x, y, 0.20f, 1.00f, 0.35f);
+        render_text_2d_at(font, buf, x, y, txr, txg, txb);
         y += line_h;
     }
 
@@ -956,7 +968,7 @@ static void render_debug_overlay(const GuiState3D *state)
         snprintf(buf, sizeof(buf), "Extra drum: %-8s  pick %d/%d  %d balls",
                  drum_phase_name(state->extra_drum->phase), state->extra_drum->picks_done,
                  state->extra_drum->picks_total, state->extra_drum->ball_count);
-        render_text_2d_at(font, buf, x, y, 0.20f, 1.00f, 0.35f);
+        render_text_2d_at(font, buf, x, y, txr, txg, txb);
         y += line_h;
     }
 
@@ -975,10 +987,14 @@ static void render_debug_overlay(const GuiState3D *state)
    SETUP & INITIALIZATION
    ============================================================ */
 
-static void setup_opengl(void)
+static void setup_opengl(int dark_mode)
 {
     glEnable(GL_DEPTH_TEST);
-    glClearColor(0.90f, 0.90f, 0.90f, 1.0f);
+    Theme t = theme_get(dark_mode);
+    float r = ((t.background >> 24) & 0xff) / 255.0f;
+    float g = ((t.background >> 16) & 0xff) / 255.0f;
+    float b = ((t.background >> 8)  & 0xff) / 255.0f;
+    glClearColor(r, g, b, 1.0f);
     glClearDepth(1.0f);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1021,7 +1037,7 @@ static void setup_opengl(void)
 }
 
 static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryInfo *info,
-                                    int debug_overlay)
+                                    int debug_overlay, int dark_mode)
 {
     (void)unused_game_name;
 
@@ -1033,6 +1049,7 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
     state->info = *info;
     state->animation_complete = 0;
     state->debug_overlay = debug_overlay;
+    state->dark_mode = dark_mode;
 
     state->camera_pitch = CAMERA_TRIMETRIC_X;
     state->camera_yaw = CAMERA_TRIMETRIC_Y;
@@ -1325,7 +1342,8 @@ static void init_ball_textures(GuiState3D *state)
     }
 }
 
-static void render_drum_instance(const DrumInstance *drum, float sim_time, int debug_overlay)
+static void render_drum_instance(const DrumInstance *drum, float sim_time, int debug_overlay,
+                                 Theme theme)
 {
     (void)sim_time;
 
@@ -1515,13 +1533,19 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time, int d
     }
 
     /* Transparent drum shell */
+    float dr = ((theme.drum >> 24) & 0xff) / 255.0f;
+    float dg = ((theme.drum >> 16) & 0xff) / 255.0f;
+    float db = ((theme.drum >> 8)  & 0xff) / 255.0f;
+    float gr = ((theme.drum_grid >> 24) & 0xff) / 255.0f;
+    float gg = ((theme.drum_grid >> 16) & 0xff) / 255.0f;
+    float gb = ((theme.drum_grid >> 8)  & 0xff) / 255.0f;
     glDepthMask(GL_FALSE);
-    glColor4f(COLOR_DRUM_R, COLOR_DRUM_G, COLOR_DRUM_B, 0.12f);
+    glColor4f(dr, dg, db, 0.18f);
     draw_sphere(drum_radius, 64, 44);
     glDepthMask(GL_TRUE);
 
     /* Wireframe outline */
-    draw_sphere_frame(drum_radius, 28, 20);
+    draw_sphere_frame(drum_radius, 28, 20, gr, gg, gb);
 
     glPopMatrix();
 }
@@ -1653,12 +1677,16 @@ static void render_scene(GuiState3D *state)
     int show_extra_drum =
         (state->extra_drum != NULL) && (state->main_drum->phase == DRUM_PHASE_DRAW_COMPLETE);
 
+    Theme scene_theme = theme_get(state->dark_mode);
+
     if (show_main_drum)
-        render_drum_instance(state->main_drum, state->main_drum->sim_time, state->debug_overlay);
+        render_drum_instance(state->main_drum, state->main_drum->sim_time, state->debug_overlay,
+                             scene_theme);
 
     if (show_extra_drum)
     {
-        render_drum_instance(state->extra_drum, state->extra_drum->sim_time, state->debug_overlay);
+        render_drum_instance(state->extra_drum, state->extra_drum->sim_time, state->debug_overlay,
+                             scene_theme);
     }
 
     /* Screen-fixed picked-ball rows (unaffected by camera orbit/zoom):
@@ -2328,11 +2356,11 @@ static void update_animation(GuiState3D *state, float delta_time)
    MAIN GUI FUNCTION
    ============================================================ */
 
-void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_overlay)
+void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_overlay, int dark_mode)
 {
     log_info("Launching 3D OpenGL GUI (Sphere Drums) for %s", game_name);
 
-    GuiState3D *state = gui_state_create(game_name, info, debug_overlay);
+    GuiState3D *state = gui_state_create(game_name, info, debug_overlay, dark_mode);
     if (!state)
     {
         log_error("Failed to create GUI state");
@@ -2386,7 +2414,7 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_ov
 
     SDL_GL_SetSwapInterval(1); /* Enable vsync */
 
-    setup_opengl();
+    setup_opengl(state->dark_mode);
     init_ball_textures(state);
 
     {

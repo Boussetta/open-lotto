@@ -11,6 +11,6 @@
  * The GUI internally calls generate_draw() with a callback that
  * receives the same DrawEvent sequence as --animate.
  */
-void gui_run(const char *game_name, const LotteryInfo *info);
+void gui_run(const char *game_name, const LotteryInfo *info, int dark_mode);
 
 #endif /* GUI_SDL_H */

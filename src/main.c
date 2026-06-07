@@ -6,6 +6,7 @@
 #include "plugin_loader.h"
 #include "plugin_registry.h"
 #include "random_seed.h"
+#include "theme.h"
 #include "validate.h"
 #include <errno.h>
 #include <limits.h>
@@ -175,6 +176,7 @@ static void print_usage(const char *prog)
             "Modes:\n"
             "  --animate              Animated CLI draw display (spinner animation)\n"
             "  --gui [2D|3D]          Graphical mode (default: 2D SDL2, or 3D OpenGL)\n"
+            "  --dark-mode <mode>     Dark mode theme: on, off, or auto (default: auto)\n"
             "  --debug-overlay        Show FPS/physics HUD in 3D GUI (requires --gui 3D)\n"
             "  --export FORMAT        Export results to file (csv or json)\n"
             "  --validate-only        Validate configuration without running\n"
@@ -243,6 +245,7 @@ int main(int argc, char **argv)
     int gui = 0;
     const char *gui_mode = NULL;
     int debug_overlay = 0;
+    int dark_mode = -1;  /* -1 = auto (detect from system), 0 = off, 1 = on */
     int cli_log_level_set = 0;
     LogLevel log_level = LOG_INFO;
     const char *export_format = NULL;
@@ -280,6 +283,29 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--debug-overlay") == 0)
         {
             debug_overlay = 1;
+        }
+        else if (strcmp(argv[i], "--dark-mode") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--dark-mode requires 'on', 'off', or 'auto'.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            i++;
+            const char *dm_str = argv[i];
+            if (strcasecmp(dm_str, "on") == 0)
+                dark_mode = 1;
+            else if (strcasecmp(dm_str, "off") == 0)
+                dark_mode = 0;
+            else if (strcasecmp(dm_str, "auto") == 0)
+                dark_mode = -1;
+            else
+            {
+                fprintf(stderr, "Invalid --dark-mode value '%s' (use: on, off, auto)\n", dm_str);
+                config_free(&cfg);
+                return 1;
+            }
         }
         else if (strcmp(argv[i], "--verbose") == 0)
         {
@@ -513,13 +539,28 @@ int main(int argc, char **argv)
     {
         log_debug("Launching %s GUI mode", gui_mode);
 
+        /* Resolve dark_mode: CLI override > config file > system auto-detect */
+        int resolved_dark_mode = dark_mode;
+        if (resolved_dark_mode == -1 && cfg.dark_mode)
+        {
+            if (strcasecmp(cfg.dark_mode, "on") == 0)
+                resolved_dark_mode = 1;
+            else if (strcasecmp(cfg.dark_mode, "off") == 0)
+                resolved_dark_mode = 0;
+            /* else stay at -1 for auto */
+        }
+        if (resolved_dark_mode == -1)
+        {
+            resolved_dark_mode = theme_detect_system_dark_mode();
+        }
+
         if (strcmp(gui_mode, "3D") == 0)
         {
-            gui_run_opengl(selected->name, &selected->info, debug_overlay);
+            gui_run_opengl(selected->name, &selected->info, debug_overlay, resolved_dark_mode);
         }
         else /* Default to 2D */
         {
-            gui_run(selected->name, &selected->info);
+            gui_run(selected->name, &selected->info, resolved_dark_mode);
         }
 
         registry_destroy(registry);

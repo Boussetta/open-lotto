@@ -33,6 +33,7 @@ typedef struct
     char *output_file;   /**< Default output filename (NULL = not set) */
     char *verbose_level; /**< Default log level (NULL = not set) */
     char *gui_mode;      /**< Default GUI mode ("2D" or "3D", NULL = not set) */
+    char *dark_mode;     /**< Dark mode preference ("on", "off", or "auto", NULL = not set) */
 } LoCalConfig;
 
 /**

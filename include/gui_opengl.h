@@ -13,6 +13,6 @@
  *
  * Uses SDL2 for windowing and OpenGL for rendering.
  */
-void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_overlay);
+void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_overlay, int dark_mode);
 
 #endif /* GUI_OPENGL_H */

@@ -196,6 +196,10 @@ int config_load_file(LoCalConfig *config, const char *path)
             {
                 config->gui_mode = value;
             }
+            else if (strcmp(key, "dark-mode") == 0)
+            {
+                config->dark_mode = value;
+            }
             else
             {
                 log_warn("Unknown config key: %s", key);
@@ -246,6 +250,7 @@ void config_free(LoCalConfig *config)
     free(config->output_file);
     free(config->verbose_level);
     free(config->gui_mode);
+    free(config->dark_mode);
 
     memset(config, 0, sizeof(LoCalConfig));
 }

@@ -146,6 +146,7 @@ add_executable(open-lotto
     src/gui_sdl.c
     src/gui_opengl.c
     src/log.c
+    src/theme.c
     src/validate.c
 )
 
