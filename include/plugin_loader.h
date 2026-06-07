@@ -3,10 +3,13 @@
 
 #include "lottery_plugin.h"
 
+#define LOADED_PLUGIN_PATH_MAX 512
+
 typedef struct
 {
     LotteryInfo info; /* copy of rules */
     char name[64];
+    char path[LOADED_PLUGIN_PATH_MAX];
     void (*draw)(LotteryResult *, draw_event_callback);
     void *handle;
 } LoadedPlugin;

@@ -17,6 +17,14 @@ LoadedPlugin *load_plugin(const char *path)
         return NULL;
     }
 
+    size_t path_len = strlen(path);
+    if (path_len >= sizeof(((LoadedPlugin *)0)->path))
+    {
+        log_error("Plugin path too long (%zu bytes, max %zu)", path_len,
+                  sizeof(((LoadedPlugin *)0)->path) - 1);
+        return NULL;
+    }
+
     log_debug("Attempting to load plugin from: %s", path);
 
     void *handle = dlopen(path, RTLD_NOW);
@@ -90,6 +98,8 @@ LoadedPlugin *load_plugin(const char *path)
     /* Safe copy of validated name */
     strncpy(p->name, name, sizeof(p->name) - 1);
     p->name[sizeof(p->name) - 1] = '\0';
+    strncpy(p->path, path, sizeof(p->path) - 1);
+    p->path[sizeof(p->path) - 1] = '\0';
 
     /* Store the validated info and function pointers */
     p->info = *info;

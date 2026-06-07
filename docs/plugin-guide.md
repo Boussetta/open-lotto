@@ -10,6 +10,9 @@ Each game is a dynamically loaded shared library (`.so`) that exports three C sy
 in [`include/lottery_plugin.h`](../include/lottery_plugin.h). The core engine discovers plugins
 at runtime by scanning the `plugins/` directory inside the build output.
 
+If you want a ready-made scaffold, start with [`scripts/generate_plugin.sh`](../scripts/generate_plugin.sh).
+It generates a source file, a small Makefile, and a smoke-test skeleton for a new plugin.
+
 ---
 
 ## Plugin Interface
@@ -53,13 +56,37 @@ typedef struct {
 
 ---
 
+## Generate a Template
+
+The generator fills in the game name and number ranges for you:
+
+```bash
+./scripts/generate_plugin.sh \
+    --name powerball \
+    --display-name "PowerBall" \
+    --main-count 5 --main-min 1 --main-max 69 \
+    --extra-count 1 --extra-min 1 --extra-max 26 \
+    --output-dir /tmp/powerball-plugin
+```
+
+Generated files:
+
+- `powerball.c`
+- `test_powerball.c`
+- `Makefile`
+
+The generated Makefile supports `make`, `make test`, and `make validate` against a local
+Open-Lotto checkout.
+
+---
+
 ## Step-by-Step Example: PowerBall
 
 The US Powerball game draws 5 main numbers from 1–69 and 1 Powerball from 1–26.
 
 ### 1. Create the source file
 
-Create `plugins/powerball.c`:
+Create `plugins/powerball.c` or start from the generated scaffold:
 
 ```c
 /* SPDX-License-Identifier: MIT */
@@ -196,6 +223,7 @@ Add a basic smoke test by running:
 ```bash
 cd build
 ctest --output-on-failure
+./open-lotto-plugin-validator ./plugins/libpowerball.so
 ./open-lotto --list-games         # your game should appear
 ./open-lotto --game powerball     # single draw must exit 0
 ./open-lotto --game powerball --draws 100  # stress test
@@ -203,6 +231,27 @@ ctest --output-on-failure
 
 For unit tests, follow the patterns in `tests/test_combogen.c` and register a new test
 executable in `CMakeLists.txt` using the `stub_plugin` helper in `tests/stub_plugin.c`.
+
+Recommended testing strategy:
+
+- Run `open-lotto-plugin-validator` first to catch ABI and range mistakes.
+- Run `open-lotto --list-games` to confirm discovery from the target plugin path.
+- Use `--validate-only` in CI for configuration checks without producing draws.
+- Use `--reload-plugin` while iterating on a selected game to force the current process to
+    drop the old handle and reload the updated shared object.
+
+### Hot Reload Workflow
+
+When you rebuild a plugin in place, Open-Lotto can swap the selected plugin handle before the
+draw starts:
+
+```bash
+./open-lotto --game "Lotto 6aus49" --reload-plugin --validate-only
+./open-lotto --game "Lotto 6aus49" --reload-plugin --draws 5
+```
+
+The reload path closes the currently loaded handle, loads the shared object again from the
+original plugin path, and keeps the registry entry only if the plugin name still matches.
 
 ---
 
@@ -212,3 +261,9 @@ executable in `CMakeLists.txt` using the `stub_plugin` helper in `tests/stub_plu
 |------|------|------|-------|
 | `plugins/lotto.c` | Lotto 6aus49 | 6 from 1–49 | 1 Superzahl from 0–9 |
 | `plugins/eurojackpot.c` | EuroJackpot | 5 from 1–50 | 2 Euro numbers from 1–12 |
+
+---
+
+## Marketplace Direction
+
+Future packaging and distribution notes live in [`docs/plugin-marketplace.md`](./plugin-marketplace.md).

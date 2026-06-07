@@ -168,8 +168,8 @@ static void print_usage(const char *prog)
 {
     fprintf(stderr,
             "Usage:\n"
-            "  %s --game NAME [--draws N] [--animate] [--gui [2D|3D]] [--verbose LEVEL]\n"
-            "  %s --game NAME [--draws N] [--export csv|json] [--output FILE] [--verbose LEVEL]\n"
+            "  %s --game NAME [--draws N] [--animate] [--gui [2D|3D]] [--reload-plugin] [--verbose LEVEL]\n"
+            "  %s --game NAME [--draws N] [--export csv|json] [--output FILE] [--reload-plugin] [--verbose LEVEL]\n"
             "  %s --game NAME --validate-only\n"
             "  %s --list-games\n"
             "\n"
@@ -179,6 +179,7 @@ static void print_usage(const char *prog)
             "  --dark-mode <mode>     Dark mode theme: on, off, or auto (default: auto)\n"
             "  --debug-overlay        Show FPS/physics HUD in 3D GUI (requires --gui 3D)\n"
             "  --export FORMAT        Export results to file (csv or json)\n"
+            "  --reload-plugin        Reload the selected plugin from disk before running\n"
             "  --validate-only        Validate configuration without running\n"
             "\n"
             "Output Options:\n"
@@ -251,6 +252,7 @@ int main(int argc, char **argv)
     const char *export_format = NULL;
     const char *export_filename = NULL;
     int validate_only = 0;
+    int reload_plugin = 0;
 
     /* ---------------------------------------------------------
        Parse arguments (all options, --game may appear anywhere)
@@ -370,6 +372,10 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--validate-only") == 0)
         {
             validate_only = 1;
+        }
+        else if (strcmp(argv[i], "--reload-plugin") == 0)
+        {
+            reload_plugin = 1;
         }
         else
         {
@@ -496,6 +502,16 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (reload_plugin)
+    {
+        if (registry_reload_plugin(registry, game_name) != 0)
+        {
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+    }
+
     LoadedPlugin *selected = registry_find_plugin(registry, game_name);
     if (!selected) /* Should not happen if validate_game_name passed, but defensive check */
     {
@@ -526,6 +542,10 @@ int main(int argc, char **argv)
         else
         {
             printf("  Mode: CLI\n");
+        }
+        if (reload_plugin)
+        {
+            printf("  Plugin reload: enabled\n");
         }
         registry_destroy(registry);
         config_free(&cfg);

@@ -21,6 +21,9 @@ void registry_discover_plugins(PluginRegistry *registry);
 /* Find a plugin by game name (case-insensitive) */
 LoadedPlugin *registry_find_plugin(PluginRegistry *registry, const char *game_name);
 
+/* Reload a discovered plugin from its original shared-object path */
+int registry_reload_plugin(PluginRegistry *registry, const char *game_name);
+
 /* List all available games */
 void registry_list_games(PluginRegistry *registry);
 

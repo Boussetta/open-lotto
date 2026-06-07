@@ -43,6 +43,10 @@ Export results to a file. Supported formats: "csv" or "json".
 Must be paired with \fB--output\fR.
 Cannot be used with \fB--animate\fR or \fB--gui\fR.
 .TP
+.B \-\-reload\-plugin
+Reload the selected plugin from its original shared-object path before running.
+Useful while iterating on plugin changes.
+.TP
 .B \-\-output \fIFILE\fR
 Destination file path for \fB--export\fR.
 Required when \fB--export\fR is used.
@@ -87,6 +91,9 @@ Export 50 draws to JSON:
 .TP
 Validate configuration without running:
 .B open-lotto --game "Lotto 6aus49" --draws 50 --export csv --output results.csv --validate-only
+.TP
+Reload a selected plugin before validation:
+.B open-lotto --game "Lotto 6aus49" --reload-plugin --validate-only
 .TP
 Enable debug logging:
 .B open-lotto --game "Lotto 6aus49" --verbose DEBUG
@@ -149,6 +156,9 @@ Returns a human-readable game name.
 Performs one draw and writes results to output structure.
 .PP
 For plugin development, see the plugin development guide in the documentation.
+.PP
+Validate plugins directly with:
+.B open-lotto-plugin-validator ./plugins/libyourgame.so
 .SH RANDOMNESS
 .PP
 \fBopen-lotto\fR uses a hybrid entropy source to seed each draw:
@@ -201,5 +211,7 @@ Online documentation and source code:
 https://github.com/Boussetta/open-lotto
 .PP
 Plugin development guide: docs/plugin-guide.md
+.PP
+Plugin marketplace planning: docs/plugin-marketplace.md
 .PP
 Architecture decisions: docs/adr/
