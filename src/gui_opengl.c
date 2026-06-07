@@ -2551,10 +2551,10 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_ov
     log_info("Closing 3D Drum Display");
 
     destroy_gpu_compute(state);
+    gui_state_destroy(state);
 
     SDL_GL_DeleteContext(state->gl_context);
     SDL_DestroyWindow(state->window);
     TTF_Quit();
     SDL_Quit();
-    gui_state_destroy(state);
 }
