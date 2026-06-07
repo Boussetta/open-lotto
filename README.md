@@ -53,6 +53,7 @@ The following packages are required to build open‑lotto:
 | Dependency | Min version | Purpose |
 |---|---|---|
 | **CMake** | 3.10 | Build system |
+| **ccache** | any | Faster incremental rebuilds |
 | **GCC** or **Clang** | C11 support | C compiler |
 | **make** | any | Build driver |
 | **pkg-config** | any | Library discovery |
@@ -75,24 +76,24 @@ Supported platforms: Ubuntu/Debian, Fedora, RHEL/CentOS/Rocky/Alma, Arch/Manjaro
 **Ubuntu / Debian / Pop!_OS / Linux Mint**
 ```bash
 sudo apt-get update
-sudo apt-get install -y build-essential cmake pkg-config \
+sudo apt-get install -y build-essential cmake ccache pkg-config \
     libsdl2-dev libsdl2-ttf-dev libgl-dev mesa-common-dev
 ```
 
 **Fedora**
 ```bash
-sudo dnf install -y gcc cmake pkgconf-pkg-config make \
+sudo dnf install -y gcc cmake ccache pkgconf-pkg-config make \
     SDL2-devel SDL2_ttf-devel mesa-libGL-devel
 ```
 
 **Arch Linux / Manjaro**
 ```bash
-sudo pacman -S base-devel cmake pkgconf sdl2 sdl2_ttf mesa
+sudo pacman -S base-devel cmake ccache pkgconf sdl2 sdl2_ttf mesa
 ```
 
 **macOS (Homebrew)**
 ```bash
-brew install cmake sdl2 sdl2_ttf pkg-config
+brew install cmake ccache sdl2 sdl2_ttf pkg-config
 # OpenGL is provided by the macOS SDK — no extra package needed
 ```
 
@@ -116,6 +117,18 @@ make -j
 > ./scripts/configure.sh        # → writes into build/
 > cmake --build build -j
 > ```
+>
+> To profile configure-time hotspots:
+> ```bash
+> ./scripts/configure.sh --profile-configure
+> ```
+> Requires a CMake version that supports `--profiling-format`.
+
+ccache is enabled automatically when installed. Disable it per configure run with:
+
+```bash
+cmake -S . -B build -DOPEN_LOTTO_USE_CCACHE=OFF
+```
 
 This produces:
 
@@ -297,6 +310,13 @@ Contributions, new lottery plugins, and improvements are welcome!
 - How to write new lottery plugins
 - Code style and testing requirements
 - How to submit pull requests
+
+**IDE and debugging setup?** See [docs/ide-setup.md](docs/ide-setup.md) for:
+- VS Code GDB launch/attach configurations
+- CLion/IntelliJ CMake debug setup
+- ccache management and CMake configure profiling
+
+**Containerized dev environment?** Open this repository in a Dev Container using [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json).
 
 **Writing a plugin?** See [docs/plugin-guide.md](docs/plugin-guide.md) for a step-by-step guide with a full example.
 

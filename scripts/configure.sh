@@ -7,6 +7,8 @@
 #
 # Usage:
 #   ./scripts/configure.sh [extra cmake args...]
+#   ./scripts/configure.sh --profile-configure
+#   ./scripts/configure.sh --profile-configure --profile-output /tmp/cmake-trace.json
 #
 # Examples:
 #   ./scripts/configure.sh
@@ -45,6 +47,8 @@ echo "[configure.sh] PKG_CONFIG_PATH=$PKG_CONFIG_PATH"
 # ---------------------------------------------------------------------------
 BUILD_DIR="$REPO_ROOT/build"
 EXTRA_ARGS=()
+PROFILE_CONFIGURE=0
+PROFILE_OUTPUT=""
 i=1
 while [[ $i -le $# ]]; do
     arg="${!i}"
@@ -53,6 +57,11 @@ while [[ $i -le $# ]]; do
         BUILD_DIR="${!i}"
     elif [[ "$arg" == -B* ]]; then
         BUILD_DIR="${arg#-B}"
+    elif [[ "$arg" == "--profile-configure" ]]; then
+        PROFILE_CONFIGURE=1
+    elif [[ "$arg" == "--profile-output" ]]; then
+        i=$(( i + 1 ))
+        PROFILE_OUTPUT="${!i}"
     else
         EXTRA_ARGS+=("$arg")
     fi
@@ -61,4 +70,24 @@ done
 
 mkdir -p "$BUILD_DIR"
 
-cmake -S "$REPO_ROOT" -B "$BUILD_DIR" "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"
+PROFILE_FLAGS=()
+if [[ $PROFILE_CONFIGURE -eq 1 ]]; then
+    if ! cmake --help | grep -q -- "--profiling-format"; then
+        echo "[configure.sh] Your CMake version does not support --profiling-format."
+        echo "[configure.sh] Upgrade CMake to a version with configure profiling support."
+        exit 1
+    fi
+
+    if [[ -z "$PROFILE_OUTPUT" ]]; then
+        PROFILE_OUTPUT="$BUILD_DIR/cmake-configure-trace.json"
+    fi
+
+    PROFILE_FLAGS=(
+        --profiling-format=google-trace
+        "--profiling-output=$PROFILE_OUTPUT"
+    )
+    echo "[configure.sh] Configure profiling enabled"
+    echo "[configure.sh] Trace output: $PROFILE_OUTPUT"
+fi
+
+cmake "${PROFILE_FLAGS[@]}" -S "$REPO_ROOT" -B "$BUILD_DIR" "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"
