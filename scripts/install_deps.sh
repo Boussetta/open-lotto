@@ -13,6 +13,7 @@
 #
 # Dependencies installed:
 #   - cmake (>= 3.10)
+#   - ccache
 #   - gcc / clang (C11 compiler)
 #   - pkg-config
 #   - make
@@ -81,6 +82,7 @@ install_debian() {
     $SUDO apt-get update -qq
     $SUDO apt-get install -y \
         build-essential \
+        ccache \
         cmake \
         pkg-config \
         libsdl2-dev \
@@ -93,6 +95,7 @@ install_fedora() {
     require_root_or_sudo
     info "Detected Fedora"
     $SUDO dnf install -y \
+        ccache \
         gcc \
         cmake \
         pkgconf-pkg-config \
@@ -110,6 +113,7 @@ install_rhel() {
     if command -v dnf &>/dev/null; then
         $SUDO dnf install -y epel-release || warn "Could not install EPEL; SDL2 packages may not be available."
         $SUDO dnf install -y \
+            ccache \
             gcc \
             cmake \
             pkgconf-pkg-config \
@@ -120,6 +124,7 @@ install_rhel() {
     else
         $SUDO yum install -y epel-release || warn "Could not install EPEL."
         $SUDO yum install -y \
+            ccache \
             gcc \
             cmake \
             pkgconfig \
@@ -135,6 +140,7 @@ install_arch() {
     info "Detected Arch Linux / Manjaro"
     $SUDO pacman -Sy --noconfirm \
         base-devel \
+        ccache \
         cmake \
         pkgconf \
         sdl2 \
@@ -146,6 +152,7 @@ install_opensuse() {
     require_root_or_sudo
     info "Detected openSUSE"
     $SUDO zypper install -y \
+        ccache \
         gcc \
         cmake \
         pkg-config \
@@ -160,7 +167,7 @@ install_macos() {
     if ! command -v brew &>/dev/null; then
         die "Homebrew is not installed. Install it from https://brew.sh and re-run this script."
     fi
-    brew install cmake sdl2 sdl2_ttf pkg-config
+    brew install cmake ccache sdl2 sdl2_ttf pkg-config
     # OpenGL is provided by the macOS SDK — no extra package needed
     success "macOS dependencies installed via Homebrew"
 }
@@ -194,6 +201,7 @@ verify_deps() {
     local missing=()
 
     command -v cmake      &>/dev/null || missing+=("cmake")
+    command -v ccache     &>/dev/null || missing+=("ccache")
     command -v pkg-config &>/dev/null || missing+=("pkg-config")
     command -v make       &>/dev/null || missing+=("make")
     { command -v gcc &>/dev/null || command -v clang &>/dev/null; } || missing+=("gcc or clang")

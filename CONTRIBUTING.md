@@ -6,6 +6,7 @@ Thank you for your interest in contributing to Open-Lotto! This guide will help 
 
 - [Getting Started](#getting-started)
 - [Building Locally](#building-locally)
+- [IDE Setup](#ide-setup)
 - [Running Tests](#running-tests)
 - [Code Style](#code-style)
 - [Writing Lottery Plugins](#writing-lottery-plugins)
@@ -62,6 +63,38 @@ cmake --build . -j
 - `-DCMAKE_BUILD_TYPE=Release` — Optimized release build
 - `-DCMAKE_BUILD_TYPE=Debug` — Debug build with symbols
 - `-DBUILD_TESTING=ON` — Enable unit tests (default: ON)
+- `-DOPEN_LOTTO_USE_CCACHE=ON` — Use `ccache` for faster incremental builds
+
+When `ccache` is installed, it is enabled automatically by CMake.
+You can check cache stats with:
+
+```bash
+ccache -s
+```
+
+### Configure Profiling (google-trace)
+
+To profile CMake configure time:
+
+```bash
+./scripts/configure.sh --profile-configure
+```
+
+This writes a trace JSON file to `build/cmake-configure-trace.json`.
+Use `--profile-output <path>` to choose another output file.
+Requires a CMake version that supports `--profiling-format`.
+
+## IDE Setup
+
+Recommended IDE setup instructions are documented in:
+
+- [docs/ide-setup.md](docs/ide-setup.md)
+
+This guide includes:
+
+- VS Code GDB launch and attach configurations
+- CLion CMake debug profiles
+- IntelliJ IDEA C/C++ plugin workflow
 
 ### Debug Build with Sanitizers
 
@@ -324,6 +357,12 @@ Before submitting a PR, ensure:
 ### Optional: Run Cppcheck On Every Commit
 
 Install the repository-managed git hooks once:
+
+```bash
+./scripts/install-pre-commit-hooks.sh
+```
+
+Legacy alias (still supported):
 
 ```bash
 ./scripts/install-git-hooks.sh

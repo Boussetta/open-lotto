@@ -2,16 +2,58 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug minimal (CMake)",
+            "name": "Debug open-lotto (GDB)",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/open-lotto",
-            "args": [],
+            "args": [
+                "--game",
+                "Lotto 6aus49",
+                "--draws",
+                "1"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "Debug plugin validator (GDB)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/open-lotto-plugin-validator",
+            "args": [
+                "${workspaceFolder}/build/plugins/liblotto.so"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "Attach to running open-lotto process",
+            "type": "cppdbg",
+            "request": "attach",
+            "program": "${workspaceFolder}/build/open-lotto",
+            "processId": "${command:pickProcess}",
+            "MIMode": "gdb",
+            "cwd": "${workspaceFolder}",
             "setupCommands": [
                 {
                     "description": "Enable pretty-printing",

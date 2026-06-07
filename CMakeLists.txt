@@ -14,6 +14,17 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN OFF)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+option(OPEN_LOTTO_USE_CCACHE "Use ccache to speed up rebuilds" ON)
+if(OPEN_LOTTO_USE_CCACHE AND NOT CMAKE_C_COMPILER_LAUNCHER)
+    find_program(CCACHE_PROGRAM ccache)
+    if(CCACHE_PROGRAM)
+        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+        message(STATUS "ccache enabled: ${CCACHE_PROGRAM}")
+    else()
+        message(STATUS "ccache requested but not found; continuing without compiler launcher")
+    endif()
+endif()
+
 add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 
 # ---------------------------------------------------------------------------
