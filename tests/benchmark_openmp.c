@@ -443,7 +443,7 @@ int main(int argc, char *argv[])
         else if (argv[i][0] != '-')
         {
             /* First positional: ball_count, second: iterations */
-            if (i == 1 || (i > 1 && argv[i - 1][0] == '-'))
+            if (i == 1 || argv[i - 1][0] == '-')
             {
                 char *end;
                 long val = strtol(argv[i], &end, 10);

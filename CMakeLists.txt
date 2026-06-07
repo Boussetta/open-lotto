@@ -377,6 +377,7 @@ if(BUILD_TESTING)
         src/combogen.c
         src/random_seed.c
         src/log.c
+        src/export.c
     )
 
     # Benchmark is not a test but a utility - we don't add it as a test

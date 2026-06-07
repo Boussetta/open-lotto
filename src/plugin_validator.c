@@ -20,8 +20,7 @@ static int validate_info(const char *path, const LotteryInfo *info)
 
     if (info->main_min <= 0 || info->main_max < info->main_min)
     {
-        fprintf(stderr, "%s: invalid main range [%d, %d]\n", path, info->main_min,
-                info->main_max);
+        fprintf(stderr, "%s: invalid main range [%d, %d]\n", path, info->main_min, info->main_max);
         return -1;
     }
 
@@ -49,8 +48,7 @@ static int validate_info(const char *path, const LotteryInfo *info)
 
     if ((info->extra_max - info->extra_min + 1) < info->extra_count)
     {
-        fprintf(stderr, "%s: extra range is too small for %d picks\n", path,
-                info->extra_count);
+        fprintf(stderr, "%s: extra range is too small for %d picks\n", path, info->extra_count);
         return -1;
     }
 
@@ -64,8 +62,8 @@ static int validate_unique_range(const char *path, const int *values, int count,
     {
         if (values[i] < min || values[i] > max)
         {
-            fprintf(stderr, "%s: %s value %d is outside [%d, %d]\n", path, label, values[i],
-                    min, max);
+            fprintf(stderr, "%s: %s value %d is outside [%d, %d]\n", path, label, values[i], min,
+                    max);
             return -1;
         }
 
@@ -73,8 +71,7 @@ static int validate_unique_range(const char *path, const int *values, int count,
         {
             if (values[i] == values[j])
             {
-                fprintf(stderr, "%s: %s contains duplicate value %d\n", path, label,
-                        values[i]);
+                fprintf(stderr, "%s: %s contains duplicate value %d\n", path, label, values[i]);
                 return -1;
             }
         }
@@ -90,15 +87,15 @@ static int validate_draw(const char *path, LoadedPlugin *plugin)
 
     if (result.main_count != plugin->info.main_count)
     {
-        fprintf(stderr, "%s: draw returned main_count %d, expected %d\n", path,
-                result.main_count, plugin->info.main_count);
+        fprintf(stderr, "%s: draw returned main_count %d, expected %d\n", path, result.main_count,
+                plugin->info.main_count);
         return -1;
     }
 
     if (result.extra_count != plugin->info.extra_count)
     {
-        fprintf(stderr, "%s: draw returned extra_count %d, expected %d\n", path,
-                result.extra_count, plugin->info.extra_count);
+        fprintf(stderr, "%s: draw returned extra_count %d, expected %d\n", path, result.extra_count,
+                plugin->info.extra_count);
         return -1;
     }
 
@@ -141,8 +138,8 @@ static int validate_plugin_path(const char *path)
                plugin->info.main_max);
         if (plugin->info.extra_count > 0)
         {
-            printf("  Extra: %d from %d-%d\n", plugin->info.extra_count,
-                   plugin->info.extra_min, plugin->info.extra_max);
+            printf("  Extra: %d from %d-%d\n", plugin->info.extra_count, plugin->info.extra_min,
+                   plugin->info.extra_max);
         }
         else
         {

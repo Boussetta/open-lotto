@@ -69,8 +69,8 @@ typedef struct
 } GameConfig;
 
 static const GameConfig GAMES[] = {
-    {"Eurojackpot",  5, 1, 50, 2, 1, 12},
-    {"Lotto 6aus49", 6, 1, 49, 1, 0,  9},
+    {"Eurojackpot", 5, 1, 50, 2, 1, 12},
+    {"Lotto 6aus49", 6, 1, 49, 1, 0, 9},
 };
 static const int GAME_COUNT = (int)(sizeof(GAMES) / sizeof(GAMES[0]));
 
@@ -97,20 +97,22 @@ static void test_structural_properties(void)
         for (int i = 0; i < PROPERTY_ITERATIONS; i++)
         {
             LotteryResult r;
-            generate_draw(cfg->main_count, cfg->main_min, cfg->main_max,
-                          cfg->extra_count, cfg->extra_min, cfg->extra_max,
-                          &r, silent_cb);
+            generate_draw(cfg->main_count, cfg->main_min, cfg->main_max, cfg->extra_count,
+                          cfg->extra_min, cfg->extra_max, &r, silent_cb);
 
-            if (!is_unique(r.main_numbers, r.main_count))   p1_ok = 0;
-            if (cfg->extra_count > 1 &&
-                !is_unique(r.extra_numbers, r.extra_count)) p2_ok = 0;
-            if (!in_range(r.main_numbers, r.main_count,
-                          cfg->main_min, cfg->main_max))    p3_ok = 0;
+            if (!is_unique(r.main_numbers, r.main_count))
+                p1_ok = 0;
+            if (cfg->extra_count > 1 && !is_unique(r.extra_numbers, r.extra_count))
+                p2_ok = 0;
+            if (!in_range(r.main_numbers, r.main_count, cfg->main_min, cfg->main_max))
+                p3_ok = 0;
             if (cfg->extra_count > 0 &&
-                !in_range(r.extra_numbers, r.extra_count,
-                          cfg->extra_min, cfg->extra_max))  p4_ok = 0;
-            if (r.main_count != cfg->main_count)            p5_ok = 0;
-            if (r.extra_count != cfg->extra_count)          p6_ok = 0;
+                !in_range(r.extra_numbers, r.extra_count, cfg->extra_min, cfg->extra_max))
+                p4_ok = 0;
+            if (r.main_count != cfg->main_count)
+                p5_ok = 0;
+            if (r.extra_count != cfg->extra_count)
+                p6_ok = 0;
         }
 
         char msg[128];
@@ -118,25 +120,28 @@ static void test_structural_properties(void)
         snprintf(msg, sizeof(msg), "[%s] P1: main numbers always unique", cfg->name);
         assert_true(p1_ok, msg);
 
-        if (cfg->extra_count > 1) {
+        if (cfg->extra_count > 1)
+        {
             snprintf(msg, sizeof(msg), "[%s] P2: extra numbers always unique", cfg->name);
             assert_true(p2_ok, msg);
         }
 
-        snprintf(msg, sizeof(msg), "[%s] P3: main numbers always in [%d,%d]",
-                 cfg->name, cfg->main_min, cfg->main_max);
+        snprintf(msg, sizeof(msg), "[%s] P3: main numbers always in [%d,%d]", cfg->name,
+                 cfg->main_min, cfg->main_max);
         assert_true(p3_ok, msg);
 
-        if (cfg->extra_count > 0) {
-            snprintf(msg, sizeof(msg), "[%s] P4: extra numbers always in [%d,%d]",
-                     cfg->name, cfg->extra_min, cfg->extra_max);
+        if (cfg->extra_count > 0)
+        {
+            snprintf(msg, sizeof(msg), "[%s] P4: extra numbers always in [%d,%d]", cfg->name,
+                     cfg->extra_min, cfg->extra_max);
             assert_true(p4_ok, msg);
         }
 
         snprintf(msg, sizeof(msg), "[%s] P5: main_count always == %d", cfg->name, cfg->main_count);
         assert_true(p5_ok, msg);
 
-        snprintf(msg, sizeof(msg), "[%s] P6: extra_count always == %d", cfg->name, cfg->extra_count);
+        snprintf(msg, sizeof(msg), "[%s] P6: extra_count always == %d", cfg->name,
+                 cfg->extra_count);
         assert_true(p6_ok, msg);
     }
 }
@@ -158,24 +163,49 @@ static void test_csv_export_property(void)
     for (int i = 0; i < EXPORT_ITERATIONS; i++)
     {
         LotteryResult r;
-        generate_draw(cfg->main_count, cfg->main_min, cfg->main_max,
-                      cfg->extra_count, cfg->extra_min, cfg->extra_max,
-                      &r, silent_cb);
+        generate_draw(cfg->main_count, cfg->main_min, cfg->main_max, cfg->extra_count,
+                      cfg->extra_min, cfg->extra_max, &r, silent_cb);
 
         int ret = export_results_csv_file(path, cfg->name, &r, 1);
-        if (ret != 0) { p7_ok = 0; continue; }
+        if (ret != 0)
+        {
+            p7_ok = 0;
+            continue;
+        }
 
         FILE *f = fopen(path, "r");
-        if (!f) { p7_ok = 0; continue; }
+        if (!f)
+        {
+            p7_ok = 0;
+            continue;
+        }
 
         char line[256];
         /* Header must be present */
-        if (!fgets(line, sizeof(line), f)) { p7_ok = 0; fclose(f); continue; }
-        if (strstr(line, "draw_number") == NULL) { p7_ok = 0; fclose(f); continue; }
+        if (!fgets(line, sizeof(line), f))
+        {
+            p7_ok = 0;
+            fclose(f);
+            continue;
+        }
+        if (strstr(line, "draw_number") == NULL)
+        {
+            p7_ok = 0;
+            fclose(f);
+            continue;
+        }
         /* Data row must be present */
-        if (!fgets(line, sizeof(line), f)) { p7_ok = 0; fclose(f); continue; }
+        if (!fgets(line, sizeof(line), f))
+        {
+            p7_ok = 0;
+            fclose(f);
+            continue;
+        }
         /* Must start with "1," */
-        if (strncmp(line, "1,", 2) != 0) { p7_ok = 0; }
+        if (strncmp(line, "1,", 2) != 0)
+        {
+            p7_ok = 0;
+        }
 
         fclose(f);
         remove(path);
@@ -201,15 +231,22 @@ static void test_json_export_property(void)
     for (int i = 0; i < EXPORT_ITERATIONS; i++)
     {
         LotteryResult r;
-        generate_draw(cfg->main_count, cfg->main_min, cfg->main_max,
-                      cfg->extra_count, cfg->extra_min, cfg->extra_max,
-                      &r, silent_cb);
+        generate_draw(cfg->main_count, cfg->main_min, cfg->main_max, cfg->extra_count,
+                      cfg->extra_min, cfg->extra_max, &r, silent_cb);
 
         int ret = export_results_json_file(path, cfg->name, &r, 1);
-        if (ret != 0) { p8_ok = 0; continue; }
+        if (ret != 0)
+        {
+            p8_ok = 0;
+            continue;
+        }
 
         FILE *f = fopen(path, "r");
-        if (!f) { p8_ok = 0; continue; }
+        if (!f)
+        {
+            p8_ok = 0;
+            continue;
+        }
 
         char content[1024];
         size_t n = fread(content, 1, sizeof(content) - 1, f);

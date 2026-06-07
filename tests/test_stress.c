@@ -56,9 +56,18 @@ static void test_high_volume(void)
 {
     test_suite("Stress S1 – High-Volume Draw Generation");
 
-    struct { const char *name; int mc; int mn; int mx; int ec; int en; int ex; } games[] = {
-        {"Eurojackpot",  5, 1, 50, 2,  1, 12},
-        {"Lotto 6aus49", 6, 1, 49, 1,  0,  9},
+    struct
+    {
+        const char *name;
+        int mc;
+        int mn;
+        int mx;
+        int ec;
+        int en;
+        int ex;
+    } games[] = {
+        {"Eurojackpot", 5, 1, 50, 2, 1, 12},
+        {"Lotto 6aus49", 6, 1, 49, 1, 0, 9},
     };
     int ngames = (int)(sizeof(games) / sizeof(games[0]));
 
@@ -68,15 +77,12 @@ static void test_high_volume(void)
         for (int i = 0; i < HIGH_VOLUME_DRAWS; i++)
         {
             LotteryResult r;
-            generate_draw(games[g].mc, games[g].mn, games[g].mx,
-                          games[g].ec, games[g].en, games[g].ex,
-                          &r, silent_cb);
+            generate_draw(games[g].mc, games[g].mn, games[g].mx, games[g].ec, games[g].en,
+                          games[g].ex, &r, silent_cb);
 
             if (!is_unique(r.main_numbers, r.main_count) ||
-                !in_range(r.main_numbers, r.main_count,
-                          games[g].mn, games[g].mx) ||
-                r.main_count != games[g].mc ||
-                r.extra_count != games[g].ec)
+                !in_range(r.main_numbers, r.main_count, games[g].mn, games[g].mx) ||
+                r.main_count != games[g].mc || r.extra_count != games[g].ec)
             {
                 ok = 0;
                 break;
@@ -84,8 +90,7 @@ static void test_high_volume(void)
         }
 
         char msg[128];
-        snprintf(msg, sizeof(msg),
-                 "[%s] %d draws: all valid (unique, in-range, correct counts)",
+        snprintf(msg, sizeof(msg), "[%s] %d draws: all valid (unique, in-range, correct counts)",
                  games[g].name, HIGH_VOLUME_DRAWS);
         assert_true(ok, msg);
     }
@@ -139,8 +144,7 @@ static void test_edge_case_configs(void)
         {
             LotteryResult r;
             generate_draw(5, 1, 1000, 0, 0, 0, &r, silent_cb);
-            if (!is_unique(r.main_numbers, 5) ||
-                !in_range(r.main_numbers, 5, 1, 1000))
+            if (!is_unique(r.main_numbers, 5) || !in_range(r.main_numbers, 5, 1, 1000))
             {
                 ok = 0;
                 break;
@@ -177,18 +181,22 @@ static void test_rapid_sequential(void)
          * Allow at most 1 coincidence in RAPID_CALLS iterations. */
         int same = 1;
         for (int j = 0; j < cur.main_count; j++)
-            if (cur.main_numbers[j] != prev.main_numbers[j]) { same = 0; break; }
-        if (same) identical_count++;
+            if (cur.main_numbers[j] != prev.main_numbers[j])
+            {
+                same = 0;
+                break;
+            }
+        if (same)
+            identical_count++;
 
         prev = cur;
     }
 
-    if (identical_count > 1) no_collision = 0;
+    if (identical_count > 1)
+        no_collision = 0;
 
-    assert_true(no_collision,
-                "S3: consecutive draws are not suspiciously identical");
-    assert_true(identical_count <= 1,
-                "S3: at most 1 coincidental identical consecutive draw");
+    assert_true(no_collision, "S3: consecutive draws are not suspiciously identical");
+    assert_true(identical_count <= 1, "S3: at most 1 coincidental identical consecutive draw");
 }
 
 /* ------------------------------------------------------------------ */
@@ -212,7 +220,11 @@ static void test_export_stress(void)
     for (int i = 0; i < EXPORT_STRESS_DRAWS; i++)
     {
         int ret = export_results_csv_file(csv_path, "Eurojackpot", &results[i], 1);
-        if (ret != 0) { csv_ok = 0; break; }
+        if (ret != 0)
+        {
+            csv_ok = 0;
+            break;
+        }
     }
     assert_true(csv_ok, "S4: CSV export succeeds for all 1000 draws");
 
@@ -230,7 +242,7 @@ static void test_export_stress(void)
         fclose(f);
         remove(csv_path);
         assert_true(has_header, "S4: CSV file has header row");
-        assert_true(has_data,   "S4: CSV file has at least one data row");
+        assert_true(has_data, "S4: CSV file has at least one data row");
     }
 
     /* JSON export of 1000 draws (one draw at a time) */
@@ -239,7 +251,11 @@ static void test_export_stress(void)
     for (int i = 0; i < EXPORT_STRESS_DRAWS; i++)
     {
         int ret = export_results_json_file(json_path, "Eurojackpot", &results[i], 1);
-        if (ret != 0) { json_ok = 0; break; }
+        if (ret != 0)
+        {
+            json_ok = 0;
+            break;
+        }
     }
     assert_true(json_ok, "S4: JSON export succeeds for all 1000 draws");
 

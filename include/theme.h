@@ -13,14 +13,14 @@
  */
 typedef struct
 {
-    uint32_t background;      /**< Main background color (RGBA) */
-    uint32_t text_primary;    /**< Primary text color */
-    uint32_t text_secondary;  /**< Secondary/dim text */
-    uint32_t border;          /**< UI border color */
-    uint32_t overlay_bg;      /**< Debug overlay background */
-    uint32_t accent;          /**< Highlight/accent color */
-    uint32_t drum;            /**< Drum shell fill color */
-    uint32_t drum_grid;       /**< Drum wireframe/grid lines color */
+    uint32_t background;     /**< Main background color (RGBA) */
+    uint32_t text_primary;   /**< Primary text color */
+    uint32_t text_secondary; /**< Secondary/dim text */
+    uint32_t border;         /**< UI border color */
+    uint32_t overlay_bg;     /**< Debug overlay background */
+    uint32_t accent;         /**< Highlight/accent color */
+    uint32_t drum;           /**< Drum shell fill color */
+    uint32_t drum_grid;      /**< Drum wireframe/grid lines color */
 } Theme;
 
 /**
