@@ -204,11 +204,37 @@ jobs:
           name: benchmark-results-${{ github.run_id }}
           path: build/benchmark_results.json
 
-  # TODO: Debug and re-enable static-analysis after resolving clang-tidy CI issues
-  # static-analysis:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - run: ./scripts/run_cppcheck.sh
+  static-analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-static-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: apt-static-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake clang-tidy cppcheck
+
+      - name: Cache CMake tidy build
+        uses: actions/cache@v4
+        with:
+          path: build-tidy
+          key: cmake-tidy-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'src/**', 'plugins/**', 'include/**') }}
+          restore-keys: cmake-tidy-${{ runner.os }}-
+
+      - name: Run cppcheck
+        run: ./scripts/run_cppcheck.sh
+
+      - name: Run clang-tidy
+        run: ./scripts/run_clang_tidy.sh
 
   coverage:
     runs-on: ubuntu-latest

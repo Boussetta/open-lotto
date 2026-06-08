@@ -202,6 +202,7 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[API_REFERENCE.md](docs/API_REFERENCE.md)** — Complete function reference for all public APIs (RNG, combogen, plugins, export, validation, configuration, logging)
 - **[BUILDING_FROM_SOURCE.md](docs/BUILDING_FROM_SOURCE.md)** — Detailed build instructions for all platforms, dependency installation, build variants, troubleshooting
 - **[DEBUGGING.md](docs/DEBUGGING.md)** — GDB workflow, AddressSanitizer interpretation, Valgrind usage, core dump analysis, static analysis
+- **[STATIC_ANALYSIS.md](docs/STATIC_ANALYSIS.md)** — Cppcheck and clang-tidy integration, suppressing false positives, CI configuration
 - **[PERFORMANCE_TUNING.md](docs/PERFORMANCE_TUNING.md)** — Bottleneck identification, profiling with perf/Valgrind, cache optimization, compiler flags, OpenMP parallelization
 - **[plugin-guide.md](docs/plugin-guide.md)** — How to write new lottery game plugins
 - **[plugin-marketplace.md](docs/plugin-marketplace.md)** — Community plugins and distribution
