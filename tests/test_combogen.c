@@ -4,6 +4,7 @@
 
 #include "../include/combogen.h"
 #include "test.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +31,26 @@ static int in_range(const int *arr, int count, int min, int max)
         if (arr[i] < min || arr[i] > max)
             return 0;
     }
+    return 1;
+}
+
+static int results_equal(const LotteryResult *a, const LotteryResult *b)
+{
+    if (a->main_count != b->main_count || a->extra_count != b->extra_count)
+        return 0;
+
+    for (int i = 0; i < a->main_count; i++)
+    {
+        if (a->main_numbers[i] != b->main_numbers[i])
+            return 0;
+    }
+
+    for (int i = 0; i < a->extra_count; i++)
+    {
+        if (a->extra_numbers[i] != b->extra_numbers[i])
+            return 0;
+    }
+
     return 1;
 }
 
@@ -174,6 +195,23 @@ int main(void)
         generate_draw(5, 1, 50, 2, 1, 12, NULL, dummy_callback);
 
         assert_true(1, "NULL result pointer handled safely");
+    }
+
+    /* Test 9: Seeded draws are reproducible */
+    {
+        printf("\n[Test Group: Seeded Reproducibility]\n");
+
+        LotteryResult a;
+        LotteryResult b;
+        LotteryResult c;
+        uint64_t seed = 0x12345678abcdef00ULL;
+
+        generate_draw_seeded(5, 1, 50, 2, 1, 12, seed, &a, dummy_callback);
+        generate_draw_seeded(5, 1, 50, 2, 1, 12, seed, &b, dummy_callback);
+        generate_draw_seeded(5, 1, 50, 2, 1, 12, seed + 1, &c, dummy_callback);
+
+        assert_true(results_equal(&a, &b), "Same seed produces identical draw results");
+        assert_true(!results_equal(&a, &c), "Different seeds produce different draw results");
     }
 
     test_summary();
