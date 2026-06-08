@@ -55,7 +55,8 @@ jobs:
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake ccache pkg-config sdl2 sdl2_ttf openmp
+          brew install cmake ccache pkg-config sdl2 sdl2_ttf
+          # OpenMP is built-in with Clang on macOS, no separate package needed
 
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
