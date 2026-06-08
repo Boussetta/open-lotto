@@ -38,11 +38,8 @@ Until the registry exists, keep these values in the repository README or release
 
 ## Submission Checklist
 
-- Build the plugin in a clean checkout.
-- Run `open-lotto-plugin-validator` on the final shared object.
-- Run `open-lotto --list-games` with the plugin on the search path.
-- Include one smoke-test command in the release notes.
-- Document whether the plugin depends on the host's exported `generate_draw` helper or ships its own draw logic.
+Use the formal review checklist in `docs/PLUGIN_REVIEW_CHECKLIST.md` for security,
+compatibility, quality, and licensing sign-off.
 
 ## Future Work
 

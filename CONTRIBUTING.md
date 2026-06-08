@@ -310,6 +310,9 @@ cd build && cmake --build .
 ./open-lotto --game "My Lottery" --animate --draws 3
 ```
 
+Before submitting a plugin PR, complete the formal review gates in
+`docs/PLUGIN_REVIEW_CHECKLIST.md`.
+
 ### Popular Lottery Examples
 
 **Powerball (US):**

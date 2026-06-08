@@ -234,6 +234,7 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[BASELINE_TRACKING.md](docs/BASELINE_TRACKING.md)** — Historical performance baseline management, trend analysis, degradation detection
 - **[plugin-guide.md](docs/plugin-guide.md)** — How to write new lottery game plugins
 - **[plugin-marketplace.md](docs/plugin-marketplace.md)** — Community plugins and distribution
+- **[PLUGIN_REVIEW_CHECKLIST.md](docs/PLUGIN_REVIEW_CHECKLIST.md)** — Formal security/quality checklist for plugin submissions
 - **[PERFORMANCE.md](docs/PERFORMANCE.md)** — Benchmark results and optimization notes
 - **[OPENMP_QUICKSTART.md](docs/OPENMP_QUICKSTART.md)** — Quick start for parallel physics simulation
 
