@@ -7,6 +7,7 @@
 #include "export.h"
 #include "gui_opengl.h"
 #include "gui_sdl.h"
+#include "localization.h"
 #include "log.h"
 #include "plugin_loader.h"
 #include "plugin_registry.h"
@@ -34,6 +35,7 @@
    --------------------------------------------------------- */
 static const char *SPINNER_FRAMES[] = {"-", "\\", "|", "/", "-", "\\", "|", "/", "-", "/"};
 static const int SPINNER_COUNT = 10;
+static const char *g_cli_locale = "en";
 
 /* ---------------------------------------------------------
    ANIMATION HELPERS
@@ -42,7 +44,7 @@ static const int SPINNER_COUNT = 10;
 /* Print main numbers range from index 0 to count-1 */
 static void print_main_numbers(const LotteryResult *result, int count)
 {
-    printf("Lottozahlen: ");
+    printf("%s: ", localization_get(g_cli_locale, LOCALIZE_MAIN));
     for (int j = 0; j < count; j++)
         printf("%d ", result->main_numbers[j]);
 }
@@ -50,10 +52,10 @@ static void print_main_numbers(const LotteryResult *result, int count)
 /* Print main numbers + separator + extra numbers range */
 static void print_main_and_extra(const LotteryResult *result, int main_count, int extra_count)
 {
-    printf("Lottozahlen: ");
+    printf("%s: ", localization_get(g_cli_locale, LOCALIZE_MAIN));
     for (int j = 0; j < main_count; j++)
         printf("%d ", result->main_numbers[j]);
-    printf("+ ");
+    printf("| %s: ", localization_get(g_cli_locale, LOCALIZE_EXTRA));
     for (int j = 0; j < extra_count; j++)
         printf("%d ", result->extra_numbers[j]);
 }
@@ -85,9 +87,9 @@ static void animate_number_reveal(int number, void (*print_prefix_fn)(const Lott
    --------------------------------------------------------- */
 static void animate_numbers(const LotteryInfo *info, const LotteryResult *result)
 {
-    printf("Drawing numbers...\n\n");
+    printf("%s\n\n", localization_get(g_cli_locale, LOCALIZE_DRAWING_NUMBERS));
 
-    printf("Lottozahlen: ");
+    printf("%s: ", localization_get(g_cli_locale, LOCALIZE_MAIN));
 
     /* Animate main numbers */
     for (int i = 0; i < info->main_count; i++)
@@ -98,7 +100,7 @@ static void animate_numbers(const LotteryInfo *info, const LotteryResult *result
     /* Animate extra numbers if present */
     if (info->extra_count > 0)
     {
-        printf("+ ");
+        printf("| %s: ", localization_get(g_cli_locale, LOCALIZE_EXTRA));
 
         for (int i = 0; i < info->extra_count; i++)
         {
@@ -136,14 +138,14 @@ static void silent_callback(DrawEvent event, const LotteryResult *res)
 /* Print draw result in normal (non-animated) CLI mode */
 static void print_draw_result(const char *game_name, int draw_num, const LotteryResult *result)
 {
-    printf("%s (Draw %d):\n", game_name, draw_num);
-    printf("  Main: ");
+    printf("%s (%s %d):\n", game_name, localization_get(g_cli_locale, LOCALIZE_DRAW), draw_num);
+    printf("  %s: ", localization_get(g_cli_locale, LOCALIZE_MAIN));
     for (int j = 0; j < result->main_count; j++)
         printf("%d ", result->main_numbers[j]);
 
     if (result->extra_count > 0)
     {
-        printf("+ ");
+        printf("| %s: ", localization_get(g_cli_locale, LOCALIZE_EXTRA));
         for (int j = 0; j < result->extra_count; j++)
             printf("%d ", result->extra_numbers[j]);
     }
@@ -253,7 +255,8 @@ static void print_usage(const char *prog)
             "  %s --game \"Lotto 6aus49\" --verbose DEBUG\n"
             "\n"
             "Environment Variables:\n"
-            "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n",
+            "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n"
+            "  OPEN_LOTTO_LANG         CLI locale (en, fr; fallback to en)\n",
             prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
@@ -265,6 +268,7 @@ int main(int argc, char **argv)
     /* Load config file early so defaults are available */
     LoCalConfig cfg;
     config_load_lottorc(&cfg);
+    g_cli_locale = localization_detect_locale();
 
     /* Handle --list-games command */
     if (argc >= 2 && strcmp(argv[1], "--list-games") == 0)

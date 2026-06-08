@@ -235,6 +235,7 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[plugin-guide.md](docs/plugin-guide.md)** — How to write new lottery game plugins
 - **[plugin-marketplace.md](docs/plugin-marketplace.md)** — Community plugins and distribution
 - **[PLUGIN_REVIEW_CHECKLIST.md](docs/PLUGIN_REVIEW_CHECKLIST.md)** — Formal security/quality checklist for plugin submissions
+- **[LOCALIZATION.md](docs/LOCALIZATION.md)** — Translation string table, fallback behavior, and locale contribution workflow
 - **[PERFORMANCE.md](docs/PERFORMANCE.md)** — Benchmark results and optimization notes
 - **[OPENMP_QUICKSTART.md](docs/OPENMP_QUICKSTART.md)** — Quick start for parallel physics simulation
 
