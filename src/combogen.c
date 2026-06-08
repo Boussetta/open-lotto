@@ -54,6 +54,12 @@ static pcg32_t rng_state = {0};
 /** @brief Last seed used (for logging/debugging purposes) */
 static uint64_t last_seed = 0;
 
+/** @brief Optional forced seed set by host application for plugin compatibility. */
+static int forced_seed_enabled = 0;
+static uint64_t forced_seed_value = 0;
+
+static uint64_t rng_init_seeded(uint64_t seed);
+
 /**
  * @brief Initialize PCG32 generator with cryptographically strong seeds.
  *
@@ -68,6 +74,9 @@ static uint64_t last_seed = 0;
  */
 static uint64_t rng_init(void)
 {
+    if (forced_seed_enabled)
+        return rng_init_seeded(forced_seed_value);
+
     last_seed = generate_strong_seed();
     rng_state.state = last_seed;
     rng_state.inc = (generate_strong_seed() << 1) | 1;
@@ -334,4 +343,16 @@ generate_draw_seeded(int main_count, int main_min, int main_max, int extra_count
 {
     generate_draw_impl(main_count, main_min, main_max, extra_count, extra_min, extra_max, out,
                        cb, 1, seed);
+}
+
+__attribute__((visibility("default"))) void combogen_set_forced_seed(uint64_t seed)
+{
+    forced_seed_enabled = 1;
+    forced_seed_value = seed;
+}
+
+__attribute__((visibility("default"))) void combogen_clear_forced_seed(void)
+{
+    forced_seed_enabled = 0;
+    forced_seed_value = 0;
 }
