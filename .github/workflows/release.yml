@@ -53,6 +53,12 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           sha256sum open-lotto-${VERSION}.tar.gz > open-lotto-${VERSION}.tar.gz.sha256
           sha256sum open-lotto-${VERSION}-linux-x64.tar.gz > open-lotto-${VERSION}-linux-x64.tar.gz.sha256
+
+      - name: Generate release SBOM (SPDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          format: spdx-json
+          output-file: open-lotto-${{ github.ref_name }}.spdx.json
       
       - name: Generate changelog
         id: changelog
@@ -70,6 +76,7 @@ jobs:
           files: |
             open-lotto-*.tar.gz
             open-lotto-*.tar.gz.sha256
+            open-lotto-*.spdx.json
           body: |
             ## Release Notes
             

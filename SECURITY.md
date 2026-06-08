@@ -40,6 +40,14 @@ We enforce REUSE compliance to track software licenses and copyright properly:
 - **CI Check**: Automated in `security-checks` job
 - **Failure Policy**: CI fails if REUSE compliance issues detected
 
+### Software Bill of Materials (SBOM)
+
+We generate SPDX JSON SBOM artifacts in CI and release workflows:
+
+- **CI Artifact**: `open-lotto-ci.spdx.json`
+- **Release Artifact**: `open-lotto-v<version>.spdx.json`
+- **Format**: SPDX JSON
+
 ### Supported Versions
 
 Currently, only the latest main branch is actively maintained and receives security updates.
