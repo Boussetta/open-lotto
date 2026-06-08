@@ -582,7 +582,14 @@ int main(int argc, char **argv)
 
         if (strcmp(gui_mode, "3D") == 0)
         {
+#if OPEN_LOTTO_ENABLE_OPENGL
             gui_run_opengl(selected->name, &selected->info, debug_overlay, resolved_dark_mode);
+#else
+            log_error("3D GUI backend is not available in this build. Use '--gui 2D'.");
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+#endif
         }
         else /* Default to 2D */
         {

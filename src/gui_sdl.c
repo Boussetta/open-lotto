@@ -96,10 +96,10 @@ typedef struct
 /* Utility                                                   */
 /* --------------------------------------------------------- */
 
-/* Generate random float in range [a, b) using drand48() for better quality */
+/* Generate random float in range [a, b) using portable rand()/RAND_MAX */
 static float frand_range(float a, float b)
 {
-    return a + (b - a) * drand48();
+    return a + (b - a) * ((float)rand() / (float)RAND_MAX);
 }
 
 /* --------------------------------------------------------- */
@@ -662,8 +662,8 @@ void gui_run(const char *game_name, const LotteryInfo *info, int dark_mode)
     state.time_since_last_pick = 0.0f;
     state.pick_interval = 1.5f; /* seconds between starting new glides */
 
-    /* Initialize drand48() with seed based on current time */
-    srand48((unsigned)time(NULL));
+    /* Seed PRNG once for random initial drum state */
+    srand((unsigned)time(NULL));
 
     init_drum(&state.main_drum, info->main_max, MAIN_DRUM_X, MAIN_DRUM_Y, MAIN_DRUM_R, 1);
     init_drum(&state.extra_drum, info->extra_max, EXTRA_DRUM_X, EXTRA_DRUM_Y, EXTRA_DRUM_R, 0);

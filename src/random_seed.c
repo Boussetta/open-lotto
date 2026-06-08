@@ -87,7 +87,7 @@ uint64_t generate_strong_seed(void)
         log_debug("Successfully obtained entropy from system clock");
         return seed;
     }
-    
+
     /* Fallback to time() */
     log_warn("clock_gettime failed, falling back to time()");
     seed = (uint64_t)time(NULL) ^ rdtsc();
