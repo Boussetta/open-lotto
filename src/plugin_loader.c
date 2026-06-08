@@ -25,13 +25,6 @@ static void *dlopen(const char *filename, int flags)
     return (void *)LoadLibraryA(filename);
 }
 
-static void *dlsym(void *handle, const char *symbol)
-{
-    if (!handle || !symbol)
-        return NULL;
-    return (void *)GetProcAddress((HMODULE)handle, symbol);
-}
-
 static const char *dlerror(void)
 {
     DWORD error_code = GetLastError();
@@ -82,13 +75,31 @@ LoadedPlugin *load_plugin(const char *path)
         return NULL;
     }
 
+    const LotteryInfo *(*get_info)(void) = NULL;
+    const char *(*get_name)(void) = NULL;
+    void (*draw_fn)(LotteryResult *, draw_event_callback) = NULL;
+
+#ifdef _WIN32
+    FARPROC sym_get_info = GetProcAddress((HMODULE)handle, "plugin_get_info");
+    FARPROC sym_get_name = GetProcAddress((HMODULE)handle, "plugin_get_name");
+    FARPROC sym_draw = GetProcAddress((HMODULE)handle, "plugin_draw");
+
+    if (sym_get_info)
+        memcpy(&get_info, &sym_get_info,
+               sizeof(get_info) < sizeof(sym_get_info) ? sizeof(get_info) : sizeof(sym_get_info));
+    if (sym_get_name)
+        memcpy(&get_name, &sym_get_name,
+               sizeof(get_name) < sizeof(sym_get_name) ? sizeof(get_name) : sizeof(sym_get_name));
+    if (sym_draw)
+        memcpy(&draw_fn, &sym_draw,
+               sizeof(draw_fn) < sizeof(sym_draw) ? sizeof(draw_fn) : sizeof(sym_draw));
+#else
     /* Use intermediate void* to avoid pedantic pointer-to-function conversion warning */
-    const LotteryInfo *(*get_info)(void) =
-        (const LotteryInfo *(*)(void))(uintptr_t)dlsym(handle, "plugin_get_info");
-    const char *(*get_name)(void) =
-        (const char *(*)(void))(uintptr_t)dlsym(handle, "plugin_get_name");
-    void (*draw_fn)(LotteryResult *, draw_event_callback) =
+    get_info = (const LotteryInfo *(*)(void))(uintptr_t)dlsym(handle, "plugin_get_info");
+    get_name = (const char *(*)(void))(uintptr_t)dlsym(handle, "plugin_get_name");
+    draw_fn =
         (void (*)(LotteryResult *, draw_event_callback))(uintptr_t)dlsym(handle, "plugin_draw");
+#endif
 
     /* Validate all function pointers were found */
     if (!get_info || !get_name || !draw_fn)
