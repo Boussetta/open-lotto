@@ -210,11 +210,29 @@ jobs:
   #   steps:
   #     - run: ./scripts/run_cppcheck.sh
 
-  # TODO: Re-enable coverage job after resolving lcov/genhtml issues in Actions environment
-  # coverage:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - run: ./scripts/run_coverage.sh
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-coverage-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: apt-coverage-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake gcc pkg-config libsdl2-dev libsdl2-ttf-dev lcov
+
+      - name: Clean build directory
+        run: rm -rf .build-coverage
+
+      - name: Run coverage analysis
+        run: ./scripts/run_coverage.sh
 
   docs:
     runs-on: ubuntu-latest
