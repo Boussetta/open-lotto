@@ -31,10 +31,6 @@ endif()
 add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 
 option(OPEN_LOTTO_ENABLE_OPENGL "Build OpenGL 3D GUI backend" ON)
-if(WIN32)
-    # Windows CI currently packages the SDL frontend only.
-    set(OPEN_LOTTO_ENABLE_OPENGL OFF CACHE BOOL "Build OpenGL 3D GUI backend" FORCE)
-endif()
 
 # ---------------------------------------------------------------------------
 # Fuzzing support (requires clang + compiler-rt)
@@ -169,6 +165,10 @@ include_directories(
 
 if(OPEN_LOTTO_ENABLE_OPENGL)
     include_directories(${OPENGL_INCLUDE_DIR})
+    if(WIN32)
+        find_package(GLEW REQUIRED)
+        include_directories(${GLEW_INCLUDE_DIRS})
+    endif()
 endif()
 
 set(OPEN_LOTTO_SOURCES
@@ -207,9 +207,14 @@ target_link_libraries(open-lotto
 
 if(OPEN_LOTTO_ENABLE_OPENGL)
     target_link_libraries(open-lotto PRIVATE ${OPENGL_LIBRARIES})
+    if(WIN32)
+        target_link_libraries(open-lotto PRIVATE ${GLEW_LIBRARIES})
+    endif()
 endif()
 
-target_link_options(open-lotto PRIVATE -Wl,-export-dynamic)
+if(NOT WIN32)
+    target_link_options(open-lotto PRIVATE -Wl,-export-dynamic)
+endif()
 
 add_executable(open-lotto-plugin-validator
     src/plugin_validator.c
