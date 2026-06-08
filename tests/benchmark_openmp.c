@@ -52,9 +52,9 @@ static void init_balls_serial(float *balls, int ball_count)
     for (int i = 0; i < ball_count; i++)
     {
         int idx = i * 3;
-        balls[idx] = (float)rand() / RAND_MAX * 200.0f - 100.0f;     /* x */
-        balls[idx + 1] = (float)rand() / RAND_MAX * 200.0f - 100.0f; /* y */
-        balls[idx + 2] = (float)rand() / RAND_MAX * 200.0f - 100.0f; /* z */
+        balls[idx] = (float)rand() / (float)RAND_MAX * 200.0f - 100.0f;     /* x */
+        balls[idx + 1] = (float)rand() / (float)RAND_MAX * 200.0f - 100.0f; /* y */
+        balls[idx + 2] = (float)rand() / (float)RAND_MAX * 200.0f - 100.0f; /* z */
     }
 }
 
@@ -73,9 +73,9 @@ static void init_balls_parallel(float *balls, int ball_count)
     for (int i = 0; i < ball_count; i++)
     {
         int idx = i * 3;
-        balls[idx] = (float)rand() / RAND_MAX * 200.0f - 100.0f;     /* x */
-        balls[idx + 1] = (float)rand() / RAND_MAX * 200.0f - 100.0f; /* y */
-        balls[idx + 2] = (float)rand() / RAND_MAX * 200.0f - 100.0f; /* z */
+        balls[idx] = (float)rand() / (float)RAND_MAX * 200.0f - 100.0f;     /* x */
+        balls[idx + 1] = (float)rand() / (float)RAND_MAX * 200.0f - 100.0f; /* y */
+        balls[idx + 2] = (float)rand() / (float)RAND_MAX * 200.0f - 100.0f; /* z */
     }
 }
 
@@ -273,7 +273,7 @@ static BenchmarkResult benchmark_sync_balls(int ball_count, int iterations)
 
     /* Initialize source data */
     for (int i = 0; i < ball_count * 3; i++)
-        source[i] = (float)rand() / RAND_MAX;
+        source[i] = (float)rand() / (float)RAND_MAX;
 
     int max_threads = omp_get_max_threads();
 
@@ -321,7 +321,7 @@ static BenchmarkResult benchmark_collision_detection(int ball_count, int iterati
 
     /* Initialize ball positions */
     for (int i = 0; i < ball_count * 3; i++)
-        balls[i] = (float)rand() / RAND_MAX * 100.0f - 50.0f;
+        balls[i] = (float)rand() / (float)RAND_MAX * 100.0f - 50.0f;
 
     int max_threads = omp_get_max_threads();
 

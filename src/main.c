@@ -40,6 +40,7 @@ static void print_main_numbers(const LotteryResult *result, int count)
         printf("%d ", result->main_numbers[j]);
 }
 
+
 /* Print main numbers + separator + extra numbers range */
 static void print_main_and_extra(const LotteryResult *result, int main_count, int extra_count)
 {
