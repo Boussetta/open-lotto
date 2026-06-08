@@ -3,11 +3,17 @@
  */
 
 #include "log.h"
-#include <fcntl.h>
 #include <stdint.h>
-#include <sys/random.h>
 #include <time.h>
+
+#ifdef _WIN32
+#include <wincrypt.h>
+#pragma comment(lib, "advapi32.lib")
+#else
+#include <fcntl.h>
+#include <sys/random.h>
 #include <unistd.h>
+#endif
 
 /**
  * @file random_seed.c
@@ -25,14 +31,14 @@
  */
 
 /**
- * @brief Read CPU TSC (Time Stamp Counter) or monotonic clock for jitter.
+ * @brief Read CPU TSC (Time Stamp Counter) or system timer for jitter.
  *
  * On x86_64 systems, uses the RDTSC instruction for ultra-high resolution
- * timing. On other architectures, falls back to CLOCK_MONOTONIC.
+ * timing. On other architectures, falls back to system clock.
  * This is used as a jitter source to supplement entropy and prevent
  * timing-based prediction attacks.
  *
- * @return uint64_t - TSC value or monotonic timestamp XOR'd with nanoseconds
+ * @return uint64_t - TSC value or system timer timestamp XOR'd with nanoseconds
  */
 #if defined(__x86_64__)
 static inline uint64_t rdtsc(void)
@@ -41,7 +47,16 @@ static inline uint64_t rdtsc(void)
     __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
     return ((uint64_t)hi << 32) | lo;
 }
+#elif defined(_WIN32)
+/* Windows implementation */
+static inline uint64_t rdtsc(void)
+{
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    return (uint64_t)counter.QuadPart;
+}
 #else
+/* Non-x86 POSIX fallback */
 static inline uint64_t rdtsc(void)
 {
     struct timespec ts;
@@ -73,7 +88,38 @@ uint64_t generate_strong_seed(void)
 {
     uint64_t seed = 0;
 
-    /* 1) Try Linux getrandom() - Best option */
+#ifdef _WIN32
+    /* Windows: Use CryptGenRandom from advapi32 */
+    log_debug("Using Windows CryptGenRandom for entropy");
+    HCRYPTPROV hProv = 0;
+    
+    if (CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, 0))
+    {
+        if (CryptGenRandom(hProv, sizeof(seed), (BYTE *)&seed))
+        {
+            log_debug("Successfully obtained entropy from CryptGenRandom");
+            CryptReleaseContext(hProv, 0);
+            return seed ^ rdtsc();
+        }
+        CryptReleaseContext(hProv, 0);
+    }
+
+    /* Windows fallback: Use performance counter + time */
+    log_warn("CryptGenRandom failed, using timer-based fallback");
+    LARGE_INTEGER counter;
+    if (QueryPerformanceCounter(&counter))
+    {
+        seed = (uint64_t)counter.QuadPart ^ rdtsc();
+    }
+    else
+    {
+        /* Last resort: use system time */
+        seed = (uint64_t)time(NULL) ^ rdtsc();
+    }
+    return seed;
+
+#else
+    /* POSIX: Try getrandom() first */
     log_debug("Attempting to get entropy from getrandom()");
     if (getrandom(&seed, sizeof(seed), 0) == sizeof(seed))
     {
@@ -81,7 +127,7 @@ uint64_t generate_strong_seed(void)
         return seed ^ rdtsc();
     }
 
-    /* 2) Fallback: /dev/urandom */
+    /* Fallback: /dev/urandom */
     log_debug("getrandom() failed, falling back to /dev/urandom");
     int fd = open("/dev/urandom", O_RDONLY);
     if (fd >= 0)
@@ -98,7 +144,7 @@ uint64_t generate_strong_seed(void)
         log_warn("/dev/urandom returned insufficient entropy, using time-based fallback");
     }
 
-    /* 3) Final fallback: time + jitter */
+    /* Final fallback: time + jitter */
     log_warn("Both getrandom() and /dev/urandom failed, using time-based fallback");
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -107,4 +153,5 @@ uint64_t generate_strong_seed(void)
     seed = (((uint64_t)ts.tv_sec) << 32) ^ (uint64_t)ts.tv_nsec ^ rdtsc();
 
     return seed;
+#endif
 }
