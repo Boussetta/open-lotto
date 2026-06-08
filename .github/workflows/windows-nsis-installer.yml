@@ -44,11 +44,14 @@ jobs:
       - name: Copy DLL dependencies
         shell: bash
         run: |
+          # Stage executable where NSIS script expects it
+          cp build/open-lotto.exe ./open-lotto.exe || cp build/open-lotto ./open-lotto.exe
+
           # Find SDL2 DLLs from MSYS2
           MSYS2_ROOT="C:/msys64/mingw64"
-          cp "$MSYS2_ROOT/bin/SDL2.dll" build/ || echo "Warning: SDL2.dll not found"
-          cp "$MSYS2_ROOT/bin/SDL2_ttf.dll" build/ || echo "Warning: SDL2_ttf.dll not found"
-          cp "$MSYS2_ROOT/bin/libwinpthread-1.dll" build/ || echo "Warning: libwinpthread-1.dll not found"
+          cp "$MSYS2_ROOT/bin/SDL2.dll" . || echo "Warning: SDL2.dll not found"
+          cp "$MSYS2_ROOT/bin/SDL2_ttf.dll" . || echo "Warning: SDL2_ttf.dll not found"
+          cp "$MSYS2_ROOT/bin/libwinpthread-1.dll" . || echo "Warning: libwinpthread-1.dll not found"
 
       - name: Build NSIS Installer
         run: |
