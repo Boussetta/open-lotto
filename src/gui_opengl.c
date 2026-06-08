@@ -2,13 +2,22 @@
  * SPDX-License-Identifier: MIT
  */
 
+#ifdef _WIN32
+/* On Windows, GLEW provides OpenGL extension prototypes and loads function
+ * pointers via wglGetProcAddress — required because opengl32.dll only exports
+ * OpenGL 1.1 symbols. GLEW must be included before any other GL headers. */
+#include <GL/glew.h>
+#else
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
+#endif
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_ttf.h>
 #include <math.h>
+#ifndef _WIN32
 #include <omp.h> // NOLINT(clang-diagnostic-error)
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2418,6 +2427,22 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_ov
     }
 
     SDL_GL_SetSwapInterval(1); /* Enable vsync */
+
+#ifdef _WIN32
+    /* Initialise GLEW to load OpenGL extension function pointers on Windows */
+    glewExperimental = GL_TRUE;
+    GLenum glew_err = glewInit();
+    if (glew_err != GLEW_OK)
+    {
+        log_error("GLEW initialisation failed: %s", glewGetErrorString(glew_err));
+        SDL_GL_DeleteContext(state->gl_context);
+        SDL_DestroyWindow(state->window);
+        SDL_Quit();
+        gui_state_destroy(state);
+        return;
+    }
+    log_info("GLEW version: %s", glewGetString(GLEW_VERSION));
+#endif
 
     setup_opengl(state->dark_mode);
     init_ball_textures(state);

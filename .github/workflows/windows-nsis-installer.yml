@@ -35,13 +35,15 @@ jobs:
             mingw-w64-x86_64-pkg-config
             mingw-w64-x86_64-SDL2
             mingw-w64-x86_64-SDL2_ttf
+            mingw-w64-x86_64-glew
+            mingw-w64-x86_64-openmp
 
       - name: Build open-lotto
         shell: msys2 {0}
         run: |
           mkdir -p build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DOPEN_LOTTO_ENABLE_OPENGL=OFF ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF ..
           cmake --build . --config Release
 
       - name: Copy DLL dependencies
@@ -69,6 +71,7 @@ jobs:
           # Seed DLL set required by our binary.
           cp /mingw64/bin/SDL2.dll .
           cp /mingw64/bin/SDL2_ttf.dll .
+          cp /mingw64/bin/glew32.dll . || echo "Warning: glew32.dll not found"
 
           # Recursively copy transitive runtime DLL dependencies from /mingw64/bin.
           queue=(./open-lotto.exe ./SDL2.dll ./SDL2_ttf.dll)
