@@ -195,8 +195,8 @@ target_link_libraries(open-lotto-plugin-validator
 
 target_link_options(open-lotto-plugin-validator PRIVATE -Wl,-export-dynamic)
 
-add_library(lotto SHARED plugins/lotto.c)
-add_library(eurojackpot SHARED plugins/eurojackpot.c)
+add_library(lotto SHARED plugins/lotto.c src/combogen.c src/random_seed.c src/log.c)
+add_library(eurojackpot SHARED plugins/eurojackpot.c src/combogen.c src/random_seed.c src/log.c)
 
 target_link_libraries(lotto PRIVATE m)
 target_link_libraries(eurojackpot PRIVATE m)
