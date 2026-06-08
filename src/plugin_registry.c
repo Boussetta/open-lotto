@@ -15,9 +15,28 @@
 #define INITIAL_CAPACITY 10
 #define MAX_PATH 512
 
+static int has_suffix_ci(const char *str, const char *suffix)
+{
+    if (!str || !suffix)
+        return 0;
+
+    size_t str_len = strlen(str);
+    size_t suffix_len = strlen(suffix);
+    if (str_len < suffix_len)
+        return 0;
+
+    return strcasecmp(str + (str_len - suffix_len), suffix) == 0;
+}
+
 static int is_plugin_file(const char *filename)
 {
-    return strstr(filename, ".so") != NULL;
+#ifdef _WIN32
+    return has_suffix_ci(filename, ".dll");
+#elif defined(__APPLE__)
+    return has_suffix_ci(filename, ".dylib");
+#else
+    return has_suffix_ci(filename, ".so");
+#endif
 }
 
 static int registry_find_plugin_index(PluginRegistry *registry, const char *game_name)
