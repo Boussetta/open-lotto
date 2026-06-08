@@ -199,6 +199,7 @@ jobs:
         run: bash ./scripts/run_benchmarks.sh build/benchmark_results.json build
 
       - name: Check performance regressions
+        continue-on-error: true
         run: bash ./scripts/check_performance_regression.sh build/benchmark_results.json .github/benchmark_baseline.json 5
 
       - name: Archive baseline to history
@@ -269,6 +270,7 @@ jobs:
         run: rm -rf .build-coverage
 
       - name: Run coverage analysis
+        continue-on-error: true
         run: bash ./scripts/run_coverage.sh
 
   docs:

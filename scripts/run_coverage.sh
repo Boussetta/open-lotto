@@ -40,6 +40,7 @@ lcov --capture \
 lcov --remove "$build_dir/coverage.info" \
   '/usr/*' \
   '*/tests/*' \
+  --ignore-errors unused \
   --output-file "$build_dir/coverage_filtered.info"
 
 # Print summary to stdout (used by CI to show coverage %)

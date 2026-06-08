@@ -14,6 +14,7 @@ static void print_usage(const char *prog)
     fprintf(stderr, "Usage: %s PLUGIN.so [PLUGIN.so ...]\n", prog);
 }
 
+
 static int validate_info(const char *path, const LotteryInfo *info)
 {
     if (info->main_count <= 0 || info->main_count > MAX_MAIN_NUMBERS)
