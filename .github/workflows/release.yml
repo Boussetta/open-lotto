@@ -36,6 +36,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           tar --exclude='.git' --exclude='build*' --exclude='.github' \
+            --exclude='open-lotto-*.tar.gz' --exclude='open-lotto-*.tar.gz.sha256' \
             -czf open-lotto-${VERSION}.tar.gz .
       
       - name: Create binary tarball
