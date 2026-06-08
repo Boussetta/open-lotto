@@ -30,12 +30,12 @@
 #define PROGRESS_BAR_WIDTH 40
 
 /**
- * Print a single-line progress bar on stderr that overwrites itself.
+ * Print a single-line progress bar on stderr with percentage and bit rate.
  * Call with done == total to emit a final newline.
  *
- *   Downloading historical draws [=========>          ] 23/50
+ *   Downloading historical draws [=========>          ] 23/50 (46%) 125 KiB/s
  */
-static void print_progress_bar(int done, int total)
+static void print_progress_bar(int done, int total, time_t start_time, size_t total_bytes)
 {
     if (total <= 0)
         return;
@@ -43,6 +43,28 @@ static void print_progress_bar(int done, int total)
     int filled = (int)((double)done / (double)total * PROGRESS_BAR_WIDTH);
     if (filled > PROGRESS_BAR_WIDTH)
         filled = PROGRESS_BAR_WIDTH;
+
+    int percentage = (int)((double)done / (double)total * 100.0);
+    
+    time_t now = time(NULL);
+    double elapsed = difftime(now, start_time);
+    double bit_rate = 0.0;
+    const char *rate_unit = "B/s";
+    
+    if (elapsed > 0)
+    {
+        bit_rate = (double)total_bytes / elapsed;
+        if (bit_rate >= 1024.0 * 1024.0)
+        {
+            bit_rate /= (1024.0 * 1024.0);
+            rate_unit = "MiB/s";
+        }
+        else if (bit_rate >= 1024.0)
+        {
+            bit_rate /= 1024.0;
+            rate_unit = "KiB/s";
+        }
+    }
 
     fprintf(stderr, "\r  Downloading historical draws [");
     for (int i = 0; i < PROGRESS_BAR_WIDTH; i++)
@@ -54,7 +76,7 @@ static void print_progress_bar(int done, int total)
         else
             fputc(' ', stderr);
     }
-    fprintf(stderr, "] %d/%d", done, total);
+    fprintf(stderr, "] %d/%d (%d%%) %.0f %s", done, total, percentage, bit_rate, rate_unit);
 
     if (done >= total)
         fputc('\n', stderr);
@@ -1093,12 +1115,14 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         int fetch_count = 0;
         int max_fetch = history_count;
         int first = 1;
+        time_t download_start = time(NULL);
+        size_t total_bytes = 0;
 
         log_info(
             "[historical_db] sync_latest: bulk download — fetching up to %d historical draws",
             max_fetch);
         fprintf(stderr, "  Fetching %d historical draws for %s\n", max_fetch, game_name);
-        print_progress_bar(0, max_fetch);
+        print_progress_bar(0, max_fetch, download_start, 0);
 
         for (int i = 0; i < max_fetch; i++)
         {
@@ -1109,9 +1133,11 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
             {
                 log_warn("[historical_db] sync_latest: skipping draw %d/%d (fetch failed)",
                          i + 1, max_fetch);
-                print_progress_bar(i + 1, max_fetch);
+                print_progress_bar(i + 1, max_fetch, download_start, total_bytes);
                 continue;
             }
+
+            total_bytes += strlen(draw_json);
 
             HistoricalDrawSnapshot draw;
             if (parse_eurojackpot_json(draw_json, &draw) == 0)
@@ -1165,7 +1191,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
                     history_dates[i]);
             }
 
-            print_progress_bar(i + 1, max_fetch);
+            print_progress_bar(i + 1, max_fetch, download_start, total_bytes);
             free(draw_json);
         }
 
