@@ -176,6 +176,7 @@ set(OPEN_LOTTO_SOURCES
     src/export.c
     src/combogen.c
     src/config.c
+    src/localization.c
     src/plugin_loader.c
     src/plugin_registry.c
     src/random_seed.c
@@ -329,6 +330,18 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:test_export>
     )
     set_tests_properties(unit_export PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    add_executable(test_localization
+        tests/test_localization.c
+        src/localization.c
+    )
+
+    add_test(NAME unit_localization
+        COMMAND $<TARGET_FILE:test_localization>
+    )
+    set_tests_properties(unit_localization PROPERTIES
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
