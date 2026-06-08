@@ -6,10 +6,7 @@
 #include <stdint.h>
 #include <time.h>
 
-#ifdef _WIN32
-#include <wincrypt.h>
-#pragma comment(lib, "advapi32.lib")
-#else
+#ifndef _WIN32
 #include <fcntl.h>
 #include <sys/random.h>
 #include <unistd.h>
@@ -34,33 +31,25 @@
  * @brief Read CPU TSC (Time Stamp Counter) or system timer for jitter.
  *
  * On x86_64 systems, uses the RDTSC instruction for ultra-high resolution
- * timing. On other architectures, falls back to system clock.
+ * timing. On other architectures or Windows, falls back to system clock.
  * This is used as a jitter source to supplement entropy and prevent
  * timing-based prediction attacks.
  *
- * @return uint64_t - TSC value or system timer timestamp XOR'd with nanoseconds
+ * @return uint64_t - TSC value or system timer timestamp
  */
-#if defined(__x86_64__)
+#if defined(__x86_64__) && !defined(_WIN32)
 static inline uint64_t rdtsc(void)
 {
     unsigned hi, lo;
     __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
     return ((uint64_t)hi << 32) | lo;
 }
-#elif defined(_WIN32)
-/* Windows implementation */
-static inline uint64_t rdtsc(void)
-{
-    LARGE_INTEGER counter;
-    QueryPerformanceCounter(&counter);
-    return (uint64_t)counter.QuadPart;
-}
 #else
-/* Non-x86 POSIX fallback */
+/* Windows or non-x86 fallback */
 static inline uint64_t rdtsc(void)
 {
     struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
+    clock_gettime(CLOCK_REALTIME, &ts);
     return (uint64_t)ts.tv_nsec ^ (uint64_t)ts.tv_sec;
 }
 #endif
@@ -89,33 +78,19 @@ uint64_t generate_strong_seed(void)
     uint64_t seed = 0;
 
 #ifdef _WIN32
-    /* Windows: Use CryptGenRandom from advapi32 */
-    log_debug("Using Windows CryptGenRandom for entropy");
-    HCRYPTPROV hProv = 0;
+    /* Windows / MinGW: Use time-based entropy with jitter */
+    log_debug("Using time-based entropy on Windows");
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) == 0)
+    {
+        seed = (((uint64_t)ts.tv_sec) ^ ((uint64_t)ts.tv_nsec << 32)) ^ rdtsc();
+        log_debug("Successfully obtained entropy from system clock");
+        return seed;
+    }
     
-    if (CryptAcquireContext(&hProv, NULL, NULL, PROV_RSA_FULL, 0))
-    {
-        if (CryptGenRandom(hProv, sizeof(seed), (BYTE *)&seed))
-        {
-            log_debug("Successfully obtained entropy from CryptGenRandom");
-            CryptReleaseContext(hProv, 0);
-            return seed ^ rdtsc();
-        }
-        CryptReleaseContext(hProv, 0);
-    }
-
-    /* Windows fallback: Use performance counter + time */
-    log_warn("CryptGenRandom failed, using timer-based fallback");
-    LARGE_INTEGER counter;
-    if (QueryPerformanceCounter(&counter))
-    {
-        seed = (uint64_t)counter.QuadPart ^ rdtsc();
-    }
-    else
-    {
-        /* Last resort: use system time */
-        seed = (uint64_t)time(NULL) ^ rdtsc();
-    }
+    /* Fallback to time() */
+    log_warn("clock_gettime failed, falling back to time()");
+    seed = (uint64_t)time(NULL) ^ rdtsc();
     return seed;
 
 #else
