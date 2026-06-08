@@ -15,9 +15,7 @@
 #include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_ttf.h>
 #include <math.h>
-#ifndef _WIN32
 #include <omp.h> // NOLINT(clang-diagnostic-error)
-#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
