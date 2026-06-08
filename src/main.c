@@ -299,7 +299,11 @@ int main(int argc, char **argv)
         }
         else if (strcmp(argv[i], "--debug-overlay") == 0)
         {
+#if OPEN_LOTTO_ENABLE_OPENGL
             debug_overlay = 1;
+#else
+            log_warn("Ignoring --debug-overlay: OpenGL backend is disabled in this build.");
+#endif
         }
         else if (strcmp(argv[i], "--dark-mode") == 0)
         {
