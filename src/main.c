@@ -7,6 +7,7 @@
 #include "export.h"
 #include "gui_opengl.h"
 #include "gui_sdl.h"
+#include "historical_db.h"
 #include "localization.h"
 #include "log.h"
 #include "plugin_loader.h"
@@ -153,6 +154,33 @@ static void print_draw_result(const char *game_name, int draw_num, const Lottery
     printf("\n\n");
 }
 
+static void print_historical_snapshot(const HistoricalDrawSnapshot *snapshot, int unchanged)
+{
+    printf("Local historical database (%s):\n", unchanged ? "unchanged" : "updated");
+    printf("  Game: %s\n", snapshot->game);
+    printf("  Draw date: %s\n", snapshot->draw_date);
+    printf("  Next draw: %s\n", snapshot->next_draw_date);
+    printf("  Main numbers: ");
+    for (int i = 0; i < snapshot->main_count; i++)
+        printf("%d%s", snapshot->main_numbers[i], i + 1 == snapshot->main_count ? "" : " ");
+
+    if (snapshot->extra_count > 0)
+    {
+        printf(" | Extra numbers: ");
+        for (int i = 0; i < snapshot->extra_count; i++)
+            printf("%d%s", snapshot->extra_numbers[i], i + 1 == snapshot->extra_count ? "" : " ");
+    }
+    printf("\n");
+
+    printf("  Winning classes (winners / payout):\n");
+    for (int i = 0; i < snapshot->winning_class_count; i++)
+    {
+        const HistoricalWinningClass *wc = &snapshot->winning_classes[i];
+        printf("    %s %s: %d / %.2f EUR\n", wc->class_id, wc->description, wc->winners,
+               wc->payout);
+    }
+}
+
 /* ---------------------------------------------------------
    PARSE LOG LEVEL FROM STRING
    --------------------------------------------------------- */
@@ -215,6 +243,7 @@ static void print_usage(const char *prog)
             "  %s --game NAME [--draws N] [--export csv|json] [--output FILE] [--reload-plugin] "
             "[--verbose LEVEL]\n"
             "  %s --game NAME --validate-only\n"
+            "  %s --game NAME --database-gewinnzahlen update\n"
             "  %s --list-games\n"
             "\n"
             "Modes:\n"
@@ -223,6 +252,8 @@ static void print_usage(const char *prog)
             "  --dark-mode <mode>     Dark mode theme: on, off, or auto (default: auto)\n"
             "  --debug-overlay        Show FPS/physics HUD in 3D GUI (requires --gui 3D)\n"
             "  --export FORMAT        Export results to file (csv or json)\n"
+            "  --database-gewinnzahlen update\n"
+            "                         Sync local DB with latest official draw (per game)\n"
             "  --reload-plugin        Reload the selected plugin from disk before running\n"
             "  --validate-only        Validate configuration without running\n"
             "\n"
@@ -253,11 +284,14 @@ static void print_usage(const char *prog)
             "  %s --game \"Lotto 6aus49\" --draws 100 --export csv --output results.csv\n"
             "  %s --game \"Lotto 6aus49\" --validate-only\n"
             "  %s --game \"Lotto 6aus49\" --verbose DEBUG\n"
+            "  %s --game \"Eurojackpot\" --database-gewinnzahlen update\n"
             "\n"
             "Environment Variables:\n"
             "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n"
-            "  OPEN_LOTTO_LANG         CLI locale (en, fr; fallback to en)\n",
-            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
+            "  OPEN_LOTTO_LANG         CLI locale (en, fr; fallback to en)\n"
+            "  OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT  Override upstream sync endpoint\n",
+            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
+            prog);
 }
 
 /* ---------------------------------------------------------
@@ -304,6 +338,7 @@ int main(int argc, char **argv)
     const char *export_filename = NULL;
     int validate_only = 0;
     int reload_plugin = 0;
+    const char *database_gewinnzahlen_cmd = NULL;
     int use_seed = 0;
     uint64_t seed_value = 0;
 
@@ -434,6 +469,24 @@ int main(int argc, char **argv)
         {
             reload_plugin = 1;
         }
+        else if (strcmp(argv[i], "--database-gewinnzahlen") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--database-gewinnzahlen requires a subcommand (use: update).\n");
+                config_free(&cfg);
+                return 1;
+            }
+            database_gewinnzahlen_cmd = argv[++i];
+            if (strcmp(database_gewinnzahlen_cmd, "update") != 0)
+            {
+                fprintf(stderr,
+                        "Unsupported --database-gewinnzahlen subcommand '%s' (use: update).\n",
+                        database_gewinnzahlen_cmd);
+                config_free(&cfg);
+                return 1;
+            }
+        }
         else if (strcmp(argv[i], "--seed") == 0)
         {
             if (i + 1 >= argc)
@@ -541,6 +594,14 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (database_gewinnzahlen_cmd && (animate || gui || export_format || use_seed || cli_draws > 0))
+    {
+        fprintf(stderr,
+                "Error: --database-gewinnzahlen update cannot be combined with draw options.\n");
+        config_free(&cfg);
+        return 1;
+    }
+
     if (gui_mode && validate_gui_mode(gui_mode) != VALIDATE_OK)
     {
         config_free(&cfg);
@@ -602,6 +663,58 @@ int main(int argc, char **argv)
         registry_destroy(registry);
         config_free(&cfg);
         return 1;
+    }
+
+    if (database_gewinnzahlen_cmd)
+    {
+        HistoricalDrawSnapshot snapshot;
+        int rc = historical_db_sync_latest(selected->name, NULL, &snapshot);
+
+        if (rc == HISTORICAL_DB_ERR_UNSUPPORTED_GAME)
+        {
+            fprintf(stderr, "Local historical DB sync is not supported for game '%s' yet.\n",
+                    selected->name);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (rc == HISTORICAL_DB_ERR_NETWORK)
+        {
+            fprintf(stderr, "Failed to fetch latest official draw data from upstream source.\n");
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (rc == HISTORICAL_DB_ERR_PARSE)
+        {
+            fprintf(stderr, "Failed to parse upstream draw data payload.\n");
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (rc == HISTORICAL_DB_ERR_IO)
+        {
+            fprintf(stderr, "Failed to write local historical database file.\n");
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (rc != HISTORICAL_DB_SYNC_UPDATED && rc != HISTORICAL_DB_SYNC_UNCHANGED)
+        {
+            fprintf(stderr, "Historical sync failed with unknown error code: %d\n", rc);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        print_historical_snapshot(&snapshot, rc == HISTORICAL_DB_SYNC_UNCHANGED);
+        registry_destroy(registry);
+        config_free(&cfg);
+        return 0;
     }
 
     /* If --validate-only flag is set, exit after successful validation */

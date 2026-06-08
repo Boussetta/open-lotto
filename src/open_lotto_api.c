@@ -84,6 +84,44 @@ uint64_t open_lotto_derive_seed(uint64_t base_seed, uint64_t draw_index)
     return x ^ (x >> 31);
 }
 
+static int map_historical_rc(int rc)
+{
+    if (rc == HISTORICAL_DB_SYNC_UPDATED)
+        return OPEN_LOTTO_API_SUCCESS;
+
+    if (rc == HISTORICAL_DB_SYNC_UNCHANGED)
+        return OPEN_LOTTO_API_SYNC_UNCHANGED;
+
+    if (rc == HISTORICAL_DB_ERR_INVALID_ARG)
+        return OPEN_LOTTO_API_ERR_INVALID_ARG;
+
+    if (rc == HISTORICAL_DB_ERR_UNSUPPORTED_GAME)
+        return OPEN_LOTTO_API_ERR_UNSUPPORTED_GAME;
+
+    if (rc == HISTORICAL_DB_ERR_NETWORK)
+        return OPEN_LOTTO_API_ERR_NETWORK;
+
+    if (rc == HISTORICAL_DB_ERR_PARSE)
+        return OPEN_LOTTO_API_ERR_PARSE;
+
+    if (rc == HISTORICAL_DB_ERR_IO)
+        return OPEN_LOTTO_API_ERR_IO;
+
+    return OPEN_LOTTO_API_ERR_PARSE;
+}
+
+int open_lotto_sync_historical_latest(const char *game_name, const char *db_root,
+                                      HistoricalDrawSnapshot *out_snapshot)
+{
+    return map_historical_rc(historical_db_sync_latest(game_name, db_root, out_snapshot));
+}
+
+int open_lotto_load_historical_latest(const char *game_name, const char *db_root,
+                                      HistoricalDrawSnapshot *out_snapshot)
+{
+    return map_historical_rc(historical_db_load_latest(game_name, db_root, out_snapshot));
+}
+
 const char *open_lotto_version(void)
 {
     return OPEN_LOTTO_VERSION_STRING;
