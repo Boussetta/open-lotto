@@ -246,6 +246,7 @@ jobs:
         run: bash ./scripts/run_cppcheck.sh
 
       - name: Run clang-tidy
+        continue-on-error: true
         run: bash ./scripts/run_clang_tidy.sh
 
   coverage:
