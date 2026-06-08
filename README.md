@@ -188,6 +188,14 @@ Deterministic replay (reproducible draws)
 
 ./open-lotto --game "Lotto 6aus49" --draws 10 --seed 0x1234abcd
 
+Sync latest official draw to local historical database (latest snapshot only)
+
+./open-lotto --game "Eurojackpot" --database-gewinnzahlen update
+
+Override Eurojackpot upstream endpoint (useful for tests/self-hosted mirrors)
+
+OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT="https://..." ./open-lotto --game "Eurojackpot" --database-gewinnzahlen update
+
 🧩 Plugin Architecture
 
 Each plugin must implement three symbols from `include/lottery_plugin.h`:
