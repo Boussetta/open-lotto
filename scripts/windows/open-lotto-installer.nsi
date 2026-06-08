@@ -31,12 +31,12 @@ Section "Install"
   SetOutPath "$INSTDIR"
   
   ; Copy executable
-  File "open-lotto.exe"
+  File "..\\..\\open-lotto.exe"
   
   ; Copy required DLLs (SDL2, OpenGL, runtime dependencies)
-  File "SDL2.dll"
-  File "SDL2_ttf.dll"
-  File "libwinpthread-1.dll"
+  File "..\\..\\SDL2.dll"
+  File "..\\..\\SDL2_ttf.dll"
+  File "..\\..\\libwinpthread-1.dll"
   
   ; Create uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
