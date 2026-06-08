@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake gcc clang pkg-config libsdl2-dev libsdl2-ttf-dev
+          sudo apt-get install -y cmake gcc clang pkg-config libsdl2-dev libsdl2-ttf-dev libomp-dev
 
       - name: Clean build directory
         run: rm -rf build
@@ -116,7 +116,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake gcc clang pkg-config libsdl2-dev libsdl2-ttf-dev
+          sudo apt-get install -y cmake gcc clang pkg-config libsdl2-dev libsdl2-ttf-dev libomp-dev
 
       - name: Clean sanitizer build directory
         run: rm -rf build-sanitizer
@@ -196,10 +196,10 @@ jobs:
           cmake --build build --config Release
 
       - name: Run benchmarks
-        run: ./scripts/run_benchmarks.sh build/benchmark_results.json build
+        run: bash ./scripts/run_benchmarks.sh build/benchmark_results.json build
 
       - name: Check performance regressions
-        run: ./scripts/check_performance_regression.sh build/benchmark_results.json .github/benchmark_baseline.json 5
+        run: bash ./scripts/check_performance_regression.sh build/benchmark_results.json .github/benchmark_baseline.json 5
 
       - name: Archive baseline to history
         if: always() && hashFiles('build/benchmark_results.json') != ''
@@ -242,10 +242,10 @@ jobs:
           restore-keys: cmake-tidy-${{ runner.os }}-
 
       - name: Run cppcheck
-        run: ./scripts/run_cppcheck.sh
+        run: bash ./scripts/run_cppcheck.sh
 
       - name: Run clang-tidy
-        run: ./scripts/run_clang_tidy.sh
+        run: bash ./scripts/run_clang_tidy.sh
 
   coverage:
     runs-on: ubuntu-latest
@@ -269,7 +269,7 @@ jobs:
         run: rm -rf .build-coverage
 
       - name: Run coverage analysis
-        run: ./scripts/run_coverage.sh
+        run: bash ./scripts/run_coverage.sh
 
   docs:
     runs-on: ubuntu-latest
@@ -289,7 +289,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y doxygen
 
       - name: Generate API documentation
-        run: ./scripts/generate_docs.sh
+        run: bash ./scripts/generate_docs.sh
 
       - name: Upload HTML docs as artifact
         uses: actions/upload-artifact@v4
