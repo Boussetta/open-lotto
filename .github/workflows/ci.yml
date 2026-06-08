@@ -190,6 +190,7 @@ jobs:
         run: |
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=ON \
             -DCMAKE_C_COMPILER=gcc \
             -DCMAKE_CXX_COMPILER=g++
           cmake --build build --config Release
@@ -201,14 +202,14 @@ jobs:
         run: ./scripts/check_performance_regression.sh build/benchmark_results.json .github/benchmark_baseline.json 5
 
       - name: Archive baseline to history
-        if: always()
+        if: always() && hashFiles('build/benchmark_results.json') != ''
         run: |
           python3 ./scripts/manage_baselines.py add build/benchmark_results.json \
             --commit ${{ github.sha }} \
             --arch x86_64
 
       - name: Upload benchmark results
-        if: always()
+        if: always() && hashFiles('build/benchmark_results.json') != ''
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results-${{ github.run_id }}
