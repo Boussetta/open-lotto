@@ -240,6 +240,9 @@ Recommended testing strategy:
 - Use `--reload-plugin` while iterating on a selected game to force the current process to
     drop the old handle and reload the updated shared object.
 
+If you plan to upstream your plugin, complete the review requirements in
+`docs/PLUGIN_REVIEW_CHECKLIST.md` before opening the PR.
+
 ### Hot Reload Workflow
 
 When you rebuild a plugin in place, Open-Lotto can swap the selected plugin handle before the
