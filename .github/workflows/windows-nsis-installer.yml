@@ -50,10 +50,34 @@ jobs:
           # Stage executable where NSIS script expects it
           cp build/open-lotto.exe ./open-lotto.exe || cp build/open-lotto ./open-lotto.exe
 
-          # Find SDL2 DLLs from MSYS2
-          cp /mingw64/bin/SDL2.dll . || echo "Warning: SDL2.dll not found"
-          cp /mingw64/bin/SDL2_ttf.dll . || echo "Warning: SDL2_ttf.dll not found"
-          cp /mingw64/bin/libwinpthread-1.dll . || echo "Warning: libwinpthread-1.dll not found"
+          # Seed DLL set required by our binary.
+          cp /mingw64/bin/SDL2.dll .
+          cp /mingw64/bin/SDL2_ttf.dll .
+
+          # Recursively copy transitive runtime DLL dependencies from /mingw64/bin.
+          queue=(./open-lotto.exe ./SDL2.dll ./SDL2_ttf.dll)
+          i=0
+          while [[ $i -lt ${#queue[@]} ]]; do
+            bin="${queue[$i]}"
+            i=$((i + 1))
+
+            while IFS= read -r dep; do
+              [[ -z "$dep" ]] && continue
+              base="$(basename "$dep")"
+              if [[ ! -f "./$base" ]]; then
+                cp "$dep" "./$base"
+                queue+=("./$base")
+              fi
+            done < <(
+              ldd "$bin" 2>/dev/null | awk '
+                /=> \/mingw64\/bin\// {print $3}
+                /^\/mingw64\/bin\// {print $1}
+              '
+            )
+          done
+
+          echo "Bundled runtime files:"
+          ls -1 ./*.dll
 
       - name: Build NSIS Installer
         run: |
@@ -69,8 +93,17 @@ jobs:
         run: |
           CertUtil -hashfile "scripts/windows/open-lotto-x64-setup.exe" SHA256 | Tee-Object checksums.txt
 
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-lotto-windows-installer
+          path: |
+            scripts/windows/open-lotto-x64-setup.exe
+            checksums.txt
+
       - name: Upload to Release
         if: success()
+        continue-on-error: true
         run: |
           $tag = "${{ github.event.inputs.version }}"
           if ($tag -notmatch '^v') { $tag = "v$tag" }

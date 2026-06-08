@@ -74,7 +74,7 @@ SectionEnd
 
 ; Uninstaller section
 Section "Uninstall"
-  ; Remove executable and DLLs
+  ; Remove executable and bundled runtime DLLs
   Delete "$INSTDIR\open-lotto.exe"
   Delete "$INSTDIR\*.dll"
   Delete "$INSTDIR\plugins\*.dll"
