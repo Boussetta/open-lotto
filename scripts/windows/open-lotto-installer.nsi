@@ -33,10 +33,8 @@ Section "Install"
   ; Copy executable
   File "..\\..\\open-lotto.exe"
   
-  ; Copy required DLLs (SDL2, OpenGL, runtime dependencies)
-  File "..\\..\\SDL2.dll"
-  File "..\\..\\SDL2_ttf.dll"
-  File "..\\..\\libwinpthread-1.dll"
+  ; Copy all bundled runtime DLLs collected by CI packaging step
+  File "..\\..\\*.dll"
   
   ; Create uninstaller
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -66,11 +64,9 @@ SectionEnd
 
 ; Uninstaller section
 Section "Uninstall"
-  ; Remove executable and DLLs
+  ; Remove executable and bundled runtime DLLs
   Delete "$INSTDIR\open-lotto.exe"
-  Delete "$INSTDIR\SDL2.dll"
-  Delete "$INSTDIR\SDL2_ttf.dll"
-  Delete "$INSTDIR\libwinpthread-1.dll"
+  Delete "$INSTDIR\*.dll"
   Delete "$INSTDIR\Uninstall.exe"
   
   ; Remove directory
