@@ -333,16 +333,16 @@ __attribute__((visibility("default"))) void
 generate_draw(int main_count, int main_min, int main_max, int extra_count, int extra_min,
               int extra_max, LotteryResult *out, draw_event_callback cb)
 {
-    generate_draw_impl(main_count, main_min, main_max, extra_count, extra_min, extra_max, out,
-                       cb, 0, 0);
+    generate_draw_impl(main_count, main_min, main_max, extra_count, extra_min, extra_max, out, cb,
+                       0, 0);
 }
 
 __attribute__((visibility("default"))) void
 generate_draw_seeded(int main_count, int main_min, int main_max, int extra_count, int extra_min,
                      int extra_max, uint64_t seed, LotteryResult *out, draw_event_callback cb)
 {
-    generate_draw_impl(main_count, main_min, main_max, extra_count, extra_min, extra_max, out,
-                       cb, 1, seed);
+    generate_draw_impl(main_count, main_min, main_max, extra_count, extra_min, extra_max, out, cb,
+                       1, seed);
 }
 
 __attribute__((visibility("default"))) void combogen_set_forced_seed(uint64_t seed)

@@ -2,8 +2,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "config.h"
 #include "combogen.h"
+#include "config.h"
 #include "export.h"
 #include "gui_opengl.h"
 #include "gui_sdl.h"
