@@ -3,11 +3,14 @@
  */
 
 #include "log.h"
-#include <fcntl.h>
 #include <stdint.h>
-#include <sys/random.h>
 #include <time.h>
+
+#ifndef _WIN32
+#include <fcntl.h>
+#include <sys/random.h>
 #include <unistd.h>
+#endif
 
 /**
  * @file random_seed.c
@@ -25,16 +28,16 @@
  */
 
 /**
- * @brief Read CPU TSC (Time Stamp Counter) or monotonic clock for jitter.
+ * @brief Read CPU TSC (Time Stamp Counter) or system timer for jitter.
  *
  * On x86_64 systems, uses the RDTSC instruction for ultra-high resolution
- * timing. On other architectures, falls back to CLOCK_MONOTONIC.
+ * timing. On other architectures or Windows, falls back to system clock.
  * This is used as a jitter source to supplement entropy and prevent
  * timing-based prediction attacks.
  *
- * @return uint64_t - TSC value or monotonic timestamp XOR'd with nanoseconds
+ * @return uint64_t - TSC value or system timer timestamp
  */
-#if defined(__x86_64__)
+#if defined(__x86_64__) && !defined(_WIN32)
 static inline uint64_t rdtsc(void)
 {
     unsigned hi, lo;
@@ -42,10 +45,11 @@ static inline uint64_t rdtsc(void)
     return ((uint64_t)hi << 32) | lo;
 }
 #else
+/* Windows or non-x86 fallback */
 static inline uint64_t rdtsc(void)
 {
     struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
+    clock_gettime(CLOCK_REALTIME, &ts);
     return (uint64_t)ts.tv_nsec ^ (uint64_t)ts.tv_sec;
 }
 #endif
@@ -73,7 +77,24 @@ uint64_t generate_strong_seed(void)
 {
     uint64_t seed = 0;
 
-    /* 1) Try Linux getrandom() - Best option */
+#ifdef _WIN32
+    /* Windows / MinGW: Use time-based entropy with jitter */
+    log_debug("Using time-based entropy on Windows");
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) == 0)
+    {
+        seed = (((uint64_t)ts.tv_sec) ^ ((uint64_t)ts.tv_nsec << 32)) ^ rdtsc();
+        log_debug("Successfully obtained entropy from system clock");
+        return seed;
+    }
+    
+    /* Fallback to time() */
+    log_warn("clock_gettime failed, falling back to time()");
+    seed = (uint64_t)time(NULL) ^ rdtsc();
+    return seed;
+
+#else
+    /* POSIX: Try getrandom() first */
     log_debug("Attempting to get entropy from getrandom()");
     if (getrandom(&seed, sizeof(seed), 0) == sizeof(seed))
     {
@@ -81,7 +102,7 @@ uint64_t generate_strong_seed(void)
         return seed ^ rdtsc();
     }
 
-    /* 2) Fallback: /dev/urandom */
+    /* Fallback: /dev/urandom */
     log_debug("getrandom() failed, falling back to /dev/urandom");
     int fd = open("/dev/urandom", O_RDONLY);
     if (fd >= 0)
@@ -98,7 +119,7 @@ uint64_t generate_strong_seed(void)
         log_warn("/dev/urandom returned insufficient entropy, using time-based fallback");
     }
 
-    /* 3) Final fallback: time + jitter */
+    /* Final fallback: time + jitter */
     log_warn("Both getrandom() and /dev/urandom failed, using time-based fallback");
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -107,4 +128,5 @@ uint64_t generate_strong_seed(void)
     seed = (((uint64_t)ts.tv_sec) << 32) ^ (uint64_t)ts.tv_nsec ^ rdtsc();
 
     return seed;
+#endif
 }
