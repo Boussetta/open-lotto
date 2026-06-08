@@ -174,7 +174,6 @@ endif()
 set(OPEN_LOTTO_SOURCES
     src/main.c
     src/export.c
-    src/historical_db.c
     src/combogen.c
     src/config.c
     src/localization.c
@@ -235,7 +234,6 @@ target_link_options(open-lotto-plugin-validator PRIVATE -Wl,-export-dynamic)
 
 add_library(open_lotto_devapi STATIC
     src/open_lotto_api.c
-    src/historical_db.c
     src/combogen.c
     src/random_seed.c
     src/log.c
@@ -350,7 +348,6 @@ if(BUILD_TESTING)
     add_executable(test_dev_api
         tests/test_dev_api.c
         src/open_lotto_api.c
-        src/historical_db.c
         src/combogen.c
         src/random_seed.c
         src/log.c
@@ -358,30 +355,12 @@ if(BUILD_TESTING)
 
     target_compile_definitions(test_dev_api
         PRIVATE OPEN_LOTTO_VERSION_STRING="${PROJECT_VERSION}"
-                HISTORICAL_DB_FIXTURE_PATH="${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_gewinnzahlen.json"
     )
 
     add_test(NAME unit_dev_api
         COMMAND $<TARGET_FILE:test_dev_api>
     )
     set_tests_properties(unit_dev_api PROPERTIES
-        PASS_REGULAR_EXPRESSION "Tests passed:"
-    )
-
-    add_executable(test_historical_db
-        tests/test_historical_db.c
-        src/historical_db.c
-        src/log.c
-    )
-
-    target_compile_definitions(test_historical_db PRIVATE
-        HISTORICAL_DB_FIXTURE_PATH="${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_gewinnzahlen.json"
-    )
-
-    add_test(NAME unit_historical_db
-        COMMAND $<TARGET_FILE:test_historical_db>
-    )
-    set_tests_properties(unit_historical_db PROPERTIES
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
@@ -422,19 +401,6 @@ if(BUILD_TESTING)
     set_tests_properties(cli_reloads_selected_plugin PROPERTIES
         PASS_REGULAR_EXPRESSION "Plugin reload: enabled"
     )
-
-    add_test(NAME cli_syncs_historical_db_latest
-        COMMAND $<TARGET_FILE:open-lotto> --game "Eurojackpot" --database-gewinnzahlen update
-    )
-    set_tests_properties(cli_syncs_historical_db_latest PROPERTIES
-        PASS_REGULAR_EXPRESSION "Local historical database"
-        ENVIRONMENT "OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT=file://${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_gewinnzahlen.json"
-    )
-
-    add_test(NAME cli_historical_db_unsupported_game
-        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --database-gewinnzahlen update
-    )
-    set_tests_properties(cli_historical_db_unsupported_game PROPERTIES WILL_FAIL TRUE)
 
     add_test(NAME plugin_validator_accepts_valid_plugin
         COMMAND $<TARGET_FILE:open-lotto-plugin-validator> "${CMAKE_BINARY_DIR}/plugins/liblotto.so"

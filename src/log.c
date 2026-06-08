@@ -4,22 +4,11 @@
 
 #include "log.h"
 
-#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <time.h>
-
-#ifdef _WIN32
-#include <direct.h>
-#define mkdir_compat(p) _mkdir(p)
-#else
-#include <unistd.h>
-#define mkdir_compat(p) mkdir((p), 0755)
-#endif
 
 static LogLevel current_level = LOG_INFO;
 static FILE *log_file = NULL;
@@ -79,86 +68,6 @@ void log_enable_file_output(const char *filename)
     }
 }
 
-/* Create every component of `path` that does not already exist. */
-static void log_mkdir_p(const char *path)
-{
-    char tmp[768];
-    size_t len = strlen(path);
-    if (!path || len == 0 || len >= sizeof(tmp))
-        return;
-
-    strncpy(tmp, path, sizeof(tmp) - 1);
-    tmp[sizeof(tmp) - 1] = '\0';
-
-    for (size_t i = 1; i < len; i++)
-    {
-#ifdef _WIN32
-        if (tmp[i] == '\\' || tmp[i] == '/')
-#else
-        if (tmp[i] == '/')
-#endif
-        {
-            tmp[i] = '\0';
-            if (mkdir_compat(tmp) != 0 && errno != EEXIST)
-            {
-                tmp[i] = '/';
-                return;
-            }
-            tmp[i] = '/';
-        }
-    }
-    mkdir_compat(tmp); /* last component */
-}
-
-void log_init_default_file(void)
-{
-    char dir[768];
-    char path[800];
-
-#if defined(_WIN32)
-    /* Windows: %APPDATA%\open-lotto\logs\ */
-    const char *appdata = getenv("APPDATA");
-    if (!appdata || appdata[0] == '\0')
-        return;
-    snprintf(dir, sizeof(dir), "%s\\open-lotto\\logs", appdata);
-    snprintf(path, sizeof(path), "%s\\open-lotto.log", dir);
-    /* normalise separators for fopen */
-    for (char *p = dir; *p; p++)
-        if (*p == '\\')
-            *p = '/';
-    for (char *p = path; *p; p++)
-        if (*p == '\\')
-            *p = '/';
-
-#elif defined(__APPLE__)
-    /* macOS: ~/Library/Logs/open-lotto/ */
-    const char *home = getenv("HOME");
-    if (!home || home[0] == '\0')
-        home = ".";
-    snprintf(dir, sizeof(dir), "%s/Library/Logs/open-lotto", home);
-    snprintf(path, sizeof(path), "%s/open-lotto.log", dir);
-
-#else
-    /* Linux / other POSIX: $XDG_STATE_HOME/open-lotto/ */
-    const char *state_home = getenv("XDG_STATE_HOME");
-    if (state_home && state_home[0] != '\0')
-    {
-        snprintf(dir, sizeof(dir), "%s/open-lotto", state_home);
-    }
-    else
-    {
-        const char *home = getenv("HOME");
-        if (!home || home[0] == '\0')
-            home = ".";
-        snprintf(dir, sizeof(dir), "%s/.local/state/open-lotto", home);
-    }
-    snprintf(path, sizeof(path), "%s/open-lotto.log", dir);
-#endif
-
-    log_mkdir_p(dir);
-    log_enable_file_output(path);
-}
-
 static void log_write(LogLevel level, const char *fmt, va_list args)
 {
     if (level > current_level)
@@ -172,10 +81,7 @@ static void log_write(LogLevel level, const char *fmt, va_list args)
 
     // Console output (colored)
     fprintf(stderr, "%s[%s] %s: ", level_to_color(level), timebuf, level_to_string(level));
-    va_list args_console;
-    va_copy(args_console, args);
-    vfprintf(stderr, fmt, args_console);
-    va_end(args_console);
+    vfprintf(stderr, fmt, args);
     fprintf(stderr, "%s\n", COLOR_RESET);
 
     // File output (no colors)
