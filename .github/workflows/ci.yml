@@ -197,6 +197,13 @@ jobs:
       - name: Check performance regressions
         run: ./scripts/check_performance_regression.sh build/benchmark_results.json .github/benchmark_baseline.json 5
 
+      - name: Archive baseline to history
+        if: always()
+        run: |
+          python3 ./scripts/manage_baselines.py add build/benchmark_results.json \
+            --commit ${{ github.sha }} \
+            --arch x86_64
+
       - name: Upload benchmark results
         if: always()
         uses: actions/upload-artifact@v4

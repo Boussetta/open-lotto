@@ -204,6 +204,7 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[DEBUGGING.md](docs/DEBUGGING.md)** — GDB workflow, AddressSanitizer interpretation, Valgrind usage, core dump analysis, static analysis
 - **[STATIC_ANALYSIS.md](docs/STATIC_ANALYSIS.md)** — Cppcheck and clang-tidy integration, suppressing false positives, CI configuration
 - **[PERFORMANCE_TUNING.md](docs/PERFORMANCE_TUNING.md)** — Bottleneck identification, profiling with perf/Valgrind, cache optimization, compiler flags, OpenMP parallelization
+- **[BASELINE_TRACKING.md](docs/BASELINE_TRACKING.md)** — Historical performance baseline management, trend analysis, degradation detection
 - **[plugin-guide.md](docs/plugin-guide.md)** — How to write new lottery game plugins
 - **[plugin-marketplace.md](docs/plugin-marketplace.md)** — Community plugins and distribution
 - **[PERFORMANCE.md](docs/PERFORMANCE.md)** — Benchmark results and optimization notes
