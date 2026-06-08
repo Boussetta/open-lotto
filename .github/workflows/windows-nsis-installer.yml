@@ -1,0 +1,70 @@
+name: Windows NSIS Installer Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number'
+        required: true
+        default: '0.7.0'
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-SDL2_ttf
+
+      - name: Build open-lotto
+        shell: msys2 {0}
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          cmake --build . --config Release
+
+      - name: Copy DLL dependencies
+        shell: bash
+        run: |
+          # Find SDL2 DLLs from MSYS2
+          MSYS2_ROOT="C:/msys64/mingw64"
+          cp "$MSYS2_ROOT/bin/SDL2.dll" build/ || echo "Warning: SDL2.dll not found"
+          cp "$MSYS2_ROOT/bin/SDL2_ttf.dll" build/ || echo "Warning: SDL2_ttf.dll not found"
+          cp "$MSYS2_ROOT/bin/libwinpthread-1.dll" build/ || echo "Warning: libwinpthread-1.dll not found"
+
+      - name: Build NSIS Installer
+        run: |
+          # Update version in NSIS script
+          $nsiContent = Get-Content scripts/windows/open-lotto-installer.nsi -Raw
+          $nsiContent = $nsiContent -replace '0\.7\.0', '${{ github.event.inputs.version }}'
+          Set-Content -Path scripts/windows/open-lotto-installer.nsi -Value $nsiContent
+          
+          # Run NSIS
+          & "C:\Program Files (x86)\NSIS\makensis.exe" scripts/windows/open-lotto-installer.nsi
+
+      - name: Generate checksum
+        run: |
+          CertUtil -hashfile "open-lotto-x64-setup.exe" SHA256 | Tee-Object checksums.txt
+
+      - name: Upload to Release
+        if: success()
+        run: |
+          gh release upload "${{ github.event.inputs.version }}" "open-lotto-x64-setup.exe" --clobber
+          gh release upload "${{ github.event.inputs.version }}" "checksums.txt" --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

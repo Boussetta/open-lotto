@@ -1,0 +1,49 @@
+version: 1
+
+AppDir:
+  path: ./AppDir
+
+  app_info:
+    id: com.boussetta.openlotto
+    name: Open Lotto
+    icon: icon
+    version: "@VERSION@"
+    # Adjust the line below so it only modifies "Exec" for the desktop file
+    exec: usr/bin/open-lotto
+    comment: Modular lottery number generator
+
+  apt:
+    arch: x86_64
+    sources:
+      - deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ focal main universe
+      - deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ focal-updates main universe
+
+    packages:
+      - libsdl2-2.0-0
+      - libsdl2-ttf-2.0-0
+      - libgl1-mesa-glx
+      - libgomp1
+      - libc6
+
+  files:
+    include:
+      - usr/bin/open-lotto
+      - usr/lib/x86_64-linux-gnu/libSDL2*.so*
+      - usr/lib/x86_64-linux-gnu/libSDL2_ttf*.so*
+      - usr/lib/x86_64-linux-gnu/libGL*.so*
+      - usr/lib/x86_64-linux-gnu/libgomp*.so*
+    exclude:
+      - usr/share/doc
+      - usr/share/man
+
+  desktop:
+    - filename: open-lotto.desktop
+      Name: Open Lotto
+      Exec: open-lotto
+      Icon: open-lotto
+      Type: Application
+      Categories: Utility;
+
+AppImage:
+  arch: x86_64
+  file_name: open-lotto-x86_64.AppImage

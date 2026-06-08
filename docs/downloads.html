@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download Open Lotto - Modular Lottery Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 3rem;
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .platforms {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+        
+        .platform {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .platform:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .platform-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        
+        .platform h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        
+        .platform p {
+            margin-bottom: 1rem;
+            color: #666;
+            font-size: 0.95rem;
+        }
+        
+        .download-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.8rem 1.5rem;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: opacity 0.3s;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .download-btn:hover {
+            opacity: 0.9;
+        }
+        
+        .secondary-btn {
+            background: #f0f0f0;
+            color: #333;
+            border: 2px solid #ddd;
+        }
+        
+        .secondary-btn:hover {
+            background: #e8e8e8;
+        }
+        
+        .requirements {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .requirements h3 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        
+        .requirements p {
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        
+        footer {
+            text-align: center;
+            color: white;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        footer a {
+            color: white;
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎲 Open Lotto</h1>
+            <p>Modular, High-Entropy Lottery Number Generator</p>
+            <div style="margin-top: 1rem;">
+                <span class="badge">Linux</span>
+                <span class="badge">macOS</span>
+                <span class="badge">Windows</span>
+            </div>
+        </header>
+        
+        <div class="platforms">
+            <div class="platform">
+                <div class="platform-icon">🐧</div>
+                <h2>Linux</h2>
+                <p><strong>AppImage:</strong> Single executable, works on any distro</p>
+                <p>Zero installation required. Works on Ubuntu 18.04+, Debian 10+, Fedora 30+, Arch, and more.</p>
+                <a href="https://github.com/Boussetta/open-lotto/releases/latest" class="download-btn">Download AppImage</a>
+                <a href="https://github.com/Boussetta/open-lotto/releases" class="download-btn secondary-btn">All Releases</a>
+                <p style="margin-top: 1rem; font-size: 0.85rem; color: #999;">Alternative: <code>flatpak install flathub com.boussetta.openlotto</code></p>
+            </div>
+            
+            <div class="platform">
+                <div class="platform-icon">🍎</div>
+                <h2>macOS</h2>
+                <p><strong>Homebrew:</strong> <code>brew install open-lotto</code></p>
+                <p>Intel & Apple Silicon support. Code-signed and notarized for Gatekeeper.</p>
+                <a href="https://github.com/Boussetta/open-lotto/releases/latest" class="download-btn">Download Binary</a>
+                <a href="https://github.com/Boussetta/open-lotto/releases" class="download-btn secondary-btn">All Releases</a>
+                <p style="margin-top: 1rem; font-size: 0.85rem; color: #999;">Requires: macOS 12.0+ (dependencies bundled)</p>
+            </div>
+            
+            <div class="platform">
+                <div class="platform-icon">🪟</div>
+                <h2>Windows</h2>
+                <p><strong>Installer:</strong> Click, next, done</p>
+                <p>64-bit Windows 10/11. All dependencies bundled—no extra software needed.</p>
+                <a href="https://github.com/Boussetta/open-lotto/releases/latest" class="download-btn">Download Installer</a>
+                <a href="https://github.com/Boussetta/open-lotto/releases" class="download-btn secondary-btn">All Releases</a>
+                <p style="margin-top: 1rem; font-size: 0.85rem; color: #999;">Includes: SDL2, OpenGL, runtime libraries</p>
+            </div>
+        </div>
+        
+        <div class="requirements">
+            <h3>✅ System Requirements</h3>
+            <p><strong>Linux:</strong> Any distro with glibc 2.29+ (Ubuntu 18.04+, Debian 10+, Fedora 30+, etc.)</p>
+            <p><strong>macOS:</strong> macOS 12.0+ (Intel or Apple Silicon)</p>
+            <p><strong>Windows:</strong> Windows 10 or 11 (64-bit)</p>
+        </div>
+        
+        <footer>
+            <p>📚 <a href="https://github.com/Boussetta/open-lotto/blob/main/docs/DOWNLOAD_INSTALL.md">Full Installation Guide</a> | 
+               🐛 <a href="https://github.com/Boussetta/open-lotto/issues">Report Issues</a> | 
+               💬 <a href="https://github.com/Boussetta/open-lotto/discussions">Ask Questions</a></p>
+            <p style="margin-top: 1rem; opacity: 0.8;">© 2025 Open Lotto • MIT License • <a href="https://github.com/Boussetta/open-lotto">GitHub Repository</a></p>
+        </footer>
+    </div>
+</body>
+</html>
