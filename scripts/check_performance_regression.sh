@@ -1,8 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Detect architecture for baseline file naming
+detect_architecture() {
+    if [[ $(uname -m) == "x86_64" ]]; then
+        echo "x86_64"
+    elif [[ $(uname -m) == "aarch64" ]]; then
+        echo "aarch64"
+    elif [[ $(uname -m) == "armv7l" ]]; then
+        echo "armv7l"
+    elif [[ $(uname -m) == "armv6l" ]]; then
+        echo "armv6l"
+    elif [[ $(uname -m) == "riscv64" ]]; then
+        echo "riscv64"
+    elif [[ $(uname -m) == "ppc64" ]]; then
+        echo "ppc64"
+    else
+        uname -m
+    fi
+}
+
+ARCH=$(detect_architecture)
 CURRENT="${1:-./build/benchmark_results.json}"
-BASELINE="${2:-./.github/benchmark_baseline.json}"
+BASELINE="${2:-./.github/benchmark_baseline_${ARCH}.json}"
 THRESHOLD="${3:-5}"
 
 if [ ! -f "$CURRENT" ]; then
@@ -11,13 +31,13 @@ if [ ! -f "$CURRENT" ]; then
 fi
 
 if [ ! -f "$BASELINE" ]; then
-  echo "Creating baseline..."
+  echo "Creating baseline for architecture: ${ARCH}..."
   mkdir -p "$(dirname "$BASELINE")"
   cp "$CURRENT" "$BASELINE"
   exit 0
 fi
 
-echo "Checking performance regressions (threshold: ${THRESHOLD}%)..."
+echo "Checking performance regressions for ${ARCH} (threshold: ${THRESHOLD}%)..."
 python3 << PYTHON
 import json, sys
 

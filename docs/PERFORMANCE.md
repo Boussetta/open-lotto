@@ -65,21 +65,35 @@ Checking performance regressions (threshold: 5%)...
 
 ## Baseline Management
 
-The baseline is stored in `.github/benchmark_baseline.json` and represents expected throughput.
+Baselines are stored in architecture-specific files to ensure meaningful comparisons across different hardware platforms:
+
+- **Throughput baselines**: `.github/benchmark_baseline_<arch>.json` (e.g., `benchmark_baseline_x86_64.json`)
+- **Memory baselines**: `benchmark_memory_baseline_<arch>.txt` (e.g., `benchmark_memory_baseline_x86_64.txt`)
+
+Supported architectures: `x86_64`, `aarch64`, `armv7l`, `armv6l`, `riscv64`, `ppc64`, and others.
 
 ### Update Baseline
+
 Run on a clean system with no background load:
+
 ```bash
+# Generate benchmarks for current architecture
 ./scripts/run_benchmarks.sh build/benchmark_results.json build
-cp build/benchmark_results.json .github/benchmark_baseline.json
-git add .github/benchmark_baseline.json
-git commit -m "chore: update performance baseline"
+
+# Copy to architecture-specific baseline file
+ARCH=$(uname -m)
+cp build/benchmark_results.json .github/benchmark_baseline_${ARCH}.json
+git add .github/benchmark_baseline_${ARCH}.json
+git commit -m "chore: update performance baseline for ${ARCH}"
 ```
+
+Memory baselines are created automatically on first run with the benchmark executable.
 
 ### When to Update
 - After significant algorithm optimizations
 - After changing compiler flags
 - When intentionally accepting performance changes
+- When establishing baselines for a new architecture
 
 **Do NOT** update baseline to hide regressions.
 
@@ -87,9 +101,10 @@ git commit -m "chore: update performance baseline"
 
 The `performance` job runs on every commit:
 1. Builds in Release mode (with optimizations)
-2. Runs benchmarks (100k iterations)
-3. Checks for >5% regressions (fails if exceeded)
-4. Uploads `benchmark_results.json` as artifact
+2. Detects system architecture automatically
+3. Runs benchmarks (100k iterations)
+4. Checks for >5% regressions against architecture-specific baselines (fails if exceeded)
+5. Uploads `benchmark_results.json` as artifact
 
 Results are available in GitHub Actions artifacts for historical tracking.
 
@@ -133,4 +148,4 @@ Run locally:
 - [ ] Comparative analysis (main vs branch)
 - [ ] Memory profiling (peak usage, allocations)
 - [ ] CPU profiling (hot paths)
-- [ ] Architecture-specific baselines (x86_64, ARM, etc.)
+- [x] Architecture-specific baselines (x86_64, ARM, etc.)

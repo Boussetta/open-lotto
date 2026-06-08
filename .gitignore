@@ -16,3 +16,6 @@ CMakeCache.txt
 compile_commands.json
 docs/api/
 
+# Performance baseline files (local, architecture-specific)
+benchmark_memory_baseline_*.txt
+

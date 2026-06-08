@@ -41,6 +41,43 @@
  * ---------------------------------------------------------------------- */
 
 /**
+ * @brief Detect the current CPU architecture.
+ *
+ * Returns a string identifying the architecture (e.g., "x86_64", "aarch64", "armv7l").
+ * This is used for architecture-specific baseline management.
+ */
+static const char *detect_architecture(void)
+{
+#if defined(__x86_64__) || defined(_M_X64)
+    return "x86_64";
+#elif defined(__i386__) || defined(_M_IX86)
+    return "i386";
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    return "aarch64";
+#elif defined(__arm__) || defined(_M_ARM)
+    return "armv7l";
+#elif defined(__riscv)
+#if __riscv_xlen == 64
+    return "riscv64";
+#else
+    return "riscv32";
+#endif
+#elif defined(__powerpc64__)
+    return "ppc64";
+#elif defined(__powerpc__)
+    return "ppc";
+#elif defined(__mips__)
+#if _MIPS_SIM == _ABI64
+    return "mips64";
+#else
+    return "mips";
+#endif
+#else
+    return "unknown";
+#endif
+}
+
+/**
  * @brief Get current wall-clock time in microseconds.
  */
 static uint64_t get_time_us(void)
@@ -308,7 +345,22 @@ static void benchmark_memory_profile(int iterations)
  * Memory regression detection
  * ---------------------------------------------------------------------- */
 
-#define MEMORY_BASELINE_FILE "benchmark_memory_baseline.txt"
+/**
+ * @brief Get the architecture-specific memory baseline file path.
+ *
+ * This function returns a dynamically constructed path to an architecture-specific
+ * baseline file, allowing different architectures to maintain independent baselines.
+ *
+ * The returned string is stored in a static buffer and will be overwritten on
+ * subsequent calls.
+ */
+static const char *get_memory_baseline_filename(void)
+{
+    static char filename[256];
+    const char *arch = detect_architecture();
+    snprintf(filename, sizeof(filename), "benchmark_memory_baseline_%s.txt", arch);
+    return filename;
+}
 
 /**
  * @brief Compare current peak RSS against a stored baseline and report.
@@ -316,22 +368,25 @@ static void benchmark_memory_profile(int iterations)
  * If no baseline file exists it is created.  If the current reading
  * exceeds the stored value by more than REGRESSION_THRESHOLD_KB the
  * function returns 1 (regression detected), otherwise 0.
+ *
+ * Baselines are stored in architecture-specific files to ensure meaningful
+ * comparisons across different hardware platforms.
  */
 static int check_memory_regression(long current_peak_kb)
 {
 #define REGRESSION_THRESHOLD_KB 512L
 
-    FILE *f = fopen(MEMORY_BASELINE_FILE, "r");
+    const char *baseline_file = get_memory_baseline_filename();
+    FILE *f = fopen(baseline_file, "r");
     if (f == NULL)
     {
         /* First run – record baseline */
-        f = fopen(MEMORY_BASELINE_FILE, "w");
+        f = fopen(baseline_file, "w");
         if (f != NULL)
         {
             fprintf(f, "%ld\n", current_peak_kb);
             fclose(f);
-            printf("  Memory baseline written: %ld KB  (%s)\n", current_peak_kb,
-                   MEMORY_BASELINE_FILE);
+            printf("  Memory baseline written: %ld KB  (%s)\n", current_peak_kb, baseline_file);
         }
         return 0;
     }
@@ -425,6 +480,7 @@ int main(int argc, const char *argv[])
     printf("============================================================\n");
     printf("Open-Lotto Performance Benchmarks\n");
     printf("============================================================\n");
+    printf("Architecture: %s\n", detect_architecture());
     printf("Iterations: %d\n", iterations);
 
     /* ------------------------------------------------------------------
