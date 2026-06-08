@@ -15,8 +15,7 @@ static void test_known_locale_keys(void)
 static void test_unknown_locale_falls_back_to_english(void)
 {
     const char *main_label = localization_get("es", LOCALIZE_MAIN);
-    assert_true(strcmp(main_label, "Main") == 0,
-                "Unknown locale falls back to English main label");
+    assert_true(strcmp(main_label, "Main") == 0, "Unknown locale falls back to English main label");
 }
 
 static void test_missing_locale_falls_back_to_english(void)
