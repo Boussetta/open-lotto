@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake gcc pkg-config libsdl2-dev libsdl2-ttf-dev
+          sudo apt-get install -y cmake gcc pkg-config libsdl2-dev libsdl2-ttf-dev python3
       
       - name: Configure CMake
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -63,11 +63,9 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
+          python3 ./scripts/generate_changelog.py --to-ref HEAD --output release_changelog.md
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-          git log $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo HEAD~10)..HEAD \
-            --oneline \
-            --grep='^feat\|^fix\|^perf' \
-            | sed 's/^/- /' >> $GITHUB_OUTPUT
+          cat release_changelog.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
       
       - name: Create release
