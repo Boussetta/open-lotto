@@ -59,6 +59,7 @@ Once you push the tag, GitHub Actions automatically:
 2. **Generates artifacts**:
    - Source tarball: `open-lotto-1.0.0.tar.gz`
    - Binary tarball: `open-lotto-1.0.0-linux-x64.tar.gz`
+   - SBOM file: `open-lotto-v1.0.0.spdx.json`
    - SHA256 checksums for both
 3. **Creates a GitHub Release** with:
    - Automated changelog extracted from commit messages
@@ -75,6 +76,7 @@ The automated release workflow (`.github/workflows/release.yml`) performs:
 - **Artifacts**: 
   - Source tarball (full repository with git history excluded)
   - Binary tarball (compiled binaries only)
+   - SPDX JSON SBOM generated from repository contents
   - SHA256 checksums for integrity verification
 - **Changelog**: Automatically extracted from commits since last tag, filtering for `feat:`, `fix:`, and `perf:` commits
 - **Release Publication**: Creates GitHub release with artifacts and changelog
