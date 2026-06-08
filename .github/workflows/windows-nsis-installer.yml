@@ -50,6 +50,22 @@ jobs:
           # Stage executable where NSIS script expects it
           cp build/open-lotto.exe ./open-lotto.exe || cp build/open-lotto ./open-lotto.exe
 
+          # Normalize plugin output location for packaging.
+          # On MinGW builds, plugin DLLs may be emitted in build/ instead of build/plugins/.
+          mkdir -p build/plugins
+          while IFS= read -r plugin_dll; do
+            cp "$plugin_dll" build/plugins/
+          done < <(
+            find build -maxdepth 2 -type f -name '*.dll' \
+              ! -name 'open-lotto.exe' \
+              ! -name 'SDL2.dll' \
+              ! -name 'SDL2_ttf.dll' \
+              ! -name 'libwinpthread-1.dll'
+          )
+
+          echo "Bundled plugins:"
+          ls -1 build/plugins/*.dll
+
           # Seed DLL set required by our binary.
           cp /mingw64/bin/SDL2.dll .
           cp /mingw64/bin/SDL2_ttf.dll .
