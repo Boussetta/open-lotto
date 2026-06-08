@@ -1,0 +1,65 @@
+name: macOS Code Sign and Notarize
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to sign'
+        required: true
+
+jobs:
+  macos-sign-notarize:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.version }}
+
+      - name: Download binary from release
+        run: |
+          BINARY_URL=$(gh release view ${{ github.event.inputs.version }} --json assets --jq '.assets[] | select(.name | contains("macos")) | .url' | head -1)
+          curl -L -o open-lotto-macos "$BINARY_URL"
+          chmod +x open-lotto-macos
+
+      - name: Import signing certificate
+        env:
+          DEVELOPER_CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_CERTIFICATE_BASE64 }}
+          DEVELOPER_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_CERTIFICATE_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/developer_id.p12
+          echo $DEVELOPER_CERTIFICATE_BASE64 | base64 --decode > $CERTIFICATE_PATH
+          security create-keychain -p "$DEVELOPER_CERTIFICATE_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$DEVELOPER_CERTIFICATE_PASSWORD" build.keychain
+          security import $CERTIFICATE_PATH -k build.keychain -P "$DEVELOPER_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+
+      - name: Code sign binary
+        env:
+          DEVELOPER_IDENTITY: "Developer ID Application: Wissem Boussetta (${{ secrets.TEAM_ID }})"
+        run: |
+          codesign --force --verify --verbose --sign "$DEVELOPER_IDENTITY" open-lotto-macos
+          codesign --verify --verbose open-lotto-macos
+
+      - name: Submit for notarization
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: |
+          # Zip for notarization
+          ditto -c -k --sequesterRsrc open-lotto-macos open-lotto-macos.zip
+          
+          # Submit
+          xcrun notarytool submit open-lotto-macos.zip \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_ID_PASSWORD" \
+              --team-id "$TEAM_ID" \
+              --wait
+          
+          # Staple
+          xcrun stapler staple open-lotto-macos
+
+      - name: Upload signed binary
+        run: |
+          gh release upload ${{ github.event.inputs.version }} open-lotto-macos --clobber
