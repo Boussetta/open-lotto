@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Wissem Boussetta
+# SPDX-License-Identifier: MIT
+
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
