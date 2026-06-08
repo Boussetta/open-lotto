@@ -85,6 +85,16 @@ The random number generation uses system entropy sources for lottery draws:
 - Not suitable for cryptographic use
 - Sufficient for lottery draw randomness
 
+## Entropy Audit Program
+
+Open-Lotto maintains an entropy audit workflow aligned with NIST SP 800-90B.
+
+- Audit guide: `docs/ENTROPY_AUDIT.md`
+- Scope: raw entropy collection and mixed seed stream quality
+- Cadence: before each release and after entropy pipeline changes
+
+Release branches should not ship if entropy acceptance criteria fail.
+
 ## Compliance
 
 ### License Compliance (REUSE)
