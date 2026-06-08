@@ -31,7 +31,7 @@ Section "Install"
   SetOutPath "$INSTDIR"
   
   ; Copy executable
-  File "open-lotto.exe"
+  File "..\\..\\open-lotto.exe"
   
   ; Copy all bundled runtime DLLs collected by CI packaging step
   File "..\\..\\*.dll"
@@ -74,7 +74,7 @@ SectionEnd
 
 ; Uninstaller section
 Section "Uninstall"
-  ; Remove executable and DLLs
+  ; Remove executable and bundled runtime DLLs
   Delete "$INSTDIR\open-lotto.exe"
   Delete "$INSTDIR\*.dll"
   Delete "$INSTDIR\plugins\*.dll"

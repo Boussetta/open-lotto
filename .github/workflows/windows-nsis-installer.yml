@@ -11,6 +11,9 @@ on:
         required: true
         default: '0.7.0'
 
+permissions:
+  contents: write
+
 jobs:
   build-windows-installer:
     runs-on: windows-latest
@@ -38,17 +41,59 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DOPEN_LOTTO_ENABLE_OPENGL=OFF ..
           cmake --build . --config Release
 
       - name: Copy DLL dependencies
-        shell: bash
+        shell: msys2 {0}
         run: |
-          # Find SDL2 DLLs from MSYS2
-          MSYS2_ROOT="C:/msys64/mingw64"
-          cp "$MSYS2_ROOT/bin/SDL2.dll" build/ || echo "Warning: SDL2.dll not found"
-          cp "$MSYS2_ROOT/bin/SDL2_ttf.dll" build/ || echo "Warning: SDL2_ttf.dll not found"
-          cp "$MSYS2_ROOT/bin/libwinpthread-1.dll" build/ || echo "Warning: libwinpthread-1.dll not found"
+          # Stage executable where NSIS script expects it
+          cp build/open-lotto.exe ./open-lotto.exe || cp build/open-lotto ./open-lotto.exe
+
+          # Normalize plugin output location for packaging.
+          # On MinGW builds, plugin DLLs may be emitted in build/ instead of build/plugins/.
+          mkdir -p build/plugins
+          while IFS= read -r plugin_dll; do
+            cp "$plugin_dll" build/plugins/
+          done < <(
+            find build -maxdepth 2 -type f -name '*.dll' \
+              ! -name 'open-lotto.exe' \
+              ! -name 'SDL2.dll' \
+              ! -name 'SDL2_ttf.dll' \
+              ! -name 'libwinpthread-1.dll'
+          )
+
+          echo "Bundled plugins:"
+          ls -1 build/plugins/*.dll
+
+          # Seed DLL set required by our binary.
+          cp /mingw64/bin/SDL2.dll .
+          cp /mingw64/bin/SDL2_ttf.dll .
+
+          # Recursively copy transitive runtime DLL dependencies from /mingw64/bin.
+          queue=(./open-lotto.exe ./SDL2.dll ./SDL2_ttf.dll)
+          i=0
+          while [[ $i -lt ${#queue[@]} ]]; do
+            bin="${queue[$i]}"
+            i=$((i + 1))
+
+            while IFS= read -r dep; do
+              [[ -z "$dep" ]] && continue
+              base="$(basename "$dep")"
+              if [[ ! -f "./$base" ]]; then
+                cp "$dep" "./$base"
+                queue+=("./$base")
+              fi
+            done < <(
+              ldd "$bin" 2>/dev/null | awk '
+                /=> \/mingw64\/bin\// {print $3}
+                /^\/mingw64\/bin\// {print $1}
+              '
+            )
+          done
+
+          echo "Bundled runtime files:"
+          ls -1 ./*.dll
 
       - name: Build NSIS Installer
         run: |
@@ -62,12 +107,23 @@ jobs:
 
       - name: Generate checksum
         run: |
-          CertUtil -hashfile "open-lotto-x64-setup.exe" SHA256 | Tee-Object checksums.txt
+          CertUtil -hashfile "scripts/windows/open-lotto-x64-setup.exe" SHA256 | Tee-Object checksums.txt
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-lotto-windows-installer
+          path: |
+            scripts/windows/open-lotto-x64-setup.exe
+            checksums.txt
 
       - name: Upload to Release
         if: success()
+        continue-on-error: true
         run: |
-          gh release upload "${{ github.event.inputs.version }}" "open-lotto-x64-setup.exe" --clobber
-          gh release upload "${{ github.event.inputs.version }}" "checksums.txt" --clobber
+          $tag = "${{ github.event.inputs.version }}"
+          if ($tag -notmatch '^v') { $tag = "v$tag" }
+          gh release upload "$tag" "scripts/windows/open-lotto-x64-setup.exe" --clobber
+          gh release upload "$tag" "checksums.txt" --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
