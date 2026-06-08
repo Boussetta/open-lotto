@@ -548,6 +548,33 @@ gdb ./build/open-lotto ./core
 (gdb) info locals  # Local variables at crash
 ```
 
+## Fuzzing (libFuzzer)
+
+Open-Lotto includes dedicated fuzz targets for validation, plugin loading, and draw generation.
+
+```bash
+cmake -S . -B build-fuzz \
+  -DCMAKE_C_COMPILER=clang \
+  -DBUILD_TESTING=ON \
+  -DOPEN_LOTTO_FUZZ=ON
+
+cmake --build build-fuzz --target fuzz_validate fuzz_plugin_loader fuzz_combogen
+```
+
+Run short campaigns locally:
+
+```bash
+./build-fuzz/fuzz_validate -max_total_time=60
+./build-fuzz/fuzz_plugin_loader -max_total_time=60
+./build-fuzz/fuzz_combogen -max_total_time=60
+```
+
+Reproduce a crash file:
+
+```bash
+./build-fuzz/fuzz_combogen ./crash-123abc
+```
+
 ## Debugging Checklist
 
 - [ ] Build with `-DCMAKE_BUILD_TYPE=Debug`

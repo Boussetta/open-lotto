@@ -568,6 +568,26 @@ if(OPEN_LOTTO_FUZZ)
     )
     target_compile_options(fuzz_validate PRIVATE -fsanitize=fuzzer,address,undefined)
     target_link_options(fuzz_validate   PRIVATE -fsanitize=fuzzer,address,undefined)
-    target_link_libraries(fuzz_validate PRIVATE dl m)
-    message(STATUS "libFuzzer target enabled: fuzz_validate")
+    target_link_libraries(fuzz_validate PRIVATE ${OPEN_LOTTO_PLATFORM_LIBS})
+
+    add_executable(fuzz_plugin_loader
+        tests/fuzz_plugin_loader.c
+        src/plugin_loader.c
+        src/log.c
+    )
+    target_compile_options(fuzz_plugin_loader PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_options(fuzz_plugin_loader PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_libraries(fuzz_plugin_loader PRIVATE ${OPEN_LOTTO_PLATFORM_LIBS})
+
+    add_executable(fuzz_combogen
+        tests/fuzz_combogen.c
+        src/combogen.c
+        src/random_seed.c
+        src/log.c
+    )
+    target_compile_options(fuzz_combogen PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_options(fuzz_combogen PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_libraries(fuzz_combogen PRIVATE ${OPEN_LOTTO_PLATFORM_LIBS})
+
+    message(STATUS "libFuzzer targets enabled: fuzz_validate, fuzz_plugin_loader, fuzz_combogen")
 endif()
