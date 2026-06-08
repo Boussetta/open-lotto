@@ -46,6 +46,22 @@ Generate any number of independent draws:
 
 ./open-lotto --game lotto --draws 10
 
+---
+
+## ⬇️ Download
+
+**Get Open Lotto in seconds!** Pre-built binaries available for all platforms.
+
+| Platform | Download | Method |
+|---|---|---|
+| 🐧 Linux | [AppImage](https://github.com/Boussetta/open-lotto/releases) | Download & run (zero install) |
+| 🍎 macOS | [Universal Binary](https://github.com/Boussetta/open-lotto/releases) | Download or `brew install open-lotto` |
+| 🪟 Windows | [Installer (.exe)](https://github.com/Boussetta/open-lotto/releases) | Download & run wizard |
+
+👉 **[Full Download & Installation Guide →](docs/DOWNLOAD_INSTALL.md)**
+
+---
+
 📦 Dependencies
 
 The following packages are required to build open‑lotto:
