@@ -10,7 +10,7 @@
 #include <string.h>
 
 #ifndef HISTORICAL_DB_FIXTURE_PATH
-#define HISTORICAL_DB_FIXTURE_PATH "tests/data/eurojackpot_latest.json"
+#define HISTORICAL_DB_FIXTURE_PATH "tests/data/eurojackpot_gewinnzahlen.json"
 #endif
 
 static void set_fixture_env(void)
@@ -51,7 +51,8 @@ int main(void)
 #else
     char cmd[512];
     snprintf(cmd, sizeof(cmd), "rm -rf %s", db_root);
-    system(cmd);
+    int cleanup_rc = system(cmd);
+    (void)cleanup_rc;
 #endif
 
     int rc = historical_db_sync_latest("Eurojackpot", db_root, &snapshot);

@@ -623,6 +623,7 @@ int main(int argc, char **argv)
 
     /* Set the log level early so all subsequent operations are logged */
     log_set_level(log_level);
+    log_init_default_file();
     log_debug("Starting open-lotto with log level set to DEBUG");
 
     /* ---------------------------------------------------------

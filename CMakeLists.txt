@@ -358,7 +358,7 @@ if(BUILD_TESTING)
 
     target_compile_definitions(test_dev_api
         PRIVATE OPEN_LOTTO_VERSION_STRING="${PROJECT_VERSION}"
-                HISTORICAL_DB_FIXTURE_PATH="${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_latest.json"
+                HISTORICAL_DB_FIXTURE_PATH="${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_gewinnzahlen.json"
     )
 
     add_test(NAME unit_dev_api
@@ -371,10 +371,11 @@ if(BUILD_TESTING)
     add_executable(test_historical_db
         tests/test_historical_db.c
         src/historical_db.c
+        src/log.c
     )
 
     target_compile_definitions(test_historical_db PRIVATE
-        HISTORICAL_DB_FIXTURE_PATH="${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_latest.json"
+        HISTORICAL_DB_FIXTURE_PATH="${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_gewinnzahlen.json"
     )
 
     add_test(NAME unit_historical_db
@@ -427,7 +428,7 @@ if(BUILD_TESTING)
     )
     set_tests_properties(cli_syncs_historical_db_latest PROPERTIES
         PASS_REGULAR_EXPRESSION "Local historical database"
-        ENVIRONMENT "OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT=file://${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_latest.json"
+        ENVIRONMENT "OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT=file://${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_gewinnzahlen.json"
     )
 
     add_test(NAME cli_historical_db_unsupported_game

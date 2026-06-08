@@ -9,7 +9,7 @@
 #include <string.h>
 
 #ifndef HISTORICAL_DB_FIXTURE_PATH
-#define HISTORICAL_DB_FIXTURE_PATH "tests/data/eurojackpot_latest.json"
+#define HISTORICAL_DB_FIXTURE_PATH "tests/data/eurojackpot_gewinnzahlen.json"
 #endif
 
 static int results_equal(const LotteryResult *a, const LotteryResult *b)
