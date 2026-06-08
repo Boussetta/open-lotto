@@ -231,6 +231,27 @@ target_link_libraries(open-lotto-plugin-validator
 
 target_link_options(open-lotto-plugin-validator PRIVATE -Wl,-export-dynamic)
 
+add_library(open_lotto_devapi STATIC
+    src/open_lotto_api.c
+    src/combogen.c
+    src/random_seed.c
+    src/log.c
+)
+
+target_include_directories(open_lotto_devapi
+    PUBLIC
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_compile_definitions(open_lotto_devapi
+    PRIVATE OPEN_LOTTO_VERSION_STRING="${PROJECT_VERSION}"
+)
+
+target_link_libraries(open_lotto_devapi
+    PRIVATE
+        ${OPEN_LOTTO_PLATFORM_LIBS}
+)
+
 add_library(lotto SHARED plugins/lotto.c src/combogen.c src/random_seed.c src/log.c)
 add_library(eurojackpot SHARED plugins/eurojackpot.c src/combogen.c src/random_seed.c src/log.c)
 
@@ -308,6 +329,25 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:test_export>
     )
     set_tests_properties(unit_export PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    add_executable(test_dev_api
+        tests/test_dev_api.c
+        src/open_lotto_api.c
+        src/combogen.c
+        src/random_seed.c
+        src/log.c
+    )
+
+    target_compile_definitions(test_dev_api
+        PRIVATE OPEN_LOTTO_VERSION_STRING="${PROJECT_VERSION}"
+    )
+
+    add_test(NAME unit_dev_api
+        COMMAND $<TARGET_FILE:test_dev_api>
+    )
+    set_tests_properties(unit_dev_api PROPERTIES
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
