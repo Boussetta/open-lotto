@@ -39,6 +39,11 @@ Section "Install"
   ; Copy lottery plugins
   SetOutPath "$INSTDIR\\plugins"
   File "..\\..\\build\\plugins\\*.dll"
+
+  ; Copy fonts required by SDL2 GUI
+  SetOutPath "$INSTDIR\\fonts"
+  File "..\\..\\fonts\\*.ttf"
+
   SetOutPath "$INSTDIR"
   
   ; Create uninstaller
@@ -74,6 +79,8 @@ Section "Uninstall"
   Delete "$INSTDIR\*.dll"
   Delete "$INSTDIR\plugins\*.dll"
   RMDir "$INSTDIR\plugins"
+  Delete "$INSTDIR\fonts\*.ttf"
+  RMDir "$INSTDIR\fonts"
   Delete "$INSTDIR\Uninstall.exe"
   
   ; Remove directory
