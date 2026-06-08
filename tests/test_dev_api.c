@@ -5,12 +5,6 @@
 #include "open_lotto_api.h"
 #include "test.h"
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#ifndef HISTORICAL_DB_FIXTURE_PATH
-#define HISTORICAL_DB_FIXTURE_PATH "tests/data/eurojackpot_gewinnzahlen.json"
-#endif
 
 static int results_equal(const LotteryResult *a, const LotteryResult *b)
 {
@@ -88,28 +82,6 @@ int main(void)
 
     const char *version = open_lotto_version();
     assert_true(version != NULL, "Version string is available");
-
-    HistoricalDrawSnapshot snap;
-    HistoricalDrawSnapshot loaded;
-    char db_root[256];
-    snprintf(db_root, sizeof(db_root), "%s", "/tmp/open_lotto_dev_api_hist_db");
-    char fixture_url[1024];
-    snprintf(fixture_url, sizeof(fixture_url), "file://%s", HISTORICAL_DB_FIXTURE_PATH);
-#ifdef _WIN32
-    _putenv_s("OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT", fixture_url);
-#else
-    setenv("OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT", fixture_url, 1);
-#endif
-
-    assert_equals(open_lotto_sync_historical_latest("Eurojackpot", db_root, &snap),
-                  OPEN_LOTTO_API_SUCCESS, "Developer API syncs latest historical draw snapshot");
-    assert_equals(open_lotto_sync_historical_latest("Eurojackpot", db_root, &snap),
-                  OPEN_LOTTO_API_SYNC_UNCHANGED,
-                  "Developer API reports unchanged when latest draw already exists");
-    assert_equals(open_lotto_load_historical_latest("Eurojackpot", db_root, &loaded),
-                  OPEN_LOTTO_API_SUCCESS, "Developer API can load local historical snapshot");
-    assert_true(strcmp(loaded.draw_date, "2026-06-05") == 0,
-                "Developer API returns expected draw date from local snapshot");
 
     test_summary();
 }

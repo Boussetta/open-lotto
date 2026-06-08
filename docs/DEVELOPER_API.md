@@ -42,26 +42,14 @@ int open_lotto_validate_spec(const OpenLottoDrawSpec *spec);
 int open_lotto_generate(const OpenLottoDrawSpec *spec, LotteryResult *out);
 int open_lotto_generate_seeded(const OpenLottoDrawSpec *spec, uint64_t seed, LotteryResult *out);
 uint64_t open_lotto_derive_seed(uint64_t base_seed, uint64_t draw_index);
-int open_lotto_sync_historical_latest(const char *game_name, const char *db_root,
-                                      HistoricalDrawSnapshot *out_snapshot);
-int open_lotto_load_historical_latest(const char *game_name, const char *db_root,
-                                      HistoricalDrawSnapshot *out_snapshot);
 const char *open_lotto_version(void);
 ```
 
 Return values:
 
 - `OPEN_LOTTO_API_SUCCESS` (0): success
-- `OPEN_LOTTO_API_SYNC_UNCHANGED` (10): sync completed and latest draw was already present
 - `OPEN_LOTTO_API_ERR_INVALID_ARG` (1): null pointer argument
 - `OPEN_LOTTO_API_ERR_INVALID_SPEC` (2): invalid draw constraints
-- `OPEN_LOTTO_API_ERR_UNSUPPORTED_GAME` (3): no upstream sync source for this game
-- `OPEN_LOTTO_API_ERR_NETWORK` (4): upstream fetch failed
-- `OPEN_LOTTO_API_ERR_PARSE` (5): upstream/local payload parse failed
-- `OPEN_LOTTO_API_ERR_IO` (6): local snapshot read/write failed
-
-Historical sync currently supports `Eurojackpot` and stores a latest snapshot per game in the local
-history database root (`db_root`, or default path when `NULL`).
 
 ## Reproducibility Model
 

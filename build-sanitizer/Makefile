@@ -504,32 +504,6 @@ open-lotto/fast:
 .PHONY : open-lotto/fast
 
 #=============================================================================
-# Target rules for targets named open-lotto-plugin-validator
-
-# Build rule for target.
-open-lotto-plugin-validator: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 open-lotto-plugin-validator
-.PHONY : open-lotto-plugin-validator
-
-# fast build rule for target.
-open-lotto-plugin-validator/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/build
-.PHONY : open-lotto-plugin-validator/fast
-
-#=============================================================================
-# Target rules for targets named open_lotto_devapi
-
-# Build rule for target.
-open_lotto_devapi: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 open_lotto_devapi
-.PHONY : open_lotto_devapi
-
-# fast build rule for target.
-open_lotto_devapi/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/build
-.PHONY : open_lotto_devapi/fast
-
-#=============================================================================
 # Target rules for targets named lotto
 
 # Build rule for target.
@@ -569,84 +543,6 @@ test_combogen/fast:
 .PHONY : test_combogen/fast
 
 #=============================================================================
-# Target rules for targets named stub_plugin
-
-# Build rule for target.
-stub_plugin: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 stub_plugin
-.PHONY : stub_plugin
-
-# fast build rule for target.
-stub_plugin/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/stub_plugin.dir/build.make CMakeFiles/stub_plugin.dir/build
-.PHONY : stub_plugin/fast
-
-#=============================================================================
-# Target rules for targets named test_plugin_loader
-
-# Build rule for target.
-test_plugin_loader: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_plugin_loader
-.PHONY : test_plugin_loader
-
-# fast build rule for target.
-test_plugin_loader/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_plugin_loader.dir/build.make CMakeFiles/test_plugin_loader.dir/build
-.PHONY : test_plugin_loader/fast
-
-#=============================================================================
-# Target rules for targets named test_export
-
-# Build rule for target.
-test_export: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_export
-.PHONY : test_export
-
-# fast build rule for target.
-test_export/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_export.dir/build.make CMakeFiles/test_export.dir/build
-.PHONY : test_export/fast
-
-#=============================================================================
-# Target rules for targets named test_localization
-
-# Build rule for target.
-test_localization: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_localization
-.PHONY : test_localization
-
-# fast build rule for target.
-test_localization/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_localization.dir/build.make CMakeFiles/test_localization.dir/build
-.PHONY : test_localization/fast
-
-#=============================================================================
-# Target rules for targets named test_dev_api
-
-# Build rule for target.
-test_dev_api: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_dev_api
-.PHONY : test_dev_api
-
-# fast build rule for target.
-test_dev_api/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/build
-.PHONY : test_dev_api/fast
-
-#=============================================================================
-# Target rules for targets named test_historical_db
-
-# Build rule for target.
-test_historical_db: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_historical_db
-.PHONY : test_historical_db
-
-# fast build rule for target.
-test_historical_db/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_historical_db.dir/build.make CMakeFiles/test_historical_db.dir/build
-.PHONY : test_historical_db/fast
-
-#=============================================================================
 # Target rules for targets named benchmark
 
 # Build rule for target.
@@ -658,58 +554,6 @@ benchmark: cmake_check_build_system
 benchmark/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/build
 .PHONY : benchmark/fast
-
-#=============================================================================
-# Target rules for targets named benchmark_openmp
-
-# Build rule for target.
-benchmark_openmp: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 benchmark_openmp
-.PHONY : benchmark_openmp
-
-# fast build rule for target.
-benchmark_openmp/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark_openmp.dir/build.make CMakeFiles/benchmark_openmp.dir/build
-.PHONY : benchmark_openmp/fast
-
-#=============================================================================
-# Target rules for targets named test_property
-
-# Build rule for target.
-test_property: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_property
-.PHONY : test_property
-
-# fast build rule for target.
-test_property/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/build
-.PHONY : test_property/fast
-
-#=============================================================================
-# Target rules for targets named test_stress
-
-# Build rule for target.
-test_stress: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_stress
-.PHONY : test_stress
-
-# fast build rule for target.
-test_stress/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/build
-.PHONY : test_stress/fast
-
-#=============================================================================
-# Target rules for targets named test_perf_regression
-
-# Build rule for target.
-test_perf_regression: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_perf_regression
-.PHONY : test_perf_regression
-
-# fast build rule for target.
-test_perf_regression/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/build
-.PHONY : test_perf_regression/fast
 
 plugins/eurojackpot.o: plugins/eurojackpot.c.o
 .PHONY : plugins/eurojackpot.o
@@ -765,16 +609,8 @@ src/combogen.o: src/combogen.c.o
 # target to build an object file
 src/combogen.c.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/combogen.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/combogen.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/combogen.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lotto.dir/build.make CMakeFiles/lotto.dir/src/combogen.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/eurojackpot.dir/build.make CMakeFiles/eurojackpot.dir/src/combogen.c.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/combogen.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/combogen.c.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/combogen.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/src/combogen.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/src/combogen.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/src/combogen.c.o
 .PHONY : src/combogen.c.o
 
 src/combogen.i: src/combogen.c.i
@@ -783,16 +619,8 @@ src/combogen.i: src/combogen.c.i
 # target to preprocess a source file
 src/combogen.c.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/combogen.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/combogen.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/combogen.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lotto.dir/build.make CMakeFiles/lotto.dir/src/combogen.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/eurojackpot.dir/build.make CMakeFiles/eurojackpot.dir/src/combogen.c.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/combogen.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/combogen.c.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/combogen.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/src/combogen.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/src/combogen.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/src/combogen.c.i
 .PHONY : src/combogen.c.i
 
 src/combogen.s: src/combogen.c.s
@@ -801,41 +629,9 @@ src/combogen.s: src/combogen.c.s
 # target to generate assembly for a file
 src/combogen.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/combogen.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/combogen.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/combogen.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lotto.dir/build.make CMakeFiles/lotto.dir/src/combogen.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/eurojackpot.dir/build.make CMakeFiles/eurojackpot.dir/src/combogen.c.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/combogen.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/combogen.c.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/combogen.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/src/combogen.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/src/combogen.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/src/combogen.c.s
 .PHONY : src/combogen.c.s
-
-src/config.o: src/config.c.o
-.PHONY : src/config.o
-
-# target to build an object file
-src/config.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/config.c.o
-.PHONY : src/config.c.o
-
-src/config.i: src/config.c.i
-.PHONY : src/config.i
-
-# target to preprocess a source file
-src/config.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/config.c.i
-.PHONY : src/config.c.i
-
-src/config.s: src/config.c.s
-.PHONY : src/config.s
-
-# target to generate assembly for a file
-src/config.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/config.c.s
-.PHONY : src/config.c.s
 
 src/export.o: src/export.c.o
 .PHONY : src/export.o
@@ -843,11 +639,6 @@ src/export.o: src/export.c.o
 # target to build an object file
 src/export.c.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/export.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_export.dir/build.make CMakeFiles/test_export.dir/src/export.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/export.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/src/export.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/src/export.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/src/export.c.o
 .PHONY : src/export.c.o
 
 src/export.i: src/export.c.i
@@ -856,11 +647,6 @@ src/export.i: src/export.c.i
 # target to preprocess a source file
 src/export.c.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/export.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_export.dir/build.make CMakeFiles/test_export.dir/src/export.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/export.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/src/export.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/src/export.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/src/export.c.i
 .PHONY : src/export.c.i
 
 src/export.s: src/export.c.s
@@ -869,11 +655,6 @@ src/export.s: src/export.c.s
 # target to generate assembly for a file
 src/export.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/export.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_export.dir/build.make CMakeFiles/test_export.dir/src/export.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/export.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/src/export.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/src/export.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/src/export.c.s
 .PHONY : src/export.c.s
 
 src/gui_opengl.o: src/gui_opengl.c.o
@@ -924,85 +705,14 @@ src/gui_sdl.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/gui_sdl.c.s
 .PHONY : src/gui_sdl.c.s
 
-src/historical_db.o: src/historical_db.c.o
-.PHONY : src/historical_db.o
-
-# target to build an object file
-src/historical_db.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/historical_db.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/historical_db.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/historical_db.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_historical_db.dir/build.make CMakeFiles/test_historical_db.dir/src/historical_db.c.o
-.PHONY : src/historical_db.c.o
-
-src/historical_db.i: src/historical_db.c.i
-.PHONY : src/historical_db.i
-
-# target to preprocess a source file
-src/historical_db.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/historical_db.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/historical_db.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/historical_db.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_historical_db.dir/build.make CMakeFiles/test_historical_db.dir/src/historical_db.c.i
-.PHONY : src/historical_db.c.i
-
-src/historical_db.s: src/historical_db.c.s
-.PHONY : src/historical_db.s
-
-# target to generate assembly for a file
-src/historical_db.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/historical_db.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/historical_db.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/historical_db.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_historical_db.dir/build.make CMakeFiles/test_historical_db.dir/src/historical_db.c.s
-.PHONY : src/historical_db.c.s
-
-src/localization.o: src/localization.c.o
-.PHONY : src/localization.o
-
-# target to build an object file
-src/localization.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/localization.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_localization.dir/build.make CMakeFiles/test_localization.dir/src/localization.c.o
-.PHONY : src/localization.c.o
-
-src/localization.i: src/localization.c.i
-.PHONY : src/localization.i
-
-# target to preprocess a source file
-src/localization.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/localization.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_localization.dir/build.make CMakeFiles/test_localization.dir/src/localization.c.i
-.PHONY : src/localization.c.i
-
-src/localization.s: src/localization.c.s
-.PHONY : src/localization.s
-
-# target to generate assembly for a file
-src/localization.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/localization.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_localization.dir/build.make CMakeFiles/test_localization.dir/src/localization.c.s
-.PHONY : src/localization.c.s
-
 src/log.o: src/log.c.o
 .PHONY : src/log.o
 
 # target to build an object file
 src/log.c.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/log.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/log.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/log.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lotto.dir/build.make CMakeFiles/lotto.dir/src/log.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/eurojackpot.dir/build.make CMakeFiles/eurojackpot.dir/src/log.c.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/log.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_plugin_loader.dir/build.make CMakeFiles/test_plugin_loader.dir/src/log.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_export.dir/build.make CMakeFiles/test_export.dir/src/log.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/log.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_historical_db.dir/build.make CMakeFiles/test_historical_db.dir/src/log.c.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/log.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/src/log.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/src/log.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/src/log.c.o
 .PHONY : src/log.c.o
 
 src/log.i: src/log.c.i
@@ -1011,19 +721,8 @@ src/log.i: src/log.c.i
 # target to preprocess a source file
 src/log.c.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/log.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/log.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/log.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lotto.dir/build.make CMakeFiles/lotto.dir/src/log.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/eurojackpot.dir/build.make CMakeFiles/eurojackpot.dir/src/log.c.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/log.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_plugin_loader.dir/build.make CMakeFiles/test_plugin_loader.dir/src/log.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_export.dir/build.make CMakeFiles/test_export.dir/src/log.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/log.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_historical_db.dir/build.make CMakeFiles/test_historical_db.dir/src/log.c.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/log.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/src/log.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/src/log.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/src/log.c.i
 .PHONY : src/log.c.i
 
 src/log.s: src/log.c.s
@@ -1032,19 +731,8 @@ src/log.s: src/log.c.s
 # target to generate assembly for a file
 src/log.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/log.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/log.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/log.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lotto.dir/build.make CMakeFiles/lotto.dir/src/log.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/eurojackpot.dir/build.make CMakeFiles/eurojackpot.dir/src/log.c.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/log.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_plugin_loader.dir/build.make CMakeFiles/test_plugin_loader.dir/src/log.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_export.dir/build.make CMakeFiles/test_export.dir/src/log.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/log.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_historical_db.dir/build.make CMakeFiles/test_historical_db.dir/src/log.c.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/log.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/src/log.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/src/log.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/src/log.c.s
 .PHONY : src/log.c.s
 
 src/main.o: src/main.c.o
@@ -1071,41 +759,12 @@ src/main.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/main.c.s
 .PHONY : src/main.c.s
 
-src/open_lotto_api.o: src/open_lotto_api.c.o
-.PHONY : src/open_lotto_api.o
-
-# target to build an object file
-src/open_lotto_api.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/open_lotto_api.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/open_lotto_api.c.o
-.PHONY : src/open_lotto_api.c.o
-
-src/open_lotto_api.i: src/open_lotto_api.c.i
-.PHONY : src/open_lotto_api.i
-
-# target to preprocess a source file
-src/open_lotto_api.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/open_lotto_api.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/open_lotto_api.c.i
-.PHONY : src/open_lotto_api.c.i
-
-src/open_lotto_api.s: src/open_lotto_api.c.s
-.PHONY : src/open_lotto_api.s
-
-# target to generate assembly for a file
-src/open_lotto_api.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/open_lotto_api.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/open_lotto_api.c.s
-.PHONY : src/open_lotto_api.c.s
-
 src/plugin_loader.o: src/plugin_loader.c.o
 .PHONY : src/plugin_loader.o
 
 # target to build an object file
 src/plugin_loader.c.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/plugin_loader.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/plugin_loader.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_plugin_loader.dir/build.make CMakeFiles/test_plugin_loader.dir/src/plugin_loader.c.o
 .PHONY : src/plugin_loader.c.o
 
 src/plugin_loader.i: src/plugin_loader.c.i
@@ -1114,8 +773,6 @@ src/plugin_loader.i: src/plugin_loader.c.i
 # target to preprocess a source file
 src/plugin_loader.c.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/plugin_loader.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/plugin_loader.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_plugin_loader.dir/build.make CMakeFiles/test_plugin_loader.dir/src/plugin_loader.c.i
 .PHONY : src/plugin_loader.c.i
 
 src/plugin_loader.s: src/plugin_loader.c.s
@@ -1124,8 +781,6 @@ src/plugin_loader.s: src/plugin_loader.c.s
 # target to generate assembly for a file
 src/plugin_loader.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/plugin_loader.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/plugin_loader.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_plugin_loader.dir/build.make CMakeFiles/test_plugin_loader.dir/src/plugin_loader.c.s
 .PHONY : src/plugin_loader.c.s
 
 src/plugin_registry.o: src/plugin_registry.c.o
@@ -1152,46 +807,14 @@ src/plugin_registry.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/plugin_registry.c.s
 .PHONY : src/plugin_registry.c.s
 
-src/plugin_validator.o: src/plugin_validator.c.o
-.PHONY : src/plugin_validator.o
-
-# target to build an object file
-src/plugin_validator.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/plugin_validator.c.o
-.PHONY : src/plugin_validator.c.o
-
-src/plugin_validator.i: src/plugin_validator.c.i
-.PHONY : src/plugin_validator.i
-
-# target to preprocess a source file
-src/plugin_validator.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/plugin_validator.c.i
-.PHONY : src/plugin_validator.c.i
-
-src/plugin_validator.s: src/plugin_validator.c.s
-.PHONY : src/plugin_validator.s
-
-# target to generate assembly for a file
-src/plugin_validator.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/plugin_validator.c.s
-.PHONY : src/plugin_validator.c.s
-
 src/random_seed.o: src/random_seed.c.o
 .PHONY : src/random_seed.o
 
 # target to build an object file
 src/random_seed.c.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/random_seed.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/random_seed.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/random_seed.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lotto.dir/build.make CMakeFiles/lotto.dir/src/random_seed.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/eurojackpot.dir/build.make CMakeFiles/eurojackpot.dir/src/random_seed.c.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/random_seed.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/random_seed.c.o
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/random_seed.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/src/random_seed.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/src/random_seed.c.o
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/src/random_seed.c.o
 .PHONY : src/random_seed.c.o
 
 src/random_seed.i: src/random_seed.c.i
@@ -1200,16 +823,8 @@ src/random_seed.i: src/random_seed.c.i
 # target to preprocess a source file
 src/random_seed.c.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/random_seed.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/random_seed.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/random_seed.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lotto.dir/build.make CMakeFiles/lotto.dir/src/random_seed.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/eurojackpot.dir/build.make CMakeFiles/eurojackpot.dir/src/random_seed.c.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/random_seed.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/random_seed.c.i
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/random_seed.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/src/random_seed.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/src/random_seed.c.i
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/src/random_seed.c.i
 .PHONY : src/random_seed.c.i
 
 src/random_seed.s: src/random_seed.c.s
@@ -1218,65 +833,9 @@ src/random_seed.s: src/random_seed.c.s
 # target to generate assembly for a file
 src/random_seed.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/random_seed.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto-plugin-validator.dir/build.make CMakeFiles/open-lotto-plugin-validator.dir/src/random_seed.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open_lotto_devapi.dir/build.make CMakeFiles/open_lotto_devapi.dir/src/random_seed.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/lotto.dir/build.make CMakeFiles/lotto.dir/src/random_seed.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/eurojackpot.dir/build.make CMakeFiles/eurojackpot.dir/src/random_seed.c.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/src/random_seed.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/src/random_seed.c.s
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/src/random_seed.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/src/random_seed.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/src/random_seed.c.s
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/src/random_seed.c.s
 .PHONY : src/random_seed.c.s
-
-src/theme.o: src/theme.c.o
-.PHONY : src/theme.o
-
-# target to build an object file
-src/theme.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/theme.c.o
-.PHONY : src/theme.c.o
-
-src/theme.i: src/theme.c.i
-.PHONY : src/theme.i
-
-# target to preprocess a source file
-src/theme.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/theme.c.i
-.PHONY : src/theme.c.i
-
-src/theme.s: src/theme.c.s
-.PHONY : src/theme.s
-
-# target to generate assembly for a file
-src/theme.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/theme.c.s
-.PHONY : src/theme.c.s
-
-src/validate.o: src/validate.c.o
-.PHONY : src/validate.o
-
-# target to build an object file
-src/validate.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/validate.c.o
-.PHONY : src/validate.c.o
-
-src/validate.i: src/validate.c.i
-.PHONY : src/validate.i
-
-# target to preprocess a source file
-src/validate.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/validate.c.i
-.PHONY : src/validate.c.i
-
-src/validate.s: src/validate.c.s
-.PHONY : src/validate.s
-
-# target to generate assembly for a file
-src/validate.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/open-lotto.dir/build.make CMakeFiles/open-lotto.dir/src/validate.c.s
-.PHONY : src/validate.c.s
 
 tests/benchmark.o: tests/benchmark.c.o
 .PHONY : tests/benchmark.o
@@ -1302,54 +861,6 @@ tests/benchmark.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark.dir/build.make CMakeFiles/benchmark.dir/tests/benchmark.c.s
 .PHONY : tests/benchmark.c.s
 
-tests/benchmark_openmp.o: tests/benchmark_openmp.c.o
-.PHONY : tests/benchmark_openmp.o
-
-# target to build an object file
-tests/benchmark_openmp.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark_openmp.dir/build.make CMakeFiles/benchmark_openmp.dir/tests/benchmark_openmp.c.o
-.PHONY : tests/benchmark_openmp.c.o
-
-tests/benchmark_openmp.i: tests/benchmark_openmp.c.i
-.PHONY : tests/benchmark_openmp.i
-
-# target to preprocess a source file
-tests/benchmark_openmp.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark_openmp.dir/build.make CMakeFiles/benchmark_openmp.dir/tests/benchmark_openmp.c.i
-.PHONY : tests/benchmark_openmp.c.i
-
-tests/benchmark_openmp.s: tests/benchmark_openmp.c.s
-.PHONY : tests/benchmark_openmp.s
-
-# target to generate assembly for a file
-tests/benchmark_openmp.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/benchmark_openmp.dir/build.make CMakeFiles/benchmark_openmp.dir/tests/benchmark_openmp.c.s
-.PHONY : tests/benchmark_openmp.c.s
-
-tests/stub_plugin.o: tests/stub_plugin.c.o
-.PHONY : tests/stub_plugin.o
-
-# target to build an object file
-tests/stub_plugin.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/stub_plugin.dir/build.make CMakeFiles/stub_plugin.dir/tests/stub_plugin.c.o
-.PHONY : tests/stub_plugin.c.o
-
-tests/stub_plugin.i: tests/stub_plugin.c.i
-.PHONY : tests/stub_plugin.i
-
-# target to preprocess a source file
-tests/stub_plugin.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/stub_plugin.dir/build.make CMakeFiles/stub_plugin.dir/tests/stub_plugin.c.i
-.PHONY : tests/stub_plugin.c.i
-
-tests/stub_plugin.s: tests/stub_plugin.c.s
-.PHONY : tests/stub_plugin.s
-
-# target to generate assembly for a file
-tests/stub_plugin.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/stub_plugin.dir/build.make CMakeFiles/stub_plugin.dir/tests/stub_plugin.c.s
-.PHONY : tests/stub_plugin.c.s
-
 tests/test_combogen.o: tests/test_combogen.c.o
 .PHONY : tests/test_combogen.o
 
@@ -1373,198 +884,6 @@ tests/test_combogen.s: tests/test_combogen.c.s
 tests/test_combogen.c.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_combogen.dir/build.make CMakeFiles/test_combogen.dir/tests/test_combogen.c.s
 .PHONY : tests/test_combogen.c.s
-
-tests/test_dev_api.o: tests/test_dev_api.c.o
-.PHONY : tests/test_dev_api.o
-
-# target to build an object file
-tests/test_dev_api.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/tests/test_dev_api.c.o
-.PHONY : tests/test_dev_api.c.o
-
-tests/test_dev_api.i: tests/test_dev_api.c.i
-.PHONY : tests/test_dev_api.i
-
-# target to preprocess a source file
-tests/test_dev_api.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/tests/test_dev_api.c.i
-.PHONY : tests/test_dev_api.c.i
-
-tests/test_dev_api.s: tests/test_dev_api.c.s
-.PHONY : tests/test_dev_api.s
-
-# target to generate assembly for a file
-tests/test_dev_api.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dev_api.dir/build.make CMakeFiles/test_dev_api.dir/tests/test_dev_api.c.s
-.PHONY : tests/test_dev_api.c.s
-
-tests/test_export.o: tests/test_export.c.o
-.PHONY : tests/test_export.o
-
-# target to build an object file
-tests/test_export.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_export.dir/build.make CMakeFiles/test_export.dir/tests/test_export.c.o
-.PHONY : tests/test_export.c.o
-
-tests/test_export.i: tests/test_export.c.i
-.PHONY : tests/test_export.i
-
-# target to preprocess a source file
-tests/test_export.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_export.dir/build.make CMakeFiles/test_export.dir/tests/test_export.c.i
-.PHONY : tests/test_export.c.i
-
-tests/test_export.s: tests/test_export.c.s
-.PHONY : tests/test_export.s
-
-# target to generate assembly for a file
-tests/test_export.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_export.dir/build.make CMakeFiles/test_export.dir/tests/test_export.c.s
-.PHONY : tests/test_export.c.s
-
-tests/test_historical_db.o: tests/test_historical_db.c.o
-.PHONY : tests/test_historical_db.o
-
-# target to build an object file
-tests/test_historical_db.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_historical_db.dir/build.make CMakeFiles/test_historical_db.dir/tests/test_historical_db.c.o
-.PHONY : tests/test_historical_db.c.o
-
-tests/test_historical_db.i: tests/test_historical_db.c.i
-.PHONY : tests/test_historical_db.i
-
-# target to preprocess a source file
-tests/test_historical_db.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_historical_db.dir/build.make CMakeFiles/test_historical_db.dir/tests/test_historical_db.c.i
-.PHONY : tests/test_historical_db.c.i
-
-tests/test_historical_db.s: tests/test_historical_db.c.s
-.PHONY : tests/test_historical_db.s
-
-# target to generate assembly for a file
-tests/test_historical_db.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_historical_db.dir/build.make CMakeFiles/test_historical_db.dir/tests/test_historical_db.c.s
-.PHONY : tests/test_historical_db.c.s
-
-tests/test_localization.o: tests/test_localization.c.o
-.PHONY : tests/test_localization.o
-
-# target to build an object file
-tests/test_localization.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_localization.dir/build.make CMakeFiles/test_localization.dir/tests/test_localization.c.o
-.PHONY : tests/test_localization.c.o
-
-tests/test_localization.i: tests/test_localization.c.i
-.PHONY : tests/test_localization.i
-
-# target to preprocess a source file
-tests/test_localization.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_localization.dir/build.make CMakeFiles/test_localization.dir/tests/test_localization.c.i
-.PHONY : tests/test_localization.c.i
-
-tests/test_localization.s: tests/test_localization.c.s
-.PHONY : tests/test_localization.s
-
-# target to generate assembly for a file
-tests/test_localization.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_localization.dir/build.make CMakeFiles/test_localization.dir/tests/test_localization.c.s
-.PHONY : tests/test_localization.c.s
-
-tests/test_perf_regression.o: tests/test_perf_regression.c.o
-.PHONY : tests/test_perf_regression.o
-
-# target to build an object file
-tests/test_perf_regression.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/tests/test_perf_regression.c.o
-.PHONY : tests/test_perf_regression.c.o
-
-tests/test_perf_regression.i: tests/test_perf_regression.c.i
-.PHONY : tests/test_perf_regression.i
-
-# target to preprocess a source file
-tests/test_perf_regression.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/tests/test_perf_regression.c.i
-.PHONY : tests/test_perf_regression.c.i
-
-tests/test_perf_regression.s: tests/test_perf_regression.c.s
-.PHONY : tests/test_perf_regression.s
-
-# target to generate assembly for a file
-tests/test_perf_regression.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_perf_regression.dir/build.make CMakeFiles/test_perf_regression.dir/tests/test_perf_regression.c.s
-.PHONY : tests/test_perf_regression.c.s
-
-tests/test_plugin_loader.o: tests/test_plugin_loader.c.o
-.PHONY : tests/test_plugin_loader.o
-
-# target to build an object file
-tests/test_plugin_loader.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_plugin_loader.dir/build.make CMakeFiles/test_plugin_loader.dir/tests/test_plugin_loader.c.o
-.PHONY : tests/test_plugin_loader.c.o
-
-tests/test_plugin_loader.i: tests/test_plugin_loader.c.i
-.PHONY : tests/test_plugin_loader.i
-
-# target to preprocess a source file
-tests/test_plugin_loader.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_plugin_loader.dir/build.make CMakeFiles/test_plugin_loader.dir/tests/test_plugin_loader.c.i
-.PHONY : tests/test_plugin_loader.c.i
-
-tests/test_plugin_loader.s: tests/test_plugin_loader.c.s
-.PHONY : tests/test_plugin_loader.s
-
-# target to generate assembly for a file
-tests/test_plugin_loader.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_plugin_loader.dir/build.make CMakeFiles/test_plugin_loader.dir/tests/test_plugin_loader.c.s
-.PHONY : tests/test_plugin_loader.c.s
-
-tests/test_property.o: tests/test_property.c.o
-.PHONY : tests/test_property.o
-
-# target to build an object file
-tests/test_property.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/tests/test_property.c.o
-.PHONY : tests/test_property.c.o
-
-tests/test_property.i: tests/test_property.c.i
-.PHONY : tests/test_property.i
-
-# target to preprocess a source file
-tests/test_property.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/tests/test_property.c.i
-.PHONY : tests/test_property.c.i
-
-tests/test_property.s: tests/test_property.c.s
-.PHONY : tests/test_property.s
-
-# target to generate assembly for a file
-tests/test_property.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_property.dir/build.make CMakeFiles/test_property.dir/tests/test_property.c.s
-.PHONY : tests/test_property.c.s
-
-tests/test_stress.o: tests/test_stress.c.o
-.PHONY : tests/test_stress.o
-
-# target to build an object file
-tests/test_stress.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/tests/test_stress.c.o
-.PHONY : tests/test_stress.c.o
-
-tests/test_stress.i: tests/test_stress.c.i
-.PHONY : tests/test_stress.i
-
-# target to preprocess a source file
-tests/test_stress.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/tests/test_stress.c.i
-.PHONY : tests/test_stress.c.i
-
-tests/test_stress.s: tests/test_stress.c.s
-.PHONY : tests/test_stress.s
-
-# target to generate assembly for a file
-tests/test_stress.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_stress.dir/build.make CMakeFiles/test_stress.dir/tests/test_stress.c.s
-.PHONY : tests/test_stress.c.s
 
 # Help Target
 help:
@@ -1604,22 +923,10 @@ help:
 	@echo "... NightlyTest"
 	@echo "... NightlyUpdate"
 	@echo "... benchmark"
-	@echo "... benchmark_openmp"
 	@echo "... eurojackpot"
 	@echo "... lotto"
 	@echo "... open-lotto"
-	@echo "... open-lotto-plugin-validator"
-	@echo "... open_lotto_devapi"
-	@echo "... stub_plugin"
 	@echo "... test_combogen"
-	@echo "... test_dev_api"
-	@echo "... test_export"
-	@echo "... test_historical_db"
-	@echo "... test_localization"
-	@echo "... test_perf_regression"
-	@echo "... test_plugin_loader"
-	@echo "... test_property"
-	@echo "... test_stress"
 	@echo "... plugins/eurojackpot.o"
 	@echo "... plugins/eurojackpot.i"
 	@echo "... plugins/eurojackpot.s"
@@ -1629,9 +936,6 @@ help:
 	@echo "... src/combogen.o"
 	@echo "... src/combogen.i"
 	@echo "... src/combogen.s"
-	@echo "... src/config.o"
-	@echo "... src/config.i"
-	@echo "... src/config.s"
 	@echo "... src/export.o"
 	@echo "... src/export.i"
 	@echo "... src/export.s"
@@ -1641,75 +945,27 @@ help:
 	@echo "... src/gui_sdl.o"
 	@echo "... src/gui_sdl.i"
 	@echo "... src/gui_sdl.s"
-	@echo "... src/historical_db.o"
-	@echo "... src/historical_db.i"
-	@echo "... src/historical_db.s"
-	@echo "... src/localization.o"
-	@echo "... src/localization.i"
-	@echo "... src/localization.s"
 	@echo "... src/log.o"
 	@echo "... src/log.i"
 	@echo "... src/log.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
-	@echo "... src/open_lotto_api.o"
-	@echo "... src/open_lotto_api.i"
-	@echo "... src/open_lotto_api.s"
 	@echo "... src/plugin_loader.o"
 	@echo "... src/plugin_loader.i"
 	@echo "... src/plugin_loader.s"
 	@echo "... src/plugin_registry.o"
 	@echo "... src/plugin_registry.i"
 	@echo "... src/plugin_registry.s"
-	@echo "... src/plugin_validator.o"
-	@echo "... src/plugin_validator.i"
-	@echo "... src/plugin_validator.s"
 	@echo "... src/random_seed.o"
 	@echo "... src/random_seed.i"
 	@echo "... src/random_seed.s"
-	@echo "... src/theme.o"
-	@echo "... src/theme.i"
-	@echo "... src/theme.s"
-	@echo "... src/validate.o"
-	@echo "... src/validate.i"
-	@echo "... src/validate.s"
 	@echo "... tests/benchmark.o"
 	@echo "... tests/benchmark.i"
 	@echo "... tests/benchmark.s"
-	@echo "... tests/benchmark_openmp.o"
-	@echo "... tests/benchmark_openmp.i"
-	@echo "... tests/benchmark_openmp.s"
-	@echo "... tests/stub_plugin.o"
-	@echo "... tests/stub_plugin.i"
-	@echo "... tests/stub_plugin.s"
 	@echo "... tests/test_combogen.o"
 	@echo "... tests/test_combogen.i"
 	@echo "... tests/test_combogen.s"
-	@echo "... tests/test_dev_api.o"
-	@echo "... tests/test_dev_api.i"
-	@echo "... tests/test_dev_api.s"
-	@echo "... tests/test_export.o"
-	@echo "... tests/test_export.i"
-	@echo "... tests/test_export.s"
-	@echo "... tests/test_historical_db.o"
-	@echo "... tests/test_historical_db.i"
-	@echo "... tests/test_historical_db.s"
-	@echo "... tests/test_localization.o"
-	@echo "... tests/test_localization.i"
-	@echo "... tests/test_localization.s"
-	@echo "... tests/test_perf_regression.o"
-	@echo "... tests/test_perf_regression.i"
-	@echo "... tests/test_perf_regression.s"
-	@echo "... tests/test_plugin_loader.o"
-	@echo "... tests/test_plugin_loader.i"
-	@echo "... tests/test_plugin_loader.s"
-	@echo "... tests/test_property.o"
-	@echo "... tests/test_property.i"
-	@echo "... tests/test_property.s"
-	@echo "... tests/test_stress.o"
-	@echo "... tests/test_stress.i"
-	@echo "... tests/test_stress.s"
 .PHONY : help
 
 
