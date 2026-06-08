@@ -9,32 +9,34 @@
 #include <stdint.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 #define OPEN_LOTTO_API_SUCCESS 0
 #define OPEN_LOTTO_API_ERR_INVALID_ARG 1
 #define OPEN_LOTTO_API_ERR_INVALID_SPEC 2
 
-typedef struct
-{
-    int main_count;
-    int main_min;
-    int main_max;
-    int extra_count;
-    int extra_min;
-    int extra_max;
-} OpenLottoDrawSpec;
+    typedef struct
+    {
+        int main_count;
+        int main_min;
+        int main_max;
+        int extra_count;
+        int extra_min;
+        int extra_max;
+    } OpenLottoDrawSpec;
 
-int open_lotto_validate_spec(const OpenLottoDrawSpec *spec);
+    int open_lotto_validate_spec(const OpenLottoDrawSpec *spec);
 
-int open_lotto_generate(const OpenLottoDrawSpec *spec, LotteryResult *out);
+    int open_lotto_generate(const OpenLottoDrawSpec *spec, LotteryResult *out);
 
-int open_lotto_generate_seeded(const OpenLottoDrawSpec *spec, uint64_t seed, LotteryResult *out);
+    int open_lotto_generate_seeded(const OpenLottoDrawSpec *spec, uint64_t seed,
+                                   LotteryResult *out);
 
-uint64_t open_lotto_derive_seed(uint64_t base_seed, uint64_t draw_index);
+    uint64_t open_lotto_derive_seed(uint64_t base_seed, uint64_t draw_index);
 
-const char *open_lotto_version(void);
+    const char *open_lotto_version(void);
 
 #ifdef __cplusplus
 }
