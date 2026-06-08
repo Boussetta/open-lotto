@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "combogen.h"
 #include "config.h"
 #include "export.h"
 #include "gui_opengl.h"
@@ -171,6 +172,35 @@ static LogLevel parse_log_level(const char *level_str)
     return LOG_INFO;
 }
 
+static uint64_t splitmix64(uint64_t x)
+{
+    x += 0x9e3779b97f4a7c15ULL;
+    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+    return x ^ (x >> 31);
+}
+
+static int parse_seed_value(const char *seed_str, uint64_t *out_seed)
+{
+    char *end = NULL;
+    errno = 0;
+
+    unsigned long long parsed = strtoull(seed_str, &end, 0);
+    if (errno != 0 || end == seed_str || (end && *end != '\0'))
+        return 0;
+
+    *out_seed = (uint64_t)parsed;
+    return 1;
+}
+
+static uint64_t derive_draw_seed(uint64_t base_seed, int draw_index)
+{
+    if (draw_index == 0)
+        return base_seed;
+
+    return splitmix64(base_seed ^ (uint64_t)draw_index);
+}
+
 /* ---------------------------------------------------------
    Usage
    --------------------------------------------------------- */
@@ -197,6 +227,7 @@ static void print_usage(const char *prog)
             "Output Options:\n"
             "  --output FILE     Destination file for --export (required with --export)\n"
             "  --draws N         Number of draws (default: 1)\n"
+            "  --seed VALUE      Deterministic seed (decimal or 0x-prefixed hex)\n"
             "  --verbose LEVEL   Log level: ERROR, WARN, INFO, DEBUG (default: INFO)\n"
             "\n"
             "Log Levels:\n"
@@ -214,6 +245,7 @@ static void print_usage(const char *prog)
             "  %s --list-games\n"
             "  %s --game \"Lotto 6aus49\"\n"
             "  %s --game \"Lotto 6aus49\" --draws 10\n"
+            "  %s --game \"Lotto 6aus49\" --draws 10 --seed 0x1234abcd\n"
             "  %s --game \"Lotto 6aus49\" --animate\n"
             "  %s --game \"Lotto 6aus49\" --gui 3D\n"
             "  %s --game \"Lotto 6aus49\" --draws 100 --export csv --output results.csv\n"
@@ -222,7 +254,7 @@ static void print_usage(const char *prog)
             "\n"
             "Environment Variables:\n"
             "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n",
-            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
+            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 /* ---------------------------------------------------------
@@ -268,6 +300,8 @@ int main(int argc, char **argv)
     const char *export_filename = NULL;
     int validate_only = 0;
     int reload_plugin = 0;
+    int use_seed = 0;
+    uint64_t seed_value = 0;
 
     /* ---------------------------------------------------------
        Parse arguments (all options, --game may appear anywhere)
@@ -396,6 +430,25 @@ int main(int argc, char **argv)
         {
             reload_plugin = 1;
         }
+        else if (strcmp(argv[i], "--seed") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--seed requires a numeric value (decimal or 0x-prefixed hex).\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            if (!parse_seed_value(argv[++i], &seed_value))
+            {
+                fprintf(stderr,
+                        "Invalid --seed value '%s' (expected decimal or 0x-prefixed hex).\n",
+                        argv[i]);
+                config_free(&cfg);
+                return 1;
+            }
+            use_seed = 1;
+        }
         else
         {
             fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
@@ -490,6 +543,13 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (gui && use_seed)
+    {
+        fprintf(stderr, "Error: --seed is currently supported only in CLI mode.\n");
+        config_free(&cfg);
+        return 1;
+    }
+
     /* Default GUI mode to 2D if not specified */
     if (!gui_mode)
     {
@@ -566,6 +626,10 @@ int main(int argc, char **argv)
         {
             printf("  Plugin reload: enabled\n");
         }
+        if (use_seed)
+        {
+            printf("  Seed: 0x%016llx\n", (unsigned long long)seed_value);
+        }
         registry_destroy(registry);
         config_free(&cfg);
         return 0;
@@ -633,8 +697,15 @@ int main(int argc, char **argv)
 
         for (int i = 0; i < draws; i++)
         {
+            if (use_seed)
+                combogen_set_forced_seed(derive_draw_seed(seed_value, i));
+            else
+                combogen_clear_forced_seed();
+
             selected->draw(&results[i], silent_callback);
         }
+
+        combogen_clear_forced_seed();
 
         /* Export to file based on format */
         int export_result = 0;
@@ -665,6 +736,12 @@ int main(int argc, char **argv)
         for (int i = 0; i < draws; i++)
         {
             LotteryResult result;
+
+            if (use_seed)
+                combogen_set_forced_seed(derive_draw_seed(seed_value, i));
+            else
+                combogen_clear_forced_seed();
+
             selected->draw(&result, silent_callback);
 
             if (animate)
@@ -678,6 +755,8 @@ int main(int argc, char **argv)
                 print_draw_result(selected->name, i + 1, &result);
             }
         }
+
+        combogen_clear_forced_seed();
     }
 
     log_debug("Cleaning up resources");

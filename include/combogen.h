@@ -6,6 +6,7 @@
 #define COMBOGEN_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 typedef enum
 {
@@ -42,5 +43,12 @@ typedef void (*draw_event_callback)(DrawEvent event, const LotteryResult *result
 
 void generate_draw(int main_count, int main_min, int main_max, int extra_count, int extra_min,
                    int extra_max, LotteryResult *out, draw_event_callback cb);
+
+void generate_draw_seeded(int main_count, int main_min, int main_max, int extra_count,
+                          int extra_min, int extra_max, uint64_t seed, LotteryResult *out,
+                          draw_event_callback cb);
+
+void combogen_set_forced_seed(uint64_t seed);
+void combogen_clear_forced_seed(void);
 
 #endif /* COMBOGEN_H */

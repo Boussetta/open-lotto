@@ -54,6 +54,12 @@ static pcg32_t rng_state = {0};
 /** @brief Last seed used (for logging/debugging purposes) */
 static uint64_t last_seed = 0;
 
+/** @brief Optional forced seed set by host application for plugin compatibility. */
+static int forced_seed_enabled = 0;
+static uint64_t forced_seed_value = 0;
+
+static uint64_t rng_init_seeded(uint64_t seed);
+
 /**
  * @brief Initialize PCG32 generator with cryptographically strong seeds.
  *
@@ -68,9 +74,28 @@ static uint64_t last_seed = 0;
  */
 static uint64_t rng_init(void)
 {
+    if (forced_seed_enabled)
+        return rng_init_seeded(forced_seed_value);
+
     last_seed = generate_strong_seed();
     rng_state.state = last_seed;
     rng_state.inc = (generate_strong_seed() << 1) | 1;
+    return last_seed;
+}
+
+static uint64_t splitmix64(uint64_t x)
+{
+    x += 0x9e3779b97f4a7c15ULL;
+    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+    return x ^ (x >> 31);
+}
+
+static uint64_t rng_init_seeded(uint64_t seed)
+{
+    last_seed = seed;
+    rng_state.state = seed;
+    rng_state.inc = (splitmix64(seed) << 1) | 1ULL;
     return last_seed;
 }
 
@@ -157,9 +182,9 @@ static int rng_int(int min, int max)
  * @note Callbacks are invoked at: RNG_INITIALIZED, POOL_INITIALIZED,
  *       AFTER_SHUFFLE, AFTER_PICK (main), DRAW_COMPLETE
  */
-__attribute__((visibility("default"))) void
-generate_draw(int main_count, int main_min, int main_max, int extra_count, int extra_min,
-              int extra_max, LotteryResult *out, draw_event_callback cb)
+static void generate_draw_impl(int main_count, int main_min, int main_max, int extra_count,
+                               int extra_min, int extra_max, LotteryResult *out,
+                               draw_event_callback cb, int use_seed, uint64_t seed_value)
 {
     /* Validate result structure pointer */
     if (!out)
@@ -217,7 +242,7 @@ generate_draw(int main_count, int main_min, int main_max, int extra_count, int e
     }
 
     /* Initialize PCG32 RNG with a cryptographically strong seed */
-    uint64_t seed = rng_init();
+    uint64_t seed = use_seed ? rng_init_seeded(seed_value) : rng_init();
     log_info("RNG Seed: 0x%016lx", (unsigned long)seed);
 
     /* Fire RNG initialization callback for animation */
@@ -302,4 +327,32 @@ generate_draw(int main_count, int main_min, int main_max, int extra_count, int e
     /* Fire draw completion callback */
     if (cb)
         cb(EVENT_DRAW_COMPLETE, out);
+}
+
+__attribute__((visibility("default"))) void
+generate_draw(int main_count, int main_min, int main_max, int extra_count, int extra_min,
+              int extra_max, LotteryResult *out, draw_event_callback cb)
+{
+    generate_draw_impl(main_count, main_min, main_max, extra_count, extra_min, extra_max, out, cb,
+                       0, 0);
+}
+
+__attribute__((visibility("default"))) void
+generate_draw_seeded(int main_count, int main_min, int main_max, int extra_count, int extra_min,
+                     int extra_max, uint64_t seed, LotteryResult *out, draw_event_callback cb)
+{
+    generate_draw_impl(main_count, main_min, main_max, extra_count, extra_min, extra_max, out, cb,
+                       1, seed);
+}
+
+__attribute__((visibility("default"))) void combogen_set_forced_seed(uint64_t seed)
+{
+    forced_seed_enabled = 1;
+    forced_seed_value = seed;
+}
+
+__attribute__((visibility("default"))) void combogen_clear_forced_seed(void)
+{
+    forced_seed_enabled = 0;
+    forced_seed_value = 0;
 }

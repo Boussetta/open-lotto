@@ -13,10 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- New features that are being developed but not yet released
+- Deterministic seeded draw generation via `generate_draw_seeded()` for reproducible replay
+- New CLI `--seed` option (decimal or `0x` hex) for reproducible multi-draw runs
+- Developer-facing C API (`include/open_lotto_api.h`, target `open_lotto_devapi`)
+- CI/CTest reproducibility coverage for seeded CLI and API workflows
 
 ### Changed
-- Changes to existing functionality in development
+- Plugins can now honor host-selected deterministic seeds through combogen seed override hooks
 
 ### Deprecated
 - Soon-to-be removed features in development

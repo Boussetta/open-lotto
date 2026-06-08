@@ -231,6 +231,27 @@ target_link_libraries(open-lotto-plugin-validator
 
 target_link_options(open-lotto-plugin-validator PRIVATE -Wl,-export-dynamic)
 
+add_library(open_lotto_devapi STATIC
+    src/open_lotto_api.c
+    src/combogen.c
+    src/random_seed.c
+    src/log.c
+)
+
+target_include_directories(open_lotto_devapi
+    PUBLIC
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_compile_definitions(open_lotto_devapi
+    PRIVATE OPEN_LOTTO_VERSION_STRING="${PROJECT_VERSION}"
+)
+
+target_link_libraries(open_lotto_devapi
+    PRIVATE
+        ${OPEN_LOTTO_PLATFORM_LIBS}
+)
+
 add_library(lotto SHARED plugins/lotto.c src/combogen.c src/random_seed.c src/log.c)
 add_library(eurojackpot SHARED plugins/eurojackpot.c src/combogen.c src/random_seed.c src/log.c)
 
@@ -311,6 +332,25 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
+    add_executable(test_dev_api
+        tests/test_dev_api.c
+        src/open_lotto_api.c
+        src/combogen.c
+        src/random_seed.c
+        src/log.c
+    )
+
+    target_compile_definitions(test_dev_api
+        PRIVATE OPEN_LOTTO_VERSION_STRING="${PROJECT_VERSION}"
+    )
+
+    add_test(NAME unit_dev_api
+        COMMAND $<TARGET_FILE:test_dev_api>
+    )
+    set_tests_properties(unit_dev_api PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
     # ----------------------------------------------------------------
     # CLI integration tests – success paths
     # ----------------------------------------------------------------
@@ -333,6 +373,13 @@ if(BUILD_TESTING)
     )
     set_tests_properties(cli_runs_eurojackpot_once PROPERTIES
         PASS_REGULAR_EXPRESSION "Main:"
+    )
+
+    add_test(NAME cli_seed_reproducible
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_cli_seed_repro.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(cli_seed_reproducible PROPERTIES
+        PASS_REGULAR_EXPRESSION "seed reproducibility OK"
     )
 
     add_test(NAME cli_reloads_selected_plugin
@@ -401,6 +448,11 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --invalid-flag
     )
     set_tests_properties(cli_unknown_flag PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_seed_invalid_value
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --seed not_a_number
+    )
+    set_tests_properties(cli_seed_invalid_value PROPERTIES WILL_FAIL TRUE)
 
     add_test(NAME cli_verbose_missing_value
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --verbose
