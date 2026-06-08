@@ -1,0 +1,110 @@
+name: Build Release Binaries
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-matrix:
+    strategy:
+      matrix:
+        include:
+          # Linux x86_64
+          - os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            artifact: open-lotto-linux-x86_64
+            target: open-lotto
+
+          # macOS Intel x86_64
+          - os: macos-13
+            cc: clang
+            cxx: clang++
+            artifact: open-lotto-macos-x86_64
+            target: open-lotto
+
+          # macOS Apple Silicon arm64
+          - os: macos-14
+            cc: clang
+            cxx: clang++
+            artifact: open-lotto-macos-arm64
+            target: open-lotto
+
+          # Windows x64 (MinGW-w64)
+          - os: windows-latest
+            cc: gcc
+            cxx: g++
+            artifact: open-lotto-windows-x64
+            target: open-lotto.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ccache pkg-config \
+            libsdl2-dev libsdl2-ttf-dev libgl-dev mesa-common-dev \
+            libopenmp-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install cmake ccache pkg-config sdl2 sdl2_ttf openmp
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install cmake ccache pkgconfiglite -y
+          # SDL2, SDL2_ttf, OpenGL come with MSYS2 in GitHub Actions
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.os }}-${{ matrix.cc }}
+
+      - name: Configure CMake
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Run tests
+        working-directory: build
+        run: ctest --output-on-failure
+
+      - name: Strip binary (Linux & macOS)
+        if: runner.os != 'Windows'
+        run: strip -s build/${{ matrix.target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: build/${{ matrix.target }}
+          retention-days: 30
+
+      - name: Generate checksum
+        shell: bash
+        run: |
+          cd build
+          sha256sum ${{ matrix.target }} > ../checksums.txt
+          cat ../checksums.txt
+
+      - name: Upload checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums
+          path: checksums.txt
+          retention-days: 30
