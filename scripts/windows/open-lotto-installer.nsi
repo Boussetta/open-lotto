@@ -31,7 +31,7 @@ Section "Install"
   SetOutPath "$INSTDIR"
   
   ; Copy executable
-  File "open-lotto.exe"
+  File "..\\..\\open-lotto.exe"
   
   ; Copy all bundled runtime DLLs collected by CI packaging step
   File "..\\..\\*.dll"
