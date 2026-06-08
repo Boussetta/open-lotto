@@ -23,6 +23,8 @@
 #endif
 
 #define READ_CHUNK 4096
+#define HISTORICAL_DB_MAX_DATES 4096
+#define EUROJACKPOT_FIRST_DRAW_YEAR 2012
 
 /* Width (in filled/empty characters) of the terminal progress bar. */
 #define PROGRESS_BAR_WIDTH 40
@@ -62,6 +64,73 @@ static void print_progress_bar(int done, int total)
 
 static int parse_history_dates(const char *json, char dates[][16], int max_dates);
 static char *fetch_draw_for_date(const char *game_name, const char *date);
+static char *fetch_url_text(const char *url);
+
+static int date_already_collected(const char dates[][16], int count, const char *date)
+{
+    if (!dates || !date)
+        return 0;
+
+    for (int i = 0; i < count; i++)
+    {
+        if (strcmp(dates[i], date) == 0)
+            return 1;
+    }
+
+    return 0;
+}
+
+static int collect_eurojackpot_dates_all_years(char dates[][16], int max_dates)
+{
+    time_t now = time(NULL);
+    struct tm tmv;
+#ifdef _WIN32
+    gmtime_s(&tmv, &now);
+#else
+    gmtime_r(&now, &tmv);
+#endif
+
+    int current_year = tmv.tm_year + 1900;
+    int total = 0;
+
+    for (int year = current_year; year >= EUROJACKPOT_FIRST_DRAW_YEAR; year--)
+    {
+        char url[512];
+        snprintf(url, sizeof(url),
+                 "https://www.eurojackpot.com/wlinfo/WL_InfoService?client=jsn&gruppe=ZahlenUndQuoten&"
+                 "ewGewsum=ja&historie=ja&spielart=EJ&adg=ja&lang=de&jahr=%d",
+                 year);
+
+        char *year_json = fetch_url_text(url);
+        if (!year_json)
+        {
+            log_warn("[historical_db] sync_latest: yearly history fetch failed for year=%d",
+                     year);
+            continue;
+        }
+
+        char year_dates[200][16];
+        int year_count = parse_history_dates(year_json, year_dates, 200);
+        free(year_json);
+
+        if (year_count <= 0)
+            continue;
+
+        for (int i = 0; i < year_count && total < max_dates; i++)
+        {
+            if (!date_already_collected((const char (*)[16])dates, total, year_dates[i]))
+            {
+                snprintf(dates[total], 16, "%.15s", year_dates[i]);
+                total++;
+            }
+        }
+
+        if (total >= max_dates)
+            break;
+    }
+
+    return total;
+}
 
 static const char *EUROJACKPOT_DEFAULT_URL =
     "https://www.eurojackpot.com/wlinfo/WL_InfoService?client=jsn&gruppe=ZahlenUndQuoten&"
@@ -994,8 +1063,16 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
                  "bulk download");
     }
 
-    char history_dates[100][16];
-    int history_count = parse_history_dates(json, history_dates, 100);
+    char history_dates[HISTORICAL_DB_MAX_DATES][16];
+    int history_count = 0;
+    if (strcasecmp(game_name, "Eurojackpot") == 0)
+    {
+        history_count = collect_eurojackpot_dates_all_years(history_dates, HISTORICAL_DB_MAX_DATES);
+    }
+    if (history_count <= 0)
+    {
+        history_count = parse_history_dates(json, history_dates, HISTORICAL_DB_MAX_DATES);
+    }
     log_debug("[historical_db] sync_latest: %d historical draw dates available from upstream",
               history_count);
 
@@ -1014,7 +1091,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         fprintf(fp, "  \"draws\": [\n");
 
         int fetch_count = 0;
-        int max_fetch = history_count > 50 ? 50 : history_count;
+        int max_fetch = history_count;
         int first = 1;
 
         log_info(
