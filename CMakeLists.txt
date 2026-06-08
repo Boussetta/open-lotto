@@ -30,6 +30,12 @@ endif()
 
 add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 
+option(OPEN_LOTTO_ENABLE_OPENGL "Build OpenGL 3D GUI backend" ON)
+if(WIN32)
+    # Windows CI currently packages the SDL frontend only.
+    set(OPEN_LOTTO_ENABLE_OPENGL OFF CACHE BOOL "Build OpenGL 3D GUI backend" FORCE)
+endif()
+
 # ---------------------------------------------------------------------------
 # Fuzzing support (requires clang + compiler-rt)
 # Enable with:  cmake -DOPEN_LOTTO_FUZZ=ON -DCMAKE_C_COMPILER=clang ...
@@ -131,31 +137,41 @@ if(NOT SDL2TTF_FOUND)
     )
 endif()
 
-# OpenGL support for 3D GUI
-find_package(OpenGL)
-if(NOT OPENGL_FOUND)
-    message(FATAL_ERROR
-        "OpenGL not found.\n"
-        "Install build dependencies by running:\n"
-        "  ./scripts/install_deps.sh\n"
-        "Or install OpenGL/Mesa manually:\n"
-        "  Ubuntu/Debian : sudo apt-get install libgl-dev mesa-common-dev\n"
-        "  Fedora        : sudo dnf install mesa-libGL-devel\n"
-        "  Arch          : sudo pacman -S mesa\n"
-        "  macOS         : included with Xcode Command Line Tools\n"
-    )
+if(OPEN_LOTTO_ENABLE_OPENGL)
+    # OpenGL support for 3D GUI
+    find_package(OpenGL)
+    if(NOT OPENGL_FOUND)
+        message(FATAL_ERROR
+            "OpenGL not found.\n"
+            "Install build dependencies by running:\n"
+            "  ./scripts/install_deps.sh\n"
+            "Or install OpenGL/Mesa manually:\n"
+            "  Ubuntu/Debian : sudo apt-get install libgl-dev mesa-common-dev\n"
+            "  Fedora        : sudo dnf install mesa-libGL-devel\n"
+            "  Arch          : sudo pacman -S mesa\n"
+            "  macOS         : included with Xcode Command Line Tools\n"
+        )
+    endif()
 endif()
 # OpenMP support for parallel ball synchronization and physics
 find_package(OpenMP REQUIRED)
 
+set(OPEN_LOTTO_PLATFORM_LIBS m)
+if(NOT WIN32 AND NOT APPLE)
+    list(APPEND OPEN_LOTTO_PLATFORM_LIBS dl)
+endif()
+
 include_directories(
     ${SDL2_INCLUDE_DIRS}
     ${SDL2TTF_INCLUDE_DIRS}
-    ${OPENGL_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/include
 )
 
-add_executable(open-lotto
+if(OPEN_LOTTO_ENABLE_OPENGL)
+    include_directories(${OPENGL_INCLUDE_DIR})
+endif()
+
+set(OPEN_LOTTO_SOURCES
     src/main.c
     src/export.c
     src/combogen.c
@@ -164,21 +180,34 @@ add_executable(open-lotto
     src/plugin_registry.c
     src/random_seed.c
     src/gui_sdl.c
-    src/gui_opengl.c
     src/log.c
     src/theme.c
     src/validate.c
 )
 
+if(OPEN_LOTTO_ENABLE_OPENGL)
+    list(APPEND OPEN_LOTTO_SOURCES src/gui_opengl.c)
+endif()
+
+add_executable(open-lotto ${OPEN_LOTTO_SOURCES})
+
+if(OPEN_LOTTO_ENABLE_OPENGL)
+    target_compile_definitions(open-lotto PRIVATE OPEN_LOTTO_ENABLE_OPENGL=1)
+else()
+    target_compile_definitions(open-lotto PRIVATE OPEN_LOTTO_ENABLE_OPENGL=0)
+endif()
+
 target_link_libraries(open-lotto
     PRIVATE
         ${SDL2_LIBRARIES}
         ${SDL2TTF_LIBRARIES}
-        ${OPENGL_LIBRARIES}
     OpenMP::OpenMP_C
-        dl
-        m
+        ${OPEN_LOTTO_PLATFORM_LIBS}
 )
+
+if(OPEN_LOTTO_ENABLE_OPENGL)
+    target_link_libraries(open-lotto PRIVATE ${OPENGL_LIBRARIES})
+endif()
 
 target_link_options(open-lotto PRIVATE -Wl,-export-dynamic)
 
@@ -192,8 +221,7 @@ add_executable(open-lotto-plugin-validator
 
 target_link_libraries(open-lotto-plugin-validator
     PRIVATE
-        dl
-        m
+    ${OPEN_LOTTO_PLATFORM_LIBS}
 )
 
 target_link_options(open-lotto-plugin-validator PRIVATE -Wl,-export-dynamic)
@@ -246,7 +274,9 @@ if(BUILD_TESTING)
         src/plugin_loader.c
         src/log.c
     )
-    target_link_libraries(test_plugin_loader PRIVATE dl)
+    if(NOT WIN32 AND NOT APPLE)
+        target_link_libraries(test_plugin_loader PRIVATE dl)
+    endif()
     target_compile_definitions(test_plugin_loader PRIVATE
         LOTTO_PLUGIN_PATH="${CMAKE_BINARY_DIR}/plugins/liblotto.so"
         STUB_PLUGIN_PATH="${CMAKE_BINARY_DIR}/plugins/libstub_plugin.so"

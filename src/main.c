@@ -18,14 +18,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+#define portable_msleep(ms) Sleep(ms)
+#else
 #include <strings.h>
-#include <time.h>
 #include <unistd.h>
+#define portable_msleep(ms) usleep((ms) * 1000)
+#endif
+#include <time.h>
 
 /* ---------------------------------------------------------
    SPINNER ANIMATION
    --------------------------------------------------------- */
-static const char *SPINNER_FRAMES[] = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
+static const char *SPINNER_FRAMES[] = {"-", "\\", "|", "/", "-", "\\", "|", "/", "-", "/"};
 static const int SPINNER_COUNT = 10;
 
 /* ---------------------------------------------------------
@@ -62,7 +68,7 @@ static void animate_number_reveal(int number, void (*print_prefix_fn)(const Lott
         print_prefix_fn(result, revealed_count);
         printf("%s ", SPINNER_FRAMES[f]);
         fflush(stdout);
-        usleep(30000);
+        portable_msleep(30);
     }
 
     /* Reveal the actual number */
@@ -70,7 +76,7 @@ static void animate_number_reveal(int number, void (*print_prefix_fn)(const Lott
     print_prefix_fn(result, revealed_count);
     printf("%d ", number);
     fflush(stdout);
-    usleep(150000);
+    portable_msleep(150);
 }
 
 /* ---------------------------------------------------------
@@ -78,7 +84,7 @@ static void animate_number_reveal(int number, void (*print_prefix_fn)(const Lott
    --------------------------------------------------------- */
 static void animate_numbers(const LotteryInfo *info, const LotteryResult *result)
 {
-    printf("Drawing numbers…\n\n");
+    printf("Drawing numbers...\n\n");
 
     printf("Lottozahlen: ");
 
@@ -102,7 +108,7 @@ static void animate_numbers(const LotteryInfo *info, const LotteryResult *result
                 print_main_and_extra(result, info->main_count, i);
                 printf("%s ", SPINNER_FRAMES[f]);
                 fflush(stdout);
-                usleep(30000);
+                portable_msleep(30);
             }
 
             /* Reveal extra number */
@@ -110,7 +116,7 @@ static void animate_numbers(const LotteryInfo *info, const LotteryResult *result
             print_main_and_extra(result, info->main_count, i);
             printf("%d ", result->extra_numbers[i]);
             fflush(stdout);
-            usleep(150000);
+            portable_msleep(150);
         }
     }
 
@@ -252,6 +258,9 @@ int main(int argc, char **argv)
     int gui = 0;
     const char *gui_mode = NULL;
     int debug_overlay = 0;
+#if !OPEN_LOTTO_ENABLE_OPENGL
+    (void)debug_overlay;
+#endif
     int dark_mode = -1; /* -1 = auto (detect from system), 0 = off, 1 = on */
     int cli_log_level_set = 0;
     LogLevel log_level = LOG_INFO;
@@ -582,7 +591,14 @@ int main(int argc, char **argv)
 
         if (strcmp(gui_mode, "3D") == 0)
         {
+#if OPEN_LOTTO_ENABLE_OPENGL
             gui_run_opengl(selected->name, &selected->info, debug_overlay, resolved_dark_mode);
+#else
+            log_error("3D GUI backend is not available in this build. Use '--gui 2D'.");
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+#endif
         }
         else /* Default to 2D */
         {
