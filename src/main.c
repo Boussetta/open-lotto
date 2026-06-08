@@ -252,6 +252,9 @@ int main(int argc, char **argv)
     int gui = 0;
     const char *gui_mode = NULL;
     int debug_overlay = 0;
+#if !OPEN_LOTTO_ENABLE_OPENGL
+    (void)debug_overlay;
+#endif
     int dark_mode = -1; /* -1 = auto (detect from system), 0 = off, 1 = on */
     int cli_log_level_set = 0;
     LogLevel log_level = LOG_INFO;
