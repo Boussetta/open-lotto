@@ -40,6 +40,14 @@ We enforce REUSE compliance to track software licenses and copyright properly:
 - **CI Check**: Automated in `security-checks` job
 - **Failure Policy**: CI fails if REUSE compliance issues detected
 
+### Software Bill of Materials (SBOM)
+
+We generate SPDX JSON SBOM artifacts in CI and release workflows:
+
+- **CI Artifact**: `open-lotto-ci.spdx.json`
+- **Release Artifact**: `open-lotto-v<version>.spdx.json`
+- **Format**: SPDX JSON
+
 ### Supported Versions
 
 Currently, only the latest main branch is actively maintained and receives security updates.
@@ -84,6 +92,16 @@ N/A - This is a CLI application without network access or web interfaces.
 The random number generation uses system entropy sources for lottery draws:
 - Not suitable for cryptographic use
 - Sufficient for lottery draw randomness
+
+## Entropy Audit Program
+
+Open-Lotto maintains an entropy audit workflow aligned with NIST SP 800-90B.
+
+- Audit guide: `docs/ENTROPY_AUDIT.md`
+- Scope: raw entropy collection and mixed seed stream quality
+- Cadence: before each release and after entropy pipeline changes
+
+Release branches should not ship if entropy acceptance criteria fail.
 
 ## Compliance
 

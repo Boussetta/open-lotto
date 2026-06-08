@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake gcc pkg-config libsdl2-dev libsdl2-ttf-dev
+          sudo apt-get install -y cmake gcc pkg-config libsdl2-dev libsdl2-ttf-dev python3
       
       - name: Configure CMake
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -53,15 +53,19 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           sha256sum open-lotto-${VERSION}.tar.gz > open-lotto-${VERSION}.tar.gz.sha256
           sha256sum open-lotto-${VERSION}-linux-x64.tar.gz > open-lotto-${VERSION}-linux-x64.tar.gz.sha256
+
+      - name: Generate release SBOM (SPDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          format: spdx-json
+          output-file: open-lotto-${{ github.ref_name }}.spdx.json
       
       - name: Generate changelog
         id: changelog
         run: |
+          python3 ./scripts/generate_changelog.py --to-ref HEAD --output release_changelog.md
           echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-          git log $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo HEAD~10)..HEAD \
-            --oneline \
-            --grep='^feat\|^fix\|^perf' \
-            | sed 's/^/- /' >> $GITHUB_OUTPUT
+          cat release_changelog.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
       
       - name: Create release
@@ -70,6 +74,7 @@ jobs:
           files: |
             open-lotto-*.tar.gz
             open-lotto-*.tar.gz.sha256
+            open-lotto-*.spdx.json
           body: |
             ## Release Notes
             

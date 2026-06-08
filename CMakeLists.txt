@@ -176,6 +176,7 @@ set(OPEN_LOTTO_SOURCES
     src/export.c
     src/combogen.c
     src/config.c
+    src/localization.c
     src/plugin_loader.c
     src/plugin_registry.c
     src/random_seed.c
@@ -329,6 +330,18 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:test_export>
     )
     set_tests_properties(unit_export PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    add_executable(test_localization
+        tests/test_localization.c
+        src/localization.c
+    )
+
+    add_test(NAME unit_localization
+        COMMAND $<TARGET_FILE:test_localization>
+    )
+    set_tests_properties(unit_localization PROPERTIES
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
@@ -568,6 +581,26 @@ if(OPEN_LOTTO_FUZZ)
     )
     target_compile_options(fuzz_validate PRIVATE -fsanitize=fuzzer,address,undefined)
     target_link_options(fuzz_validate   PRIVATE -fsanitize=fuzzer,address,undefined)
-    target_link_libraries(fuzz_validate PRIVATE dl m)
-    message(STATUS "libFuzzer target enabled: fuzz_validate")
+    target_link_libraries(fuzz_validate PRIVATE ${OPEN_LOTTO_PLATFORM_LIBS})
+
+    add_executable(fuzz_plugin_loader
+        tests/fuzz_plugin_loader.c
+        src/plugin_loader.c
+        src/log.c
+    )
+    target_compile_options(fuzz_plugin_loader PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_options(fuzz_plugin_loader PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_libraries(fuzz_plugin_loader PRIVATE ${OPEN_LOTTO_PLATFORM_LIBS})
+
+    add_executable(fuzz_combogen
+        tests/fuzz_combogen.c
+        src/combogen.c
+        src/random_seed.c
+        src/log.c
+    )
+    target_compile_options(fuzz_combogen PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_options(fuzz_combogen PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_libraries(fuzz_combogen PRIVATE ${OPEN_LOTTO_PLATFORM_LIBS})
+
+    message(STATUS "libFuzzer targets enabled: fuzz_validate, fuzz_plugin_loader, fuzz_combogen")
 endif()

@@ -59,6 +59,7 @@ Once you push the tag, GitHub Actions automatically:
 2. **Generates artifacts**:
    - Source tarball: `open-lotto-1.0.0.tar.gz`
    - Binary tarball: `open-lotto-1.0.0-linux-x64.tar.gz`
+   - SBOM file: `open-lotto-v1.0.0.spdx.json`
    - SHA256 checksums for both
 3. **Creates a GitHub Release** with:
    - Automated changelog extracted from commit messages
@@ -75,28 +76,36 @@ The automated release workflow (`.github/workflows/release.yml`) performs:
 - **Artifacts**: 
   - Source tarball (full repository with git history excluded)
   - Binary tarball (compiled binaries only)
+   - SPDX JSON SBOM generated from repository contents
   - SHA256 checksums for integrity verification
-- **Changelog**: Automatically extracted from commits since last tag, filtering for `feat:`, `fix:`, and `perf:` commits
+- **Changelog**: Automatically generated from conventional commits via `scripts/generate_changelog.py`
 - **Release Publication**: Creates GitHub release with artifacts and changelog
 
 ## Changelog Generation
 
-The workflow automatically generates a changelog from commits since the previous tag:
+The release workflow calls `scripts/generate_changelog.py` to parse conventional commits
+from the previous tag to `HEAD` and group them into sections (Features, Fixes,
+Performance, Documentation, CI, and more).
+
+Local preview command:
 
 ```bash
-git log <previous-tag>..HEAD --oneline --grep='^feat\|^fix\|^perf'
+python3 scripts/generate_changelog.py --to-ref HEAD
 ```
 
-Commits to include in changelog must follow this naming pattern:
+Commits should follow conventional commit naming:
 - `feat(...): description` - New features
 - `fix(...): description` - Bug fixes
 - `perf(...): description` - Performance improvements
+- `docs(...): description` - Documentation changes
+- `ci(...): description` - CI/workflow changes
 
 Example good commit messages:
 ```
 feat(combogen): add new game selection algorithm
 fix(cli): handle invalid input gracefully
 perf(random): optimize random seed generation
+docs(releases): clarify changelog generation workflow
 ```
 
 ## Verifying Downloaded Releases
