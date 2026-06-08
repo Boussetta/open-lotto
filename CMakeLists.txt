@@ -375,6 +375,13 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "Main:"
     )
 
+    add_test(NAME cli_seed_reproducible
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_cli_seed_repro.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(cli_seed_reproducible PROPERTIES
+        PASS_REGULAR_EXPRESSION "seed reproducibility OK"
+    )
+
     add_test(NAME cli_reloads_selected_plugin
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --reload-plugin --validate-only
     )
@@ -441,6 +448,11 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --invalid-flag
     )
     set_tests_properties(cli_unknown_flag PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_seed_invalid_value
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --seed not_a_number
+    )
+    set_tests_properties(cli_seed_invalid_value PROPERTIES WILL_FAIL TRUE)
 
     add_test(NAME cli_verbose_missing_value
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --verbose

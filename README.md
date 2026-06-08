@@ -184,6 +184,10 @@ Combine options
 
 ./open-lotto --game lotto --animate --draws 5
 
+Deterministic replay (reproducible draws)
+
+./open-lotto --game "Lotto 6aus49" --draws 10 --seed 0x1234abcd
+
 🧩 Plugin Architecture
 
 Each plugin must implement three symbols from `include/lottery_plugin.h`:
@@ -221,6 +225,7 @@ Comprehensive documentation is available in the `docs/` directory:
 
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System design, plugin system internals, physics simulation, data flow, and design principles
 - **[API_REFERENCE.md](docs/API_REFERENCE.md)** — Complete function reference for all public APIs (RNG, combogen, plugins, export, validation, configuration, logging)
+- **[DEVELOPER_API.md](docs/DEVELOPER_API.md)** — Embeddable C API for validated and deterministic seeded draw generation
 - **[BUILDING_FROM_SOURCE.md](docs/BUILDING_FROM_SOURCE.md)** — Detailed build instructions for all platforms, dependency installation, build variants, troubleshooting
 - **[DEBUGGING.md](docs/DEBUGGING.md)** — GDB workflow, AddressSanitizer interpretation, Valgrind usage, core dump analysis, static analysis
 - **[STATIC_ANALYSIS.md](docs/STATIC_ANALYSIS.md)** — Cppcheck and clang-tidy integration, suppressing false positives, CI configuration
