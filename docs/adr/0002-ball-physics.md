@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # ADR-0002: Ball Physics Model
 
 **Date:** 2024-06-01

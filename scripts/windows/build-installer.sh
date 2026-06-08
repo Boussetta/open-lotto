@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 Wissem Boussetta
+# SPDX-License-Identifier: MIT
+
 #!/usr/bin/env bash
 # Build script for Windows NSIS installer
 # This script runs on Windows with NSIS installed

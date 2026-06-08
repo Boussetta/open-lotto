@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # Static Analysis Guide
 
 This guide explains how to use and suppress findings from the static analysis tools integrated into Open-Lotto's CI/CD pipeline.

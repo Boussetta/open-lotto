@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # ADR-0003: GUI Rendering Architecture
 
 **Date:** 2024-06-01

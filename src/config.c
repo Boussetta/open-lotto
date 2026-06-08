@@ -2,6 +2,7 @@
  * @file config.c
  * @brief Implementation of configuration file support (.lottorc).
  *
+ * SPDX-FileCopyrightText: 2025 Wissem Boussetta
  * SPDX-License-Identifier: MIT
  */
 

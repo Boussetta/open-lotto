@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # ADR-XXXX: [Short Decision Title]
 
 **Date:** YYYY-MM-DD

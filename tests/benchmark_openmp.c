@@ -1,3 +1,7 @@
+/* SPDX-FileCopyrightText: 2025 Wissem Boussetta
+ * SPDX-License-Identifier: MIT
+ */
+
 /**
  * @file benchmark_openmp.c
  * @brief OpenMP parallelization performance benchmarks

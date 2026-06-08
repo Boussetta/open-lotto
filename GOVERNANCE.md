@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # Project Governance
 
 This document describes the governance structure, decision-making processes, and contribution guidelines for the open-lotto project.

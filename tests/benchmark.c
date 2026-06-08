@@ -1,3 +1,7 @@
+/* SPDX-FileCopyrightText: 2025 Wissem Boussetta
+ * SPDX-License-Identifier: MIT
+ */
+
 /**
  * @file benchmark.c
  * @brief Performance benchmarking suite for Open-Lotto

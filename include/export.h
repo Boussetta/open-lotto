@@ -1,3 +1,7 @@
+/* SPDX-FileCopyrightText: 2025 Wissem Boussetta
+ * SPDX-License-Identifier: MIT
+ */
+
 /**
  * @file export.h
  * @brief Export lottery results to CSV and JSON formats

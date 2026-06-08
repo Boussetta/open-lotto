@@ -1,3 +1,7 @@
+/* SPDX-FileCopyrightText: 2025 Wissem Boussetta
+ * SPDX-License-Identifier: MIT
+ */
+
 /**
  * @file test_plugin_loader.c
  * @brief Integration tests for the plugin loader.

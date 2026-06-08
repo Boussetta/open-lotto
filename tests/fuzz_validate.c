@@ -1,3 +1,7 @@
+/* SPDX-FileCopyrightText: 2025 Wissem Boussetta
+ * SPDX-License-Identifier: MIT
+ */
+
 /**
  * @file fuzz_validate.c
  * @brief libFuzzer target for input validation functions.

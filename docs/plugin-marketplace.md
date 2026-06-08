@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # Plugin Marketplace Roadmap
 
 This document captures the future-facing shape of plugin packaging and distribution for Open-Lotto.

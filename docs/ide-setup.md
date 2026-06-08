@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # IDE Setup Guide
 
 This document describes recommended setup for VS Code, CLion, and IntelliJ IDEA.

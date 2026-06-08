@@ -1,3 +1,7 @@
+/* SPDX-FileCopyrightText: 2025 Wissem Boussetta
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>

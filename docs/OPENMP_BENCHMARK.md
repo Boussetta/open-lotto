@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # OpenMP Performance Benchmark Guide
 
 This document explains the `benchmark_openmp` utility and how to interpret its results.

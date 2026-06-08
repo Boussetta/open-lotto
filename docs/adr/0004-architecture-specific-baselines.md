@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # ADR-0004: Architecture-Specific Performance Baselines
 
 **Date:** 2026-06-08

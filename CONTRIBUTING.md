@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # Contributing to Open-Lotto
 
 Thank you for your interest in contributing to Open-Lotto! This guide will help you get started.

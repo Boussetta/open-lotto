@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 Wissem Boussetta
+# SPDX-License-Identifier: MIT
+
 cmake_minimum_required(VERSION 3.10)
 
 # Read version from VERSION file

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 Wissem Boussetta
+# SPDX-License-Identifier: MIT
+
 app-id: com.boussetta.openlotto
 runtime: org.freedesktop.Platform
 runtime-version: '23.08'

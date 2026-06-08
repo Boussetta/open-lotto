@@ -1,3 +1,7 @@
+/* SPDX-FileCopyrightText: 2025 Wissem Boussetta
+ * SPDX-License-Identifier: MIT
+ */
+
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
 #include <SDL2/SDL.h>

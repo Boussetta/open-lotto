@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 Wissem Boussetta
+# SPDX-License-Identifier: MIT
+
 #!/usr/bin/env bash
 # Build script for open-lotto AppImage
 # Usage: ./build-appimage.sh [version]

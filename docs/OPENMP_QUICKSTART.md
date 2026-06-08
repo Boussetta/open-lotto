@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # Quick Start: OpenMP Performance Testing
 
 ## The 5-Minute Summary

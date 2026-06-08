@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # API Reference
 
 This document provides a comprehensive reference for the Open-Lotto public API. For implementation details, see [ARCHITECTURE.md](ARCHITECTURE.md).

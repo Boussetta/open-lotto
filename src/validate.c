@@ -2,6 +2,7 @@
  * @file validate.c
  * @brief Implementation of input validation utilities.
  *
+ * SPDX-FileCopyrightText: 2025 Wissem Boussetta
  * SPDX-License-Identifier: MIT
  */
 

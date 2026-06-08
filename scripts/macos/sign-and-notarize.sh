@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 Wissem Boussetta
+# SPDX-License-Identifier: MIT
+
 #!/usr/bin/env bash
 # macOS code signing and notarization script
 # Usage: ./sign-and-notarize.sh <binary> <identity> <team-id> <password>

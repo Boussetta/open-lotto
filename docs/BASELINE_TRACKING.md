@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # Performance Baseline Tracking Guide
 
 This guide explains how to track, manage, and interpret historical performance baselines in Open-Lotto.

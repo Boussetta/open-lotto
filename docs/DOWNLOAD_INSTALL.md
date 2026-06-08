@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # Download & Installation Guide
 
 Welcome! **Open Lotto** is available for download on all major platforms. Choose your operating system below for step-by-step installation instructions.

@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # Debugging Guide
 
 This guide covers debugging techniques for Open-Lotto development and troubleshooting.

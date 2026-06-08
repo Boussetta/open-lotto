@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # Code Review Guidelines
 
 This document outlines the code review process and expectations for the open-lotto project.

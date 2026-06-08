@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 Wissem Boussetta
+# SPDX-License-Identifier: MIT
+
 #!/usr/bin/env python3
 """
 Historical baseline manager for performance tracking.

@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2025 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # ADR-0001: Plugin-Based Game Architecture
 
 **Date:** 2024-01-01
