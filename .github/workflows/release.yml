@@ -35,9 +35,10 @@ jobs:
       - name: Create source tarball
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
+          cd ..
           tar --exclude='.git' --exclude='build*' --exclude='.github' \
-            --exclude='open-lotto-*.tar.gz' --exclude='open-lotto-*.tar.gz.sha256' \
-            -czf open-lotto-${VERSION}.tar.gz .
+            -czf open-lotto-${VERSION}.tar.gz open-lotto/
+          mv open-lotto-${VERSION}.tar.gz open-lotto/
       
       - name: Create binary tarball
         run: |
