@@ -1,0 +1,159 @@
+name: Create GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Wait for build-release workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tagRef = context.ref.split('/').pop();
+            const workflowName = 'Build Release Binaries';
+            const maxAttempts = 60;
+            const delaySeconds = 10;
+            
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'build-release.yml',
+                event: 'push',
+                status: 'completed',
+                head_sha: context.sha,
+              });
+              
+              if (runs.data.workflow_runs.length > 0) {
+                const run = runs.data.workflow_runs[0];
+                if (run.conclusion === 'success') {
+                  console.log(`✓ Build workflow completed successfully (attempt ${attempt})`);
+                  return true;
+                } else if (run.conclusion === 'failure') {
+                  throw new Error(`Build workflow failed: ${run.html_url}`);
+                }
+              }
+              
+              if (attempt < maxAttempts) {
+                console.log(`Waiting for build workflow... (attempt ${attempt}/${maxAttempts})`);
+                await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
+              } else {
+                throw new Error('Build workflow did not complete in time');
+              }
+            }
+
+      - name: Download all artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Get artifacts from the build-release workflow
+            const runs = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'build-release.yml',
+              event: 'push',
+              status: 'completed',
+              head_sha: context.sha,
+            });
+            
+            if (runs.data.workflow_runs.length === 0) {
+              throw new Error('No completed build runs found');
+            }
+            
+            const runId = runs.data.workflow_runs[0].id;
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId,
+            });
+            
+            console.log(`Found ${artifacts.data.artifacts.length} artifacts`);
+            
+            // Download each artifact
+            for (const artifact of artifacts.data.artifacts) {
+              console.log(`Downloading: ${artifact.name}`);
+              const downloadData = await github.rest.actions.downloadArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+                archive_format: 'zip',
+              });
+              
+              const zipPath = `${artifact.name}.zip`;
+              fs.writeFileSync(zipPath, Buffer.from(downloadData.data));
+              
+              // Unzip
+              const { execSync } = require('child_process');
+              execSync(`unzip -o ${zipPath}`);
+              fs.unlinkSync(zipPath);
+            }
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # Extract version from tag
+          VERSION="${GITHUB_REF#refs/tags/}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Generate release notes from CHANGELOG or commit history
+          if [ -f "CHANGELOG.md" ]; then
+            # Extract section for this version
+            sed -n "/^## \[$VERSION\]/,/^## \[/p" CHANGELOG.md | head -n -1 > release_notes.md
+            if [ ! -s release_notes.md ]; then
+              echo "No changelog entry found for $VERSION, using git log" > release_notes.md
+              git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --oneline >> release_notes.md || true
+            fi
+          else
+            echo "## $VERSION Release Notes" > release_notes.md
+            git log --oneline -n 20 >> release_notes.md || true
+          fi
+          
+          cat release_notes.md
+
+      - name: Prepare binary artifacts
+        run: |
+          mkdir -p release_artifacts
+          
+          # Collect all binaries and checksums
+          find . -maxdepth 2 -type f \( -name "open-lotto*" -o -name "checksums*" \) ! -path "*/.*" -exec cp {} release_artifacts/ \;
+          
+          # List what we're releasing
+          echo "Release artifacts:"
+          ls -lh release_artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.release_notes.outputs.version }}
+          name: Open Lotto ${{ steps.release_notes.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(steps.release_notes.outputs.version, '-') }}
+          files: |
+            release_artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Announce Release
+        run: |
+          echo "✓ Release created successfully!"
+          echo ""
+          echo "Release: ${{ steps.release_notes.outputs.version }}"
+          echo "URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.release_notes.outputs.version }}"
