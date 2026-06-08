@@ -2,11 +2,55 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <dlfcn.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef _WIN32
+#include <dlfcn.h>
+#else
+#include <windows.h>
+
+/* Windows compatibility layer for dlfcn.h */
+#define RTLD_NOW 0
+
+static char g_dlerror_buffer[256];
+
+static void *dlopen(const char *filename, int flags)
+{
+    (void)flags; /* flags parameter unused on Windows */
+    if (!filename)
+        return NULL;
+    return (void *)LoadLibraryA(filename);
+}
+
+static void *dlsym(void *handle, const char *symbol)
+{
+    if (!handle || !symbol)
+        return NULL;
+    return (void *)GetProcAddress((HMODULE)handle, symbol);
+}
+
+static const char *dlerror(void)
+{
+    DWORD error_code = GetLastError();
+    if (error_code == 0)
+        return "No error";
+
+    DWORD flags = FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS;
+    FormatMessageA(flags, NULL, error_code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                   g_dlerror_buffer, sizeof(g_dlerror_buffer) - 1, NULL);
+    return g_dlerror_buffer;
+}
+
+static int dlclose(void *handle)
+{
+    if (!handle)
+        return -1;
+    return FreeLibrary((HMODULE)handle) ? 0 : -1;
+}
+#endif
 
 #include "log.h"
 #include "lottery_plugin.h"
