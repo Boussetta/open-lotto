@@ -50,7 +50,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ccache pkg-config \
             libsdl2-dev libsdl2-ttf-dev libgl-dev mesa-common-dev \
-            libopenmp-dev
+            libopenmp-dev libglvnd-dev
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
