@@ -64,12 +64,14 @@ jobs:
 
       - name: Generate checksum
         run: |
-          CertUtil -hashfile "open-lotto-x64-setup.exe" SHA256 | Tee-Object checksums.txt
+          CertUtil -hashfile "scripts/windows/open-lotto-x64-setup.exe" SHA256 | Tee-Object checksums.txt
 
       - name: Upload to Release
         if: success()
         run: |
-          gh release upload "${{ github.event.inputs.version }}" "open-lotto-x64-setup.exe" --clobber
-          gh release upload "${{ github.event.inputs.version }}" "checksums.txt" --clobber
+          $tag = "${{ github.event.inputs.version }}"
+          if ($tag -notmatch '^v') { $tag = "v$tag" }
+          gh release upload "$tag" "scripts/windows/open-lotto-x64-setup.exe" --clobber
+          gh release upload "$tag" "checksums.txt" --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
