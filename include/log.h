@@ -15,6 +15,8 @@ typedef enum
     LOG_DEBUG
 } LogLevel;
 
+typedef void (*LogLineObserver)(void);
+
 void log_set_level(LogLevel level);
 void log_enable_file_output(const char *filename);
 
@@ -27,6 +29,7 @@ void log_enable_file_output(const char *filename);
  * %APPDATA%\open-lotto\logs\open-lotto.log.
  */
 void log_init_default_file(void);
+void log_set_line_observer(LogLineObserver observer);
 
 void log_error(const char *fmt, ...);
 void log_warn(const char *fmt, ...);

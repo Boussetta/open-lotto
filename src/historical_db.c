@@ -161,6 +161,29 @@ static DownloadSettings g_download_settings = {
     0,
 };
 
+static int g_progress_log_tracking_enabled = 0;
+static int g_progress_log_lines_since_draw = 0;
+
+static void historical_db_progress_log_observer(void)
+{
+    if (g_progress_log_tracking_enabled)
+        g_progress_log_lines_since_draw++;
+}
+
+static void progress_log_tracking_begin(void)
+{
+    g_progress_log_lines_since_draw = 0;
+    g_progress_log_tracking_enabled = 1;
+    log_set_line_observer(historical_db_progress_log_observer);
+}
+
+static void progress_log_tracking_end(void)
+{
+    g_progress_log_tracking_enabled = 0;
+    g_progress_log_lines_since_draw = 0;
+    log_set_line_observer(NULL);
+}
+
 static double bytes_per_sec_since(time_t start_time, size_t bytes)
 {
     time_t now = time(NULL);
@@ -216,7 +239,15 @@ static void print_worker_progress_bars(int done, int total, time_t start_time, s
     }
 
     if (*printed_lines > 0)
-        fprintf(stderr, "\033[%dF", *printed_lines);
+    {
+        int rewind_lines = *printed_lines;
+        if (g_progress_log_tracking_enabled && g_progress_log_lines_since_draw > 0)
+        {
+            rewind_lines += g_progress_log_lines_since_draw;
+            g_progress_log_lines_since_draw = 0;
+        }
+        fprintf(stderr, "\033[%dF", rewind_lines);
+    }
 
     int filled = (int)((double)done / (double)total * PROGRESS_BAR_WIDTH);
     if (filled > PROGRESS_BAR_WIDTH)
@@ -2164,6 +2195,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
             max_fetch, g_download_settings.workers);
         log_info("[historical_db] sync_latest: resume cache directory = %s", checkpoint_dir);
         fprintf(stderr, "  Fetching %d historical draws for %s\n", max_fetch, game_name);
+        progress_log_tracking_begin();
         print_worker_progress_bars(0, max_fetch, download_start, 0, g_download_settings.workers,
                                    worker_done, worker_bytes, &printed_lines);
 
@@ -2268,6 +2300,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
             free(worker_done);
             free(worker_bytes);
             free(results);
+            progress_log_tracking_end();
             release_sync_lock(lock_path);
             free(json);
             return HISTORICAL_DB_ERR_IO;
@@ -2348,10 +2381,13 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         fprintf(fp, "}\n");
         if (commit_atomic_write(fp, tmp_path, path) != 0)
         {
+            progress_log_tracking_end();
             release_sync_lock(lock_path);
             free(json);
             return HISTORICAL_DB_ERR_IO;
         }
+
+        progress_log_tracking_end();
 
         log_info(
             "[historical_db] sync_latest: bulk download complete — %d draws stored to %s",
