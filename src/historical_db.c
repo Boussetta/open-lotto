@@ -47,6 +47,7 @@
 #define HISTORICAL_DB_RETRY_BASE_DELAY_ENV "OPEN_LOTTO_HIST_RETRY_BASE_DELAY_MS"
 #define HISTORICAL_DB_RETRY_MAX_DELAY_ENV "OPEN_LOTTO_HIST_RETRY_MAX_DELAY_MS"
 #define HISTORICAL_DB_MAX_FETCH_DRAWS_ENV "OPEN_LOTTO_HIST_MAX_FETCH_DRAWS"
+#define HISTORICAL_DB_FORCE_FULL_REBUILD_ENV "OPEN_LOTTO_HIST_FORCE_FULL_REBUILD"
 #define HISTORICAL_DB_DOWNLOAD_CONFIG_ENV "OPEN_LOTTO_DOWNLOAD_CONFIG"
 
 /* Width (in filled/empty characters) of the terminal progress bar. */
@@ -125,6 +126,7 @@ typedef struct
     int retry_base_delay_ms;
     int retry_max_delay_ms;
     int max_fetch_draws;
+    int force_full_rebuild;
 } DownloadSettings;
 
 typedef struct
@@ -144,6 +146,7 @@ static DownloadSettings g_download_settings = {
     HISTORICAL_DB_MAX_RETRY_ATTEMPTS_DEFAULT,
     HISTORICAL_DB_RETRY_BASE_DELAY_MS_DEFAULT,
     HISTORICAL_DB_RETRY_MAX_DELAY_MS_DEFAULT,
+    0,
     0,
 };
 
@@ -282,6 +285,23 @@ static int read_env_int_bounded(const char *name, int fallback, int min_value, i
     return (int)value;
 }
 
+static int read_env_bool(const char *name, int fallback)
+{
+    const char *raw = getenv(name);
+    if (!raw || raw[0] == '\0')
+        return fallback;
+
+    if (strcasecmp(raw, "1") == 0 || strcasecmp(raw, "true") == 0 ||
+        strcasecmp(raw, "yes") == 0 || strcasecmp(raw, "on") == 0)
+        return 1;
+
+    if (strcasecmp(raw, "0") == 0 || strcasecmp(raw, "false") == 0 ||
+        strcasecmp(raw, "no") == 0 || strcasecmp(raw, "off") == 0)
+        return 0;
+
+    return fallback;
+}
+
 static int get_download_config_path(char *out, size_t out_size)
 {
     const char *override = getenv(HISTORICAL_DB_DOWNLOAD_CONFIG_ENV);
@@ -372,6 +392,12 @@ static void load_download_settings_from_config(DownloadSettings *s)
             parse_int_bounded(value, &s->retry_max_delay_ms, 100, 120000);
         else if (strcasecmp(key, "max_fetch_draws") == 0)
             parse_int_bounded(value, &s->max_fetch_draws, 0, HISTORICAL_DB_MAX_DATES);
+        else if (strcasecmp(key, "force_full_rebuild") == 0)
+            s->force_full_rebuild =
+                (strcasecmp(value, "1") == 0 || strcasecmp(value, "true") == 0 ||
+                 strcasecmp(value, "yes") == 0 || strcasecmp(value, "on") == 0)
+                    ? 1
+                    : 0;
     }
 
     fclose(fp);
@@ -387,6 +413,7 @@ static DownloadSettings load_download_settings(void)
     s.retry_base_delay_ms = HISTORICAL_DB_RETRY_BASE_DELAY_MS_DEFAULT;
     s.retry_max_delay_ms = HISTORICAL_DB_RETRY_MAX_DELAY_MS_DEFAULT;
     s.max_fetch_draws = 0;
+    s.force_full_rebuild = 0;
 
     load_download_settings_from_config(&s);
 
@@ -403,6 +430,8 @@ static DownloadSettings load_download_settings(void)
                                                 s.retry_max_delay_ms, 100, 120000);
     s.max_fetch_draws = read_env_int_bounded(HISTORICAL_DB_MAX_FETCH_DRAWS_ENV,
                                              s.max_fetch_draws, 0, HISTORICAL_DB_MAX_DATES);
+    s.force_full_rebuild =
+        read_env_bool(HISTORICAL_DB_FORCE_FULL_REBUILD_ENV, s.force_full_rebuild);
 
     if (s.retry_max_delay_ms < s.retry_base_delay_ms)
         s.retry_max_delay_ms = s.retry_base_delay_ms;
@@ -1706,11 +1735,11 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
 
     log_info("[historical_db] sync_latest: starting sync for game='%s'", game_name);
     log_info("[historical_db] sync config: workers=%d fetch_timeout=%ds draw_timeout=%ds "
-             "retries=%d backoff=%d..%dms max_fetch=%d",
+             "retries=%d backoff=%d..%dms max_fetch=%d force_full_rebuild=%d",
              g_download_settings.workers, g_download_settings.fetch_timeout_sec,
              g_download_settings.draw_timeout_sec, g_download_settings.max_retry_attempts,
              g_download_settings.retry_base_delay_ms, g_download_settings.retry_max_delay_ms,
-             g_download_settings.max_fetch_draws);
+             g_download_settings.max_fetch_draws, g_download_settings.force_full_rebuild);
 #ifndef _OPENMP
     if (g_download_settings.workers > 1)
     {
@@ -1791,8 +1820,14 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
     log_debug("[historical_db] sync_latest: %d historical draw dates available from upstream",
               history_count);
 
-    if (!has_existing && history_count > 0)
+    if (history_count > 0 && (!has_existing || g_download_settings.force_full_rebuild))
     {
+        if (has_existing && g_download_settings.force_full_rebuild)
+        {
+            log_info("[historical_db] sync_latest: forcing full rebuild due to %s",
+                     HISTORICAL_DB_FORCE_FULL_REBUILD_ENV);
+        }
+
         int fetch_count = 0;
         int max_fetch = history_count;
         if (g_download_settings.max_fetch_draws > 0 &&
