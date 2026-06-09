@@ -2855,7 +2855,12 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
     {
         SDL_Event ev;
         while (SDL_PollEvent(&ev))
-            acam_handle_event(&cam, &ev, &running);
+        {
+            if (ev.type == SDL_QUIT || (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE))
+                running = 0;
+            else
+                acam_handle_event(&cam, &ev, &running);
+        }
         if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
 
         Uint32 now = SDL_GetTicks();
@@ -2969,7 +2974,12 @@ int gui_render_barometer_3d(const char *title, const BarometerReport *report, in
     {
         SDL_Event ev;
         while (SDL_PollEvent(&ev))
-            acam_handle_event(&cam, &ev, &running);
+        {
+            if (ev.type == SDL_QUIT || (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE))
+                running = 0;
+            else
+                acam_handle_event(&cam, &ev, &running);
+        }
         if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
 
         Uint32 now = SDL_GetTicks();
@@ -3098,7 +3108,12 @@ int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int d
     {
         SDL_Event ev;
         while (SDL_PollEvent(&ev))
-            acam_handle_event(&cam, &ev, &running);
+        {
+            if (ev.type == SDL_QUIT || (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE))
+                running = 0;
+            else
+                acam_handle_event(&cam, &ev, &running);
+        }
         if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
 
         Uint32 now = SDL_GetTicks();
