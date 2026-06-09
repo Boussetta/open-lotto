@@ -760,6 +760,11 @@ static int date_already_collected(const char dates[][16], int count, const char 
     return 0;
 }
 
+static const char (*dates_as_const(char dates[][16]))[16]
+{
+    return (const char (*)[16])(const void *)dates;
+}
+
 static int collect_game_dates_all_years(const char *game_name, char dates[][16], int max_dates)
 {
     const char *spielart = game_spielart_code(game_name);
@@ -803,11 +808,9 @@ static int collect_game_dates_all_years(const char *game_name, char dates[][16],
         if (year_count <= 0)
             continue;
 
-        const char (*dates_view)[16] = (const char (*)[16])(void *)dates;
-
         for (int i = 0; i < year_count && total < max_dates; i++)
         {
-            if (!date_already_collected(dates_view, total, year_dates[i]))
+            if (!date_already_collected(dates_as_const(dates), total, year_dates[i]))
             {
                 snprintf(dates[total], 16, "%.15s", year_dates[i]);
                 total++;
