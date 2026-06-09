@@ -172,6 +172,8 @@ if(OPEN_LOTTO_ENABLE_OPENGL)
 endif()
 
 set(OPEN_LOTTO_SOURCES
+    src/analytics_data_quality.c
+    src/analytics.c
     src/main.c
     src/export.c
     src/combogen.c
@@ -345,6 +347,56 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
+    add_executable(test_validate_period
+        tests/test_validate_period.c
+        src/validate.c
+        src/plugin_registry.c
+        src/plugin_loader.c
+        src/log.c
+    )
+    target_link_libraries(test_validate_period PRIVATE ${OPEN_LOTTO_PLATFORM_LIBS})
+
+    add_test(NAME unit_validate_period
+        COMMAND $<TARGET_FILE:test_validate_period>
+    )
+    set_tests_properties(unit_validate_period PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    add_executable(test_analytics_data_quality
+        tests/test_analytics_data_quality.c
+        src/analytics_data_quality.c
+        src/validate.c
+        src/plugin_registry.c
+        src/plugin_loader.c
+        src/log.c
+    )
+    target_link_libraries(test_analytics_data_quality PRIVATE ${OPEN_LOTTO_PLATFORM_LIBS})
+
+    add_test(NAME unit_analytics_data_quality
+        COMMAND $<TARGET_FILE:test_analytics_data_quality>
+    )
+    set_tests_properties(unit_analytics_data_quality PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    add_executable(test_analytics_frequency
+        tests/test_analytics_frequency.c
+        src/analytics.c
+        src/validate.c
+        src/plugin_registry.c
+        src/plugin_loader.c
+        src/log.c
+    )
+    target_link_libraries(test_analytics_frequency PRIVATE ${OPEN_LOTTO_PLATFORM_LIBS})
+
+    add_test(NAME unit_analytics_frequency
+        COMMAND $<TARGET_FILE:test_analytics_frequency>
+    )
+    set_tests_properties(unit_analytics_frequency PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
     add_executable(test_dev_api
         tests/test_dev_api.c
         src/open_lotto_api.c
@@ -466,6 +518,61 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --seed not_a_number
     )
     set_tests_properties(cli_seed_invalid_value PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_period_from_without_to
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --from 2025-01-01
+    )
+    set_tests_properties(cli_period_from_without_to PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_period_to_without_from
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --to 2025-12-31
+    )
+    set_tests_properties(cli_period_to_without_from PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_period_invalid_date
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --from 2025-13-01 --to 2025-12-31
+    )
+    set_tests_properties(cli_period_invalid_date PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_period_inverted
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --from 2025-12-31 --to 2025-01-01
+    )
+    set_tests_properties(cli_period_inverted PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_period_valid_pair
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --from 2025-01-01 --to 2025-12-31 --draws 1
+    )
+    set_tests_properties(cli_period_valid_pair PROPERTIES
+        PASS_REGULAR_EXPRESSION "Main:"
+    )
+
+    add_test(NAME cli_analytics_frequency_table
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv
+    )
+    set_tests_properties(cli_analytics_frequency_table PROPERTIES
+        PASS_REGULAR_EXPRESSION "Frequency distribution|number,count,percentage"
+    )
+
+    add_test(NAME cli_analytics_frequency_json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --format json
+    )
+    set_tests_properties(cli_analytics_frequency_json PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"frequency\"|\"draws\""
+    )
+
+    add_test(NAME cli_analytics_frequency_gui_2d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --gui 2D
+    )
+    set_tests_properties(cli_analytics_frequency_gui_2d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 2D\]"
+    )
+
+    add_test(NAME cli_analytics_frequency_gui_3d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --gui 3D
+    )
+    set_tests_properties(cli_analytics_frequency_gui_3d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
+    )
 
     add_test(NAME cli_verbose_missing_value
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --verbose

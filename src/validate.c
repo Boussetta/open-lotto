@@ -17,6 +17,69 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+typedef struct
+{
+    int year;
+    int month;
+    int day;
+} DateParts;
+
+static int is_leap_year(int year)
+{
+    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+}
+
+static int parse_iso_date_parts(const char *date_str, DateParts *out)
+{
+    if (!date_str || !out)
+        return 0;
+
+    if (strlen(date_str) != 10)
+        return 0;
+
+    if (date_str[4] != '-' || date_str[7] != '-')
+        return 0;
+
+    for (int i = 0; i < 10; i++)
+    {
+        if (i == 4 || i == 7)
+            continue;
+        if (date_str[i] < '0' || date_str[i] > '9')
+            return 0;
+    }
+
+    out->year = (date_str[0] - '0') * 1000 + (date_str[1] - '0') * 100 +
+                (date_str[2] - '0') * 10 + (date_str[3] - '0');
+    out->month = (date_str[5] - '0') * 10 + (date_str[6] - '0');
+    out->day = (date_str[8] - '0') * 10 + (date_str[9] - '0');
+
+    if (out->year < 1)
+        return 0;
+    if (out->month < 1 || out->month > 12)
+        return 0;
+
+    static const int month_days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    int max_day = month_days[out->month - 1];
+    if (out->month == 2 && is_leap_year(out->year))
+        max_day = 29;
+
+    if (out->day < 1 || out->day > max_day)
+        return 0;
+
+    return 1;
+}
+
+static int compare_dates(const DateParts *a, const DateParts *b)
+{
+    if (a->year != b->year)
+        return (a->year < b->year) ? -1 : 1;
+    if (a->month != b->month)
+        return (a->month < b->month) ? -1 : 1;
+    if (a->day != b->day)
+        return (a->day < b->day) ? -1 : 1;
+    return 0;
+}
+
 /* =====================================================================
    Game Name Validation
    ===================================================================== */
@@ -306,6 +369,94 @@ int validate_option_conflicts(int animate, int gui, const char *export_format)
         fprintf(stderr, "  ./open-lotto --game \"Lotto 6aus49\" --export csv --output "
                         "results.csv\n");
         return VALIDATE_ERR_INVALID_FORMAT;
+    }
+
+    return VALIDATE_OK;
+}
+
+/* =====================================================================
+   Analytics Period Validation
+   ===================================================================== */
+
+int validate_iso_date(const char *date_str)
+{
+    if (!date_str || date_str[0] == '\0')
+    {
+        fprintf(stderr, "Error: Date value is empty.\n");
+        fprintf(stderr, "Hint: Use ISO date format YYYY-MM-DD (e.g., 2026-06-09).\n");
+        return VALIDATE_ERR_EMPTY;
+    }
+
+    DateParts parts;
+    if (!parse_iso_date_parts(date_str, &parts))
+    {
+        fprintf(stderr, "Error: Date '%s' is invalid.\n", date_str);
+        fprintf(stderr, "Hint: Use strict ISO date format YYYY-MM-DD (e.g., 2026-06-09).\n");
+        return VALIDATE_ERR_INVALID_FORMAT;
+    }
+
+    return VALIDATE_OK;
+}
+
+int validate_analytics_period(const char *from_date, const char *to_date,
+                              const char *available_from, const char *available_to)
+{
+    if (!from_date || !to_date)
+    {
+        fprintf(stderr, "Error: Both --from and --to are required for analytics period.\n");
+        fprintf(stderr, "Hint: Example: --from 2025-01-01 --to 2025-12-31\n");
+        return VALIDATE_ERR_EMPTY;
+    }
+
+    if (validate_iso_date(from_date) != VALIDATE_OK || validate_iso_date(to_date) != VALIDATE_OK)
+    {
+        return VALIDATE_ERR_INVALID_FORMAT;
+    }
+
+    DateParts from_parts;
+    DateParts to_parts;
+    parse_iso_date_parts(from_date, &from_parts);
+    parse_iso_date_parts(to_date, &to_parts);
+
+    if (compare_dates(&from_parts, &to_parts) > 0)
+    {
+        fprintf(stderr, "Error: Invalid period: --from (%s) is after --to (%s).\n", from_date,
+                to_date);
+        fprintf(stderr, "Hint: Ensure from date is earlier than or equal to to date.\n");
+        return VALIDATE_ERR_OUT_OF_RANGE;
+    }
+
+    if (available_from && available_to)
+    {
+        if (validate_iso_date(available_from) != VALIDATE_OK ||
+            validate_iso_date(available_to) != VALIDATE_OK)
+        {
+            fprintf(stderr, "Error: Internal available date range is invalid.\n");
+            return VALIDATE_ERR_INVALID_FORMAT;
+        }
+
+        DateParts available_from_parts;
+        DateParts available_to_parts;
+        parse_iso_date_parts(available_from, &available_from_parts);
+        parse_iso_date_parts(available_to, &available_to_parts);
+
+        if (compare_dates(&available_from_parts, &available_to_parts) > 0)
+        {
+            fprintf(stderr, "Error: Internal available date range is inverted.\n");
+            return VALIDATE_ERR_INVALID_FORMAT;
+        }
+
+        int no_overlap = compare_dates(&to_parts, &available_from_parts) < 0 ||
+                         compare_dates(&from_parts, &available_to_parts) > 0;
+        if (no_overlap)
+        {
+            fprintf(stderr,
+                    "Error: Requested period %s..%s does not intersect available data range "
+                    "%s..%s.\n",
+                    from_date, to_date, available_from, available_to);
+            fprintf(stderr, "Hint: Select a period that overlaps available historical data.\n");
+            return VALIDATE_ERR_NOT_FOUND;
+        }
     }
 
     return VALIDATE_OK;
