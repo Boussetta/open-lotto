@@ -239,6 +239,8 @@ static void print_usage(const char *prog)
             "  --to YYYY-MM-DD   Inclusive period end date for analytics APIs\n"
             "  --analytics-frequency   Print frequency distribution over historical data\n"
             "  --analytics-barometer   Print overdue barometer over historical data\n"
+            "  --analytics-hot-cold    Print hot/cold number rankings over historical data\n"
+            "  --top N                 Number of hot/cold entries (default: 10)\n"
             "  --format FORMAT         Analytics output format: table, json, csv\n"
             "  --historical-csv FILE   Historical draw CSV (default: results.csv)\n"
             "\n"
@@ -320,6 +322,8 @@ int main(int argc, char **argv)
     const char *period_to = NULL;
     int analytics_frequency = 0;
     int analytics_barometer = 0;
+    int analytics_hot_cold = 0;
+    int analytics_top = 10;
     const char *analytics_format = "table";
     const char *historical_csv = "results.csv";
 
@@ -497,6 +501,10 @@ int main(int argc, char **argv)
         {
             analytics_barometer = 1;
         }
+        else if (strcmp(argv[i], "--analytics-hot-cold") == 0)
+        {
+            analytics_hot_cold = 1;
+        }
         else if (strcmp(argv[i], "--format") == 0)
         {
             if (i + 1 >= argc)
@@ -525,6 +533,25 @@ int main(int argc, char **argv)
                 return 1;
             }
             historical_csv = argv[++i];
+        }
+        else if (strcmp(argv[i], "--top") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--top requires a positive integer.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            char *end = NULL;
+            long parsed = strtol(argv[++i], &end, 10);
+            if (!end || *end != '\0' || parsed <= 0 || parsed > 128)
+            {
+                fprintf(stderr, "Error: --top must be an integer between 1 and 128.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            analytics_top = (int)parsed;
         }
         else
         {
@@ -635,7 +662,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    int analytics_mode_count = analytics_frequency + analytics_barometer;
+    int analytics_mode_count = analytics_frequency + analytics_barometer + analytics_hot_cold;
     if (analytics_mode_count > 1)
     {
         fprintf(stderr, "Error: Use only one analytics mode at a time.\n");
@@ -845,6 +872,32 @@ int main(int argc, char **argv)
                 analytics_print_barometer_csv(&report);
             else
                 analytics_print_barometer_table(&report);
+        }
+        else if (analytics_hot_cold)
+        {
+            HotColdReport report;
+            if (analytics_compute_hot_cold(filtered, filtered_count, selected->info.main_min,
+                                           selected->info.main_max, analytics_top,
+                                           &report) != VALIDATE_OK)
+            {
+                free(draws);
+                free(filtered);
+                free(dq_records);
+                registry_destroy(registry);
+                config_free(&cfg);
+                return 1;
+            }
+
+            if (gui && strcmp(gui_mode, "3D") == 0)
+                analytics_print_hot_cold_gui_3d_matlab(&report);
+            else if (gui)
+                analytics_print_hot_cold_gui_2d(&report);
+            else if (strcmp(analytics_format, "json") == 0)
+                analytics_print_hot_cold_json(&report);
+            else if (strcmp(analytics_format, "csv") == 0)
+                analytics_print_hot_cold_csv(&report);
+            else
+                analytics_print_hot_cold_table(&report);
         }
 
         free(draws);
