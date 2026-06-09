@@ -5,6 +5,8 @@
 #include "combogen.h"
 #include "config.h"
 #include "export.h"
+#include "analytics.h"
+#include "analytics_data_quality.h"
 #include "gui_opengl.h"
 #include "gui_sdl.h"
 #include "localization.h"
@@ -235,6 +237,9 @@ static void print_usage(const char *prog)
             "Analytics Period Options:\n"
             "  --from YYYY-MM-DD Inclusive period start date for analytics APIs\n"
             "  --to YYYY-MM-DD   Inclusive period end date for analytics APIs\n"
+            "  --analytics-frequency   Print frequency distribution over historical data\n"
+            "  --format FORMAT         Analytics output format: table, json, csv\n"
+            "  --historical-csv FILE   Historical draw CSV (default: results.csv)\n"
             "\n"
             "Log Levels:\n"
             "  ERROR, WARN, INFO (default), DEBUG\n"
@@ -312,6 +317,9 @@ int main(int argc, char **argv)
     uint64_t seed_value = 0;
     const char *period_from = NULL;
     const char *period_to = NULL;
+    int analytics_frequency = 0;
+    const char *analytics_format = "table";
+    const char *historical_csv = "results.csv";
 
     /* ---------------------------------------------------------
        Parse arguments (all options, --game may appear anywhere)
@@ -479,6 +487,39 @@ int main(int argc, char **argv)
             }
             period_to = argv[++i];
         }
+        else if (strcmp(argv[i], "--analytics-frequency") == 0)
+        {
+            analytics_frequency = 1;
+        }
+        else if (strcmp(argv[i], "--format") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--format requires one of: table, json, csv.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            analytics_format = argv[++i];
+            if (strcmp(analytics_format, "table") != 0 && strcmp(analytics_format, "json") != 0 &&
+                strcmp(analytics_format, "csv") != 0)
+            {
+                fprintf(stderr, "Error: Unsupported --format '%s'. Use table, json, or csv.\n",
+                        analytics_format);
+                config_free(&cfg);
+                return 1;
+            }
+        }
+        else if (strcmp(argv[i], "--historical-csv") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--historical-csv requires a file path.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            historical_csv = argv[++i];
+        }
         else
         {
             fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
@@ -588,6 +629,13 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (analytics_frequency && (!period_from || !period_to))
+    {
+        fprintf(stderr, "Error: --analytics-frequency requires --from and --to.\n");
+        config_free(&cfg);
+        return 1;
+    }
+
     if (gui && use_seed)
     {
         fprintf(stderr, "Error: --seed is currently supported only in CLI mode.\n");
@@ -643,6 +691,125 @@ int main(int argc, char **argv)
         registry_destroy(registry);
         config_free(&cfg);
         return 1;
+    }
+
+    if (analytics_frequency)
+    {
+        HistoricalDraw *draws = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
+        HistoricalDraw *filtered = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
+        AnalyticsDrawRecord *dq_records =
+            calloc(ANALYTICS_MAX_DRAWS, sizeof(AnalyticsDrawRecord));
+        int draw_count = 0;
+        int filtered_count = 0;
+
+        if (!draws || !filtered || !dq_records)
+        {
+            fprintf(stderr, "Error: Out of memory while preparing analytics buffers.\n");
+            free(draws);
+            free(filtered);
+            free(dq_records);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (analytics_load_historical_csv(historical_csv, draws, ANALYTICS_MAX_DRAWS, &draw_count,
+                                          &selected->info) != VALIDATE_OK)
+        {
+            free(draws);
+            free(filtered);
+            free(dq_records);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (analytics_filter_period(draws, draw_count, period_from, period_to, filtered,
+                                    &filtered_count) != VALIDATE_OK)
+        {
+            free(draws);
+            free(filtered);
+            free(dq_records);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        for (int i = 0; i < filtered_count; i++)
+        {
+            dq_records[i].draw_date = filtered[i].draw_date;
+            dq_records[i].main_count = filtered[i].result.main_count;
+            dq_records[i].extra_count = filtered[i].result.extra_count;
+            memset(dq_records[i].main_numbers, 0, sizeof(dq_records[i].main_numbers));
+            memset(dq_records[i].extra_numbers, 0, sizeof(dq_records[i].extra_numbers));
+
+            for (int j = 0; j < filtered[i].result.main_count && j < ANALYTICS_MAX_MAIN_NUMBERS;
+                 j++)
+                dq_records[i].main_numbers[j] = filtered[i].result.main_numbers[j];
+            for (int j = 0; j < filtered[i].result.extra_count && j < ANALYTICS_MAX_EXTRA_NUMBERS;
+                 j++)
+                dq_records[i].extra_numbers[j] = filtered[i].result.extra_numbers[j];
+        }
+
+        AnalyticsDataQualityReport dq_report;
+        if (analytics_data_quality_evaluate(dq_records, filtered_count, period_from, period_to,
+                                            selected->info.main_count, selected->info.main_min,
+                                            selected->info.main_max, selected->info.extra_count,
+                                            selected->info.extra_min, selected->info.extra_max,
+                                            &dq_report) != VALIDATE_OK)
+        {
+            free(draws);
+            free(filtered);
+            free(dq_records);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        char dq_cli[256];
+        analytics_data_quality_format_cli(&dq_report, dq_cli, sizeof(dq_cli));
+        printf("%s\n", dq_cli);
+
+        if (analytics_data_quality_has_severe_issues(&dq_report))
+        {
+            fprintf(stderr, "Error: Severe data integrity issues detected in selected period.\n");
+            free(draws);
+            free(filtered);
+            free(dq_records);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        FrequencyReport report;
+        if (analytics_compute_frequency(filtered, filtered_count, selected->info.main_min,
+                                        selected->info.main_max, &report) != VALIDATE_OK)
+        {
+            free(draws);
+            free(filtered);
+            free(dq_records);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (gui && strcmp(gui_mode, "3D") == 0)
+            analytics_print_frequency_gui_3d_matlab(&report);
+        else if (gui)
+            analytics_print_frequency_gui_2d(&report);
+        else if (strcmp(analytics_format, "json") == 0)
+            analytics_print_frequency_json(&report);
+        else if (strcmp(analytics_format, "csv") == 0)
+            analytics_print_frequency_csv(&report);
+        else
+            analytics_print_frequency_table(&report);
+
+        free(draws);
+        free(filtered);
+        free(dq_records);
+        registry_destroy(registry);
+        config_free(&cfg);
+        return 0;
     }
 
     /* If --validate-only flag is set, exit after successful validation */
