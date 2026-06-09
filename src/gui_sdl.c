@@ -971,24 +971,42 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
 
             int is_hovered = (i == hovered_bar);
 
+            /* Hover effect: scale bar slightly and add glow */
+            int scaled_w = bw;
+            int scaled_h = height;
+            int scaled_x = x;
+            int scaled_y = bottom - height;
+            
+            if (is_hovered && height > 0)
+            {
+                /* Scale bar 20% wider and 10% taller, keeping it centered */
+                scaled_w = (int)(bw * 1.20f);
+                scaled_h = (int)(height * 1.10f);
+                scaled_x = x - (scaled_w - bw) / 2;
+                scaled_y = bottom - scaled_h;
+                
+                /* Glow effect: semi-transparent yellow rings */
+                SDL_SetRenderDrawColor(ren, 255, 255, 120, 80);
+                SDL_Rect glow = {scaled_x - 2, scaled_y - 2, scaled_w + 4, scaled_h + 4};
+                SDL_RenderDrawRect(ren, &glow);
+                SDL_Rect glow2 = {scaled_x - 1, scaled_y - 1, scaled_w + 2, scaled_h + 2};
+                SDL_RenderDrawRect(ren, &glow2);
+            }
+
             SDL_Color c = is_hovered ? hi_c : bar_c;
-            SDL_Rect bar = {x, bottom - height, bw, height};
+            SDL_Rect bar = {scaled_x, scaled_y, scaled_w, scaled_h};
             SDL_SetRenderDrawColor(ren, c.r, c.g, c.b, c.a);
             SDL_RenderFillRect(ren, &bar);
 
             /* Top cap */
-            SDL_Rect cap = {x, bottom - height, bw, 3};
-            SDL_SetRenderDrawColor(ren, 255, 255, 255, is_hovered ? 160 : 80);
+            SDL_Rect cap = {scaled_x, scaled_y, scaled_w, 3};
+            SDL_SetRenderDrawColor(ren, 255, 255, 255, is_hovered ? 180 : 80);
             SDL_RenderFillRect(ren, &cap);
 
-            /* Hover: highlight column line */
             if (is_hovered)
             {
-                SDL_SetRenderDrawColor(ren, hi_c.r, hi_c.g, hi_c.b, 60);
-                SDL_Rect col = {x, top, bw, bottom - top};
-                SDL_RenderFillRect(ren, &col);
-                tooltip_x      = x + bw / 2;
-                tooltip_y      = bottom - height;
+                tooltip_x      = scaled_x + scaled_w / 2;
+                tooltip_y      = scaled_y;
                 tooltip_number = number;
             }
 
@@ -1134,20 +1152,37 @@ int gui_render_barometer_2d(const char *title, const BarometerReport *report, in
             int bw = bar_w > 3 ? bar_w - 2 : 1;
             int is_hovered = (i == hovered_bar);
 
+            /* Hover effect: scale bar with glow */
+            int scaled_w = bw;
+            int scaled_h = height;
+            int scaled_x = x;
+            int scaled_y = bottom - height;
+            
+            if (is_hovered && height > 0)
+            {
+                scaled_w = (int)(bw * 1.20f);
+                scaled_h = (int)(height * 1.10f);
+                scaled_x = x - (scaled_w - bw) / 2;
+                scaled_y = bottom - scaled_h;
+                
+                SDL_SetRenderDrawColor(ren, 255, 200, 80, 100);
+                SDL_Rect glow = {scaled_x - 2, scaled_y - 2, scaled_w + 4, scaled_h + 4};
+                SDL_RenderDrawRect(ren, &glow);
+                SDL_Rect glow2 = {scaled_x - 1, scaled_y - 1, scaled_w + 2, scaled_h + 2};
+                SDL_RenderDrawRect(ren, &glow2);
+            }
+
             SDL_Color c = is_hovered ? hi_c : bar_c;
-            SDL_Rect bar = {x, bottom - height, bw, height};
+            SDL_Rect bar = {scaled_x, scaled_y, scaled_w, scaled_h};
             SDL_SetRenderDrawColor(ren, c.r, c.g, c.b, c.a);
             SDL_RenderFillRect(ren, &bar);
-            SDL_Rect cap = {x, bottom - height, bw, 3};
-            SDL_SetRenderDrawColor(ren, 255, 255, 255, is_hovered ? 160 : 80);
+            SDL_Rect cap = {scaled_x, scaled_y, scaled_w, 3};
+            SDL_SetRenderDrawColor(ren, 255, 255, 255, is_hovered ? 180 : 80);
             SDL_RenderFillRect(ren, &cap);
 
             if (is_hovered)
             {
-                SDL_SetRenderDrawColor(ren, hi_c.r, hi_c.g, hi_c.b, 40);
-                SDL_Rect col = {x, top, bw, bottom - top};
-                SDL_RenderFillRect(ren, &col);
-                tooltip_x = x + bw / 2; tooltip_y = bottom - height;
+                tooltip_x = scaled_x + scaled_w / 2; tooltip_y = scaled_y;
                 tooltip_number = number;
             }
 
@@ -1285,26 +1320,50 @@ int gui_render_hot_cold_2d(const char *title, const HotColdReport *report, int d
             int on_hot  = is_h && mouse_x >= x + 2      && mouse_x < x + 2      + hw;
             int on_cold = is_h && mouse_x >= x + hw + 6  && mouse_x < x + hw + 6 + hw;
 
-            /* Hot bar */
+            /* Hot bar with hover scaling */
+            int hx = x + 2, hw_s = hw, hh_s = h_hot;
+            if (on_hot && h_hot > 0)
+            {
+                hw_s = (int)(hw * 1.15f);
+                hh_s = (int)(h_hot * 1.08f);
+                hx = x + 2 - (hw_s - hw) / 2;
+                SDL_SetRenderDrawColor(ren, 255, 200, 100, 100);
+                SDL_Rect ghlow = {hx - 2, bottom - hh_s - 2, hw_s + 4, hh_s + 4};
+                SDL_RenderDrawRect(ren, &ghlow);
+                SDL_Rect ghlow2 = {hx - 1, bottom - hh_s - 1, hw_s + 2, hh_s + 2};
+                SDL_RenderDrawRect(ren, &ghlow2);
+            }
             SDL_Color hc = on_hot ? (SDL_Color){255,200,80,255} : hot_c;
-            SDL_Rect hbar = {x + 2,      bottom - h_hot,  hw, h_hot};
+            SDL_Rect hbar = {hx, bottom - hh_s, hw_s, hh_s};
             SDL_SetRenderDrawColor(ren, hc.r, hc.g, hc.b, hc.a);
             SDL_RenderFillRect(ren, &hbar);
-            SDL_SetRenderDrawColor(ren, 255, 255, 255, on_hot ? 160 : 80);
-            SDL_Rect hcap = {x + 2, bottom - h_hot, hw, 3};
+            SDL_SetRenderDrawColor(ren, 255, 255, 255, on_hot ? 180 : 80);
+            SDL_Rect hcap = {hx, bottom - hh_s, hw_s, 3};
             SDL_RenderFillRect(ren, &hcap);
 
-            /* Cold bar */
+            /* Cold bar with hover scaling */
+            int cx = x + hw + 6, cw_s = hw, ch_s = h_cold;
+            if (on_cold && h_cold > 0)
+            {
+                cw_s = (int)(hw * 1.15f);
+                ch_s = (int)(h_cold * 1.08f);
+                cx = x + hw + 6 - (cw_s - hw) / 2;
+                SDL_SetRenderDrawColor(ren, 140, 200, 255, 100);
+                SDL_Rect cglow = {cx - 2, bottom - ch_s - 2, cw_s + 4, ch_s + 4};
+                SDL_RenderDrawRect(ren, &cglow);
+                SDL_Rect cglow2 = {cx - 1, bottom - ch_s - 1, cw_s + 2, ch_s + 2};
+                SDL_RenderDrawRect(ren, &cglow2);
+            }
             SDL_Color cc = on_cold ? (SDL_Color){140,200,255,255} : cold_c;
-            SDL_Rect cbar = {x + hw + 6, bottom - h_cold, hw, h_cold};
+            SDL_Rect cbar = {cx, bottom - ch_s, cw_s, ch_s};
             SDL_SetRenderDrawColor(ren, cc.r, cc.g, cc.b, cc.a);
             SDL_RenderFillRect(ren, &cbar);
-            SDL_SetRenderDrawColor(ren, 255, 255, 255, on_cold ? 160 : 80);
-            SDL_Rect ccap = {x + hw + 6, bottom - h_cold, hw, 3};
+            SDL_SetRenderDrawColor(ren, 255, 255, 255, on_cold ? 180 : 80);
+            SDL_Rect ccap = {cx, bottom - ch_s, cw_s, 3};
             SDL_RenderFillRect(ren, &ccap);
 
-            if (on_hot)  { tip_x = x+2+hw/2;      tip_y = bottom-h_hot;  tip_group=i; tip_is_hot=1; }
-            if (on_cold) { tip_x = x+hw+6+hw/2;   tip_y = bottom-h_cold; tip_group=i; tip_is_hot=0; }
+            if (on_hot)  { tip_x = hx + hw_s/2;  tip_y = bottom - hh_s;  tip_group = i; tip_is_hot = 1; }
+            if (on_cold) { tip_x = cx + cw_s/2;  tip_y = bottom - ch_s;  tip_group = i; tip_is_hot = 0; }
 
             /* Number labels */
             char hot_lbl[8], cold_lbl[8];
