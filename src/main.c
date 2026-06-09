@@ -290,6 +290,14 @@ int main(int argc, char **argv)
     config_load_lottorc(&cfg);
     g_cli_locale = localization_detect_locale();
 
+    /* Handle help command */
+    if (argc >= 2 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0))
+    {
+        print_usage(argv[0]);
+        config_free(&cfg);
+        return 0;
+    }
+
     /* Handle --list-games command */
     if (argc >= 2 && strcmp(argv[1], "--list-games") == 0)
     {
@@ -909,6 +917,11 @@ int main(int argc, char **argv)
                 return 1;
             }
 
+            strncpy(report.from_date, period_from, sizeof(report.from_date) - 1);
+            report.from_date[sizeof(report.from_date) - 1] = '\0';
+            strncpy(report.to_date, period_to, sizeof(report.to_date) - 1);
+            report.to_date[sizeof(report.to_date) - 1] = '\0';
+
             if (gui && strcmp(gui_mode, "3D") == 0)
             {
                 printf("[GUI 3D] OpenGL frequency visualization\n");
@@ -956,6 +969,11 @@ int main(int argc, char **argv)
                 return 1;
             }
 
+            strncpy(report.from_date, period_from, sizeof(report.from_date) - 1);
+            report.from_date[sizeof(report.from_date) - 1] = '\0';
+            strncpy(report.to_date, period_to, sizeof(report.to_date) - 1);
+            report.to_date[sizeof(report.to_date) - 1] = '\0';
+
             if (gui && strcmp(gui_mode, "3D") == 0)
             {
                 printf("[GUI 3D] OpenGL barometer visualization\n");
@@ -1001,6 +1019,11 @@ int main(int argc, char **argv)
                 config_free(&cfg);
                 return 1;
             }
+
+            strncpy(report.from_date, period_from, sizeof(report.from_date) - 1);
+            report.from_date[sizeof(report.from_date) - 1] = '\0';
+            strncpy(report.to_date, period_to, sizeof(report.to_date) - 1);
+            report.to_date[sizeof(report.to_date) - 1] = '\0';
 
             if (gui && strcmp(gui_mode, "3D") == 0)
             {

@@ -7,6 +7,9 @@
 .br
 .B open-lotto
 \fB--list-games\fR
+.br
+.B open-lotto
+\fB--game\fR \fINAME\fR \fB--database-gewinnzahlen\fR \fBupdate\fR
 .SH DESCRIPTION
 .PP
 \fBopen-lotto\fR is a plugin-based lottery number generator written in C.
@@ -38,6 +41,12 @@ Cannot be used with \fB--gui\fR or \fB--export\fR.
 Launch graphical mode. Optionally specify "2D" (SDL2, default) or "3D" (OpenGL).
 Cannot be used with \fB--animate\fR or \fB--export\fR.
 .TP
+.B \-\-dark\-mode \fIMODE\fR
+Theme mode for GUI and analytics views. Supported values: \fIon\fR, \fIoff\fR, \fIauto\fR (default).
+.TP
+.B \-\-debug\-overlay
+Show FPS/physics HUD in 3D GUI mode. Requires \fB--gui 3D\fR.
+.TP
 .B \-\-export \fIFORMAT\fR
 Export results to a file. Supported formats: "csv" or "json".
 Must be paired with \fB--output\fR.
@@ -54,9 +63,44 @@ Required when \fB--export\fR is used.
 .B \-\-verbose \fILEVEL\fR
 Set logging level. Options: ERROR, WARN, INFO (default), DEBUG.
 .TP
+.B \-\-seed \fIVALUE\fR
+Deterministic seed for reproducible draws. Accepts decimal or \fB0x\fR-prefixed hex.
+.TP
 .B \-\-validate\-only
 Validate configuration and exit (useful for automation, CI, or pre-flight checks).
 Does not perform any draws.
+.TP
+.B \-\-database\-gewinnzahlen update
+Sync local real-data snapshot from official sources.
+
+.SS "Analytics period and output options"
+.TP
+.B \-\-from \fIYYYY-MM-DD\fR
+Inclusive analytics start date.
+.TP
+.B \-\-to \fIYYYY-MM-DD\fR
+Inclusive analytics end date.
+.TP
+.B \-\-frequency\-distribution
+Print frequency distribution over historical draws.
+.TP
+.B \-\-analytics\-barometer
+Print overdue barometer analytics over historical draws.
+.TP
+.B \-\-analytics\-hot\-cold
+Print hot/cold rankings over historical draws.
+.TP
+.B \-\-top \fIN\fR
+Number of hot/cold entries to return (default: 10).
+.TP
+.B \-\-format \fIFORMAT\fR
+Analytics output format: \fItable\fR, \fIjson\fR, or \fIcsv\fR.
+.TP
+.B \-\-explain
+Show formulas and assumptions for analytics outputs.
+.TP
+.B \-\-historical\-csv \fIFILE\fR
+Use a CSV file as historical analytics source (simulation/dev datasets).
 .SH EXAMPLES
 .SS Basic usage
 .TP
@@ -80,6 +124,9 @@ Launch 2D SDL2 GUI:
 .TP
 Launch 3D OpenGL GUI:
 .B open-lotto --game "EuroJackpot" --gui 3D
+.TP
+Launch 3D GUI with dark theme and debug overlay:
+.B open-lotto --game "EuroJackpot" --gui 3D --dark-mode on --debug-overlay
 .SS Export results
 .TP
 Export 100 draws to CSV:
@@ -87,6 +134,23 @@ Export 100 draws to CSV:
 .TP
 Export 50 draws to JSON:
 .B open-lotto --game "EuroJackpot" --draws 50 --export json --output draws.json
+.SS Historical analytics
+.TP
+Run frequency analytics for an inclusive period:
+.B open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --frequency-distribution
+.TP
+Run barometer analytics as JSON for an inclusive period:
+.B open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --analytics-barometer --format json
+.TP
+Run hot/cold analytics (top 15) with formula explanation:
+.B open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --analytics-hot-cold --top 15 --explain
+.TP
+Use a custom historical CSV source:
+.B open-lotto --game "Lotto 6aus49" --historical-csv data.csv --from 2024-01-01 --to 2024-12-31 --frequency-distribution
+.SS Real-data snapshot
+.TP
+Update local historical DB snapshot:
+.B open-lotto --game "Lotto 6aus49" --database-gewinnzahlen update
 .SS Validation and debugging
 .TP
 Validate configuration without running:
@@ -102,6 +166,9 @@ Enable debug logging:
 .B OPEN_LOTTO_PLUGIN_PATH
 Custom path to plugin directory. If not set, uses \fB./plugins/\fR relative
 to the binary.
+.TP
+.B OPEN_LOTTO_LANG
+CLI locale (for supported translations).
 .SH CONFIG FILE
 .PP
 \fBopen-lotto\fR reads persistent defaults from \fB~/.lottorc\fR (if it exists).

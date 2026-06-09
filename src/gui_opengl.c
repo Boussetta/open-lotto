@@ -2745,6 +2745,48 @@ static void acam_apply(const AnalyticsCamera *c)
     glRotatef(c->yaw,   0.0f, 1.0f, 0.0f);
 }
 
+static int project_analytics_point(float x, float y, float z, int viewport_w, int viewport_h,
+                                   float *out_x, float *out_y)
+{
+    GLdouble model[16];
+    GLdouble proj[16];
+    GLdouble in[4] = {x, y, z, 1.0};
+    GLdouble eye[4] = {0.0, 0.0, 0.0, 0.0};
+    GLdouble clip[4] = {0.0, 0.0, 0.0, 0.0};
+
+    glGetDoublev(GL_MODELVIEW_MATRIX, model);
+    glGetDoublev(GL_PROJECTION_MATRIX, proj);
+
+    for (int row = 0; row < 4; row++)
+    {
+        eye[row] = model[row] * in[0] + model[4 + row] * in[1] + model[8 + row] * in[2] +
+                   model[12 + row] * in[3];
+    }
+
+    for (int row = 0; row < 4; row++)
+    {
+        clip[row] = proj[row] * eye[0] + proj[4 + row] * eye[1] + proj[8 + row] * eye[2] +
+                    proj[12 + row] * eye[3];
+    }
+
+    if (fabs(clip[3]) < 1e-6)
+        return 0;
+
+    {
+        double ndc_x = clip[0] / clip[3];
+        double ndc_y = clip[1] / clip[3];
+        double ndc_z = clip[2] / clip[3];
+
+        if (ndc_z < -1.0 || ndc_z > 1.0)
+            return 0;
+
+        *out_x = (float)((ndc_x * 0.5 + 0.5) * (double)viewport_w);
+        *out_y = (float)((1.0 - (ndc_y * 0.5 + 0.5)) * (double)viewport_h);
+    }
+
+    return 1;
+}
+
 /* Draw floor grid (XZ plane) */
 static void draw_floor_grid(float half, float step)
 {
@@ -2789,6 +2831,7 @@ static void draw_analytics_info_overlay(TTF_Font *font, int number_min, int numb
                                         int hovered_bar, int dark_mode)
 {
     (void)dark_mode;
+    if (!font || !counts)
         return;
 
     glMatrixMode(GL_PROJECTION);
@@ -3013,15 +3056,63 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
             float z = z0 + row * (bar_w + bar_gap) + bar_w * 0.5f;
             float t = (float)i / (float)(balls > 1 ? balls - 1 : 1);
 
+            if (mouse_x >= 0 && mouse_y >= 0)
+            {
+                float min_sx = 1e9f, min_sy = 1e9f;
+                float max_sx = -1e9f, max_sy = -1e9f;
+                int projected = 0;
+                const float half_w = bar_w * 0.5f;
+                const float half_d = depth * 0.5f;
+                const float corners[8][3] = {
+                    {x - half_w, 0.0f, z - half_d},
+                    {x + half_w, 0.0f, z - half_d},
+                    {x - half_w, 0.0f, z + half_d},
+                    {x + half_w, 0.0f, z + half_d},
+                    {x - half_w, h,    z - half_d},
+                    {x + half_w, h,    z - half_d},
+                    {x - half_w, h,    z + half_d},
+                    {x + half_w, h,    z + half_d},
+                };
+
+                for (int cidx = 0; cidx < 8; cidx++)
+                {
+                    float sx, sy;
+                    if (!project_analytics_point(corners[cidx][0], corners[cidx][1], corners[cidx][2],
+                                                 1000, 700, &sx, &sy))
+                        continue;
+                    if (sx < min_sx) min_sx = sx;
+                    if (sy < min_sy) min_sy = sy;
+                    if (sx > max_sx) max_sx = sx;
+                    if (sy > max_sy) max_sy = sy;
+                    projected = 1;
+                }
+
+                if (projected && mouse_x >= (int)(min_sx - 6.0f) && mouse_x <= (int)(max_sx + 6.0f) &&
+                    mouse_y >= (int)(min_sy - 6.0f) && mouse_y <= (int)(max_sy + 6.0f))
+                {
+                    hovered_bar = i;
+                }
+            }
+
             glPushMatrix();
             glTranslatef(x, 0.0f, z);
             /* Gradient blue→gold matching main ball palette */
-            glColor3f(0.18f + 0.65f * t, 0.55f + 0.30f * (1.0f - t),
-                      0.82f - 0.60f * t);
-            draw_box_prism(bar_w, h, depth);
+            if (hovered_bar == i)
+            {
+                glColor3f(1.0f, 0.92f, 0.30f);
+                draw_box_prism(bar_w * 1.08f, h * 1.05f, depth * 1.08f);
+            }
+            else
+            {
+                glColor3f(0.18f + 0.65f * t, 0.55f + 0.30f * (1.0f - t),
+                          0.82f - 0.60f * t);
+                draw_box_prism(bar_w, h, depth);
+            }
             /* Bright top cap */
-            glColor4f(1.0f, 1.0f, 1.0f, 0.35f);
-            draw_box_prism(bar_w, 0.06f, depth + 0.02f);
+            glColor4f(1.0f, 1.0f, 1.0f, hovered_bar == i ? 0.65f : 0.35f);
+            draw_box_prism(hovered_bar == i ? bar_w * 1.08f : bar_w,
+                           0.06f,
+                           hovered_bar == i ? depth + 0.06f : depth + 0.02f);
             glPopMatrix();
         }
 
