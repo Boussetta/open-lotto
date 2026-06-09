@@ -414,6 +414,23 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
+    add_executable(test_analytics_hot_cold
+        tests/test_analytics_hot_cold.c
+        src/analytics.c
+        src/validate.c
+        src/plugin_registry.c
+        src/plugin_loader.c
+        src/log.c
+    )
+    target_link_libraries(test_analytics_hot_cold PRIVATE ${OPEN_LOTTO_PLATFORM_LIBS})
+
+    add_test(NAME unit_analytics_hot_cold
+        COMMAND $<TARGET_FILE:test_analytics_hot_cold>
+    )
+    set_tests_properties(unit_analytics_hot_cold PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
     add_executable(test_dev_api
         tests/test_dev_api.c
         src/open_lotto_api.c
@@ -616,6 +633,34 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-barometer --from 2025-03-01 --to 2025-03-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_barometer.csv --gui 3D
     )
     set_tests_properties(cli_analytics_barometer_gui_3d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
+    )
+
+    add_test(NAME cli_analytics_hot_cold_table
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-hot-cold --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --top 5
+    )
+    set_tests_properties(cli_analytics_hot_cold_table PROPERTIES
+        PASS_REGULAR_EXPRESSION "Hot and Cold numbers|HOT|COLD"
+    )
+
+    add_test(NAME cli_analytics_hot_cold_json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-hot-cold --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --top 5 --format json
+    )
+    set_tests_properties(cli_analytics_hot_cold_json PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"hot\"|\"cold\""
+    )
+
+    add_test(NAME cli_analytics_hot_cold_gui_2d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-hot-cold --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --top 5 --gui 2D
+    )
+    set_tests_properties(cli_analytics_hot_cold_gui_2d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 2D\]|HOT:|COLD:"
+    )
+
+    add_test(NAME cli_analytics_hot_cold_gui_3d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-hot-cold --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --top 5 --gui 3D
+    )
+    set_tests_properties(cli_analytics_hot_cold_gui_3d PROPERTIES
         PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
     )
 

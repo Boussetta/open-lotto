@@ -232,6 +232,64 @@ int analytics_compute_barometer(const HistoricalDraw *draws, int draw_count, int
     return VALIDATE_OK;
 }
 
+static int hot_cmp(const void *a, const void *b)
+{
+    const HotColdEntry *x = (const HotColdEntry *)a;
+    const HotColdEntry *y = (const HotColdEntry *)b;
+    if (x->count != y->count)
+        return (y->count - x->count);
+    return x->number - y->number;
+}
+
+static int cold_cmp(const void *a, const void *b)
+{
+    const HotColdEntry *x = (const HotColdEntry *)a;
+    const HotColdEntry *y = (const HotColdEntry *)b;
+    if (x->count != y->count)
+        return (x->count - y->count);
+    return x->number - y->number;
+}
+
+int analytics_compute_hot_cold(const HistoricalDraw *draws, int draw_count, int number_min,
+                               int number_max, int top_n, HotColdReport *out_report)
+{
+    if (!draws || !out_report || draw_count < 0 || number_min < 0 || number_max >= 128 ||
+        number_min > number_max || top_n <= 0)
+    {
+        return VALIDATE_ERR_INVALID_FORMAT;
+    }
+
+    FrequencyReport freq;
+    if (analytics_compute_frequency(draws, draw_count, number_min, number_max, &freq) != VALIDATE_OK)
+        return VALIDATE_ERR_INVALID_FORMAT;
+
+    HotColdEntry all[128];
+    int all_count = 0;
+    int denominator = draw_count > 0 ? draw_count : 1;
+
+    for (int n = number_min; n <= number_max; n++)
+    {
+        all[all_count].number = n;
+        all[all_count].count = freq.counts[n];
+        all[all_count].percentage = (100.0 * freq.counts[n]) / (double)denominator;
+        all_count++;
+    }
+
+    memset(out_report, 0, sizeof(*out_report));
+    out_report->total_draws = draw_count;
+    out_report->top_n = (top_n < all_count) ? top_n : all_count;
+
+    qsort(all, (size_t)all_count, sizeof(HotColdEntry), hot_cmp);
+    for (int i = 0; i < out_report->top_n; i++)
+        out_report->hot[i] = all[i];
+
+    qsort(all, (size_t)all_count, sizeof(HotColdEntry), cold_cmp);
+    for (int i = 0; i < out_report->top_n; i++)
+        out_report->cold[i] = all[i];
+
+    return VALIDATE_OK;
+}
+
 void analytics_print_frequency_table(const FrequencyReport *report)
 {
     if (!report)
@@ -391,4 +449,100 @@ void analytics_print_barometer_gui_3d_matlab(const BarometerReport *report)
     }
     printf("];\n");
     printf("bar3(y); xlabel('Number Index'); ylabel('Series'); zlabel('Overdue Factor');\n");
+}
+
+void analytics_print_hot_cold_table(const HotColdReport *report)
+{
+    if (!report)
+        return;
+
+    printf("Hot and Cold numbers (draws: %d, top: %d)\n", report->total_draws, report->top_n);
+    printf("HOT\n");
+    printf("rank,number,count,percentage\n");
+    for (int i = 0; i < report->top_n; i++)
+    {
+        printf("%d,%d,%d,%.4f\n", i + 1, report->hot[i].number, report->hot[i].count,
+               report->hot[i].percentage);
+    }
+
+    printf("COLD\n");
+    printf("rank,number,count,percentage\n");
+    for (int i = 0; i < report->top_n; i++)
+    {
+        printf("%d,%d,%d,%.4f\n", i + 1, report->cold[i].number, report->cold[i].count,
+               report->cold[i].percentage);
+    }
+}
+
+void analytics_print_hot_cold_csv(const HotColdReport *report)
+{
+    analytics_print_hot_cold_table(report);
+}
+
+void analytics_print_hot_cold_json(const HotColdReport *report)
+{
+    if (!report)
+        return;
+
+    printf("{\n");
+    printf("  \"draws\": %d,\n", report->total_draws);
+    printf("  \"top\": %d,\n", report->top_n);
+
+    printf("  \"hot\": [\n");
+    for (int i = 0; i < report->top_n; i++)
+    {
+        printf("    {\"rank\": %d, \"number\": %d, \"count\": %d, \"percentage\": %.4f}%s\n",
+               i + 1, report->hot[i].number, report->hot[i].count, report->hot[i].percentage,
+               (i + 1 == report->top_n) ? "" : ",");
+    }
+    printf("  ],\n");
+
+    printf("  \"cold\": [\n");
+    for (int i = 0; i < report->top_n; i++)
+    {
+        printf("    {\"rank\": %d, \"number\": %d, \"count\": %d, \"percentage\": %.4f}%s\n",
+               i + 1, report->cold[i].number, report->cold[i].count, report->cold[i].percentage,
+               (i + 1 == report->top_n) ? "" : ",");
+    }
+    printf("  ]\n");
+    printf("}\n");
+}
+
+void analytics_print_hot_cold_gui_2d(const HotColdReport *report)
+{
+    if (!report)
+        return;
+
+    printf("[GUI 2D] Hot/Cold overview\n");
+    printf("HOT: ");
+    for (int i = 0; i < report->top_n; i++)
+    {
+        printf("%d%s", report->hot[i].number, (i + 1 == report->top_n) ? "" : " ");
+    }
+    printf("\n");
+
+    printf("COLD: ");
+    for (int i = 0; i < report->top_n; i++)
+    {
+        printf("%d%s", report->cold[i].number, (i + 1 == report->top_n) ? "" : " ");
+    }
+    printf("\n");
+}
+
+void analytics_print_hot_cold_gui_3d_matlab(const HotColdReport *report)
+{
+    if (!report)
+        return;
+
+    printf("[GUI 3D] MatLab-style figure description\n");
+    printf("figure;\n");
+    printf("hot = [");
+    for (int i = 0; i < report->top_n; i++)
+        printf("%d%s", report->hot[i].count, (i + 1 == report->top_n) ? "" : " ");
+    printf("];\n");
+    printf("cold = [");
+    for (int i = 0; i < report->top_n; i++)
+        printf("%d%s", report->cold[i].count, (i + 1 == report->top_n) ? "" : " ");
+    printf("];\n");
+    printf("bar3([hot; cold]); legend('Hot','Cold');\n");
 }
