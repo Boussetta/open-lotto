@@ -19,12 +19,18 @@
 #include <unistd.h>
 #else
 #include <direct.h>
+#include <windows.h>
 #define strcasecmp _stricmp
 #endif
 
 #define READ_CHUNK 4096
 #define HISTORICAL_DB_MAX_DATES 4096
 #define EUROJACKPOT_FIRST_DRAW_YEAR 2012
+#define HISTORICAL_DB_FETCH_TIMEOUT_SEC 30
+#define HISTORICAL_DB_DRAW_TIMEOUT_SEC 20
+#define HISTORICAL_DB_MAX_RETRY_ATTEMPTS 3
+#define HISTORICAL_DB_RETRY_BASE_DELAY_MS 1000
+#define HISTORICAL_DB_RETRY_MAX_DELAY_MS 8000
 
 /* Width (in filled/empty characters) of the terminal progress bar. */
 #define PROGRESS_BAR_WIDTH 40
@@ -87,6 +93,73 @@ static void print_progress_bar(int done, int total, time_t start_time, size_t to
 static int parse_history_dates(const char *json, char dates[][16], int max_dates);
 static char *fetch_draw_for_date(const char *game_name, const char *date);
 static char *fetch_url_text(const char *url);
+static char *read_stream(FILE *fp);
+
+static void sleep_ms(unsigned int delay_ms)
+{
+#ifdef _WIN32
+    Sleep(delay_ms);
+#else
+    usleep((useconds_t)delay_ms * 1000U);
+#endif
+}
+
+static unsigned int retry_delay_ms(int attempt)
+{
+    unsigned int delay = HISTORICAL_DB_RETRY_BASE_DELAY_MS;
+    for (int i = 1; i < attempt; i++)
+    {
+        if (delay >= HISTORICAL_DB_RETRY_MAX_DELAY_MS / 2)
+            return HISTORICAL_DB_RETRY_MAX_DELAY_MS;
+        delay *= 2;
+    }
+    return delay;
+}
+
+static char *fetch_url_text_with_retries(const char *url, int timeout_sec, const char *context)
+{
+    char cmd[1024];
+
+    if (!url || strchr(url, '"') || strchr(url, '`'))
+        return NULL;
+
+    for (int attempt = 1; attempt <= HISTORICAL_DB_MAX_RETRY_ATTEMPTS; attempt++)
+    {
+        snprintf(cmd, sizeof(cmd), "curl -fsSL --max-time %d \"%s\"", timeout_sec, url);
+
+        FILE *pipe = popen(cmd, "r");
+        if (!pipe)
+        {
+            log_error("[historical_db] %s: popen failed for URL: %s", context, url);
+            return NULL;
+        }
+
+        char *data = read_stream(pipe);
+        int rc = pclose(pipe);
+
+        if (rc == 0 && data)
+        {
+            log_debug("[historical_db] %s: received response (%zu bytes)", context,
+                      strlen(data));
+            return data;
+        }
+
+        free(data);
+        log_warn("[historical_db] %s: curl failed (exit=%d, attempt=%d/%d, timeout=%ds)",
+                 context, rc, attempt, HISTORICAL_DB_MAX_RETRY_ATTEMPTS, timeout_sec);
+
+        if (attempt < HISTORICAL_DB_MAX_RETRY_ATTEMPTS)
+        {
+            unsigned int delay = retry_delay_ms(attempt);
+            log_debug("[historical_db] %s: retrying after %u ms", context, delay);
+            sleep_ms(delay);
+        }
+    }
+
+    log_error("[historical_db] %s: giving up after %d attempts for URL: %s", context,
+              HISTORICAL_DB_MAX_RETRY_ATTEMPTS, url);
+    return NULL;
+}
 
 static int date_already_collected(const char dates[][16], int count, const char *date)
 {
@@ -307,35 +380,9 @@ static char *read_stream(FILE *fp)
 
 static char *fetch_url_text(const char *url)
 {
-    char cmd[1024];
-
-    if (!url || strchr(url, '"') || strchr(url, '`'))
-        return NULL;
-
     log_debug("[historical_db] fetch_url_text: GET %s", url);
 
-    snprintf(cmd, sizeof(cmd), "curl -fsSL --max-time 20 \"%s\"", url);
-
-    FILE *pipe = popen(cmd, "r");
-    if (!pipe)
-    {
-        log_error("[historical_db] fetch_url_text: popen failed for URL: %s", url);
-        return NULL;
-    }
-
-    char *data = read_stream(pipe);
-    int rc = pclose(pipe);
-    if (rc != 0 || !data)
-    {
-        log_error("[historical_db] fetch_url_text: curl exited with code %d for URL: %s", rc,
-                  url);
-        free(data);
-        return NULL;
-    }
-
-    log_debug("[historical_db] fetch_url_text: received response (%zu bytes)",
-              data ? strlen(data) : 0);
-    return data;
+    return fetch_url_text_with_retries(url, HISTORICAL_DB_FETCH_TIMEOUT_SEC, "fetch_url_text");
 }
 
 static const char *skip_ws(const char *p)
@@ -660,8 +707,6 @@ static int parse_history_dates(const char *json, char dates[][16], int max_dates
 
 static char *fetch_draw_for_date(const char *game_name, const char *date)
 {
-    char cmd[1024];
-
     if (!game_name || !date)
         return NULL;
 
@@ -681,28 +726,17 @@ static char *fetch_draw_for_date(const char *game_name, const char *date)
     log_debug("[historical_db] fetch_draw_for_date: fetching draw for game=%s date=%s",
               game_name, date);
 
-    snprintf(cmd, sizeof(cmd), "curl -fsSL --max-time 10 \"%s\"", url);
-
-    FILE *pipe = popen(cmd, "r");
-    if (!pipe)
+    char *data = fetch_url_text_with_retries(url, HISTORICAL_DB_DRAW_TIMEOUT_SEC,
+                                             "fetch_draw_for_date");
+    if (!data)
     {
-        log_error("[historical_db] fetch_draw_for_date: popen failed (game=%s date=%s)",
-                  game_name, date);
-        return NULL;
-    }
-
-    char *data = read_stream(pipe);
-    int rc = pclose(pipe);
-    if (rc != 0 || !data)
-    {
-        log_warn("[historical_db] fetch_draw_for_date: curl failed (exit=%d, game=%s date=%s)",
-                 rc, game_name, date);
-        free(data);
+        log_warn("[historical_db] fetch_draw_for_date: failed after retries (game=%s date=%s)",
+                 game_name, date);
         return NULL;
     }
 
     log_debug("[historical_db] fetch_draw_for_date: received response for %s (%zu bytes)", date,
-              data ? strlen(data) : 0);
+              strlen(data));
     return data;
 }
 
