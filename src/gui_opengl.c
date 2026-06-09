@@ -2790,6 +2790,16 @@ static Uint32 analytics_gl_timeout_ms(void)
     return (v > 0) ? (Uint32)v : 0;
 }
 
+/* Calculate grid dimensions for matrix layout */
+static void calc_grid_layout(int total_balls, int *out_cols, int *out_rows)
+{
+    /* 49 balls -> 7x7, 50 balls -> 5x10 */
+    if (total_balls == 49)      { *out_cols = 7; *out_rows = 7; }
+    else if (total_balls == 50) { *out_cols = 5; *out_rows = 10; }
+    else if (total_balls <= 36) { *out_cols = 6; *out_rows = 6; }
+    else                         { *out_cols = 8; *out_rows = (total_balls + 7) / 8; }
+}
+
 int gui_render_frequency_3d(const char *title, const FrequencyReport *report, int dark_mode)
 {
     if (!report) return -1;
@@ -2821,14 +2831,19 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
     for (int n = report->number_min; n <= report->number_max; n++)
         if (report->counts[n] > max_count) max_count = report->counts[n];
 
-    const int   bars  = report->number_max - report->number_min + 1;
-    const float bar_w = bars > 30 ? 0.20f : 0.32f;
-    const float bar_gap = 0.06f;
+    const int   balls  = report->number_max - report->number_min + 1;
+    int grid_cols, grid_rows;
+    calc_grid_layout(balls, &grid_cols, &grid_rows);
+    
+    const float bar_w = 0.32f;
+    const float bar_gap = 0.08f;
     const float depth  = 0.30f;
-    const float span   = bars * (bar_w + bar_gap);
+    const float grid_w = grid_cols * (bar_w + bar_gap);
+    const float grid_h = grid_rows * (bar_w + bar_gap);
 
     AnalyticsCamera cam;
     acam_init(&cam);
+    cam.cam_z = -35.0f; /* Adjusted for matrix view */
 
     Uint32 start   = SDL_GetTicks();
     Uint32 timeout = analytics_gl_timeout_ms();
@@ -2857,24 +2872,30 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
 
         /* Floor grid */
         glColor4f(0.35f, 0.40f, 0.50f, 0.5f);
-        draw_floor_grid(span * 0.55f, (bar_w + bar_gap));
+        draw_floor_grid(fmaxf(grid_w, grid_h) * 0.65f, (bar_w + bar_gap));
 
         /* Y-axis */
         glColor4f(0.55f, 0.60f, 0.70f, 0.8f);
         draw_y_axis(11.5f);
 
-        /* Bars */
-        float x0 = -span * 0.5f;
-        for (int i = 0; i < bars; i++)
+        /* Bars in matrix layout */
+        float x0 = -grid_w * 0.5f;
+        float z0 = -grid_h * 0.5f;
+        
+        for (int i = 0; i < balls; i++)
         {
-            int   number = report->number_min + i;
+            int row = i / grid_cols;
+            int col = i % grid_cols;
+            int number = report->number_min + i;
+            
             float full_h = 0.15f + (10.5f * (float)report->counts[number]) / (float)max_count;
             float h = full_h * (anim < 1.0f ? anim : 1.0f);
-            float x = x0 + i * (bar_w + bar_gap);
-            float t = (float)i / (float)(bars > 1 ? bars - 1 : 1);
+            float x = x0 + col * (bar_w + bar_gap) + bar_w * 0.5f;
+            float z = z0 + row * (bar_w + bar_gap) + bar_w * 0.5f;
+            float t = (float)i / (float)(balls > 1 ? balls - 1 : 1);
 
             glPushMatrix();
-            glTranslatef(x, 0.0f, 0.0f);
+            glTranslatef(x, 0.0f, z);
             /* Gradient blue→gold matching main ball palette */
             glColor3f(0.18f + 0.65f * t, 0.55f + 0.30f * (1.0f - t),
                       0.82f - 0.60f * t);
@@ -2925,14 +2946,19 @@ int gui_render_barometer_3d(const char *title, const BarometerReport *report, in
     for (int n = report->number_min; n <= report->number_max; n++)
         if (report->factors[n] > max_factor) max_factor = report->factors[n];
 
-    const int   bars    = report->number_max - report->number_min + 1;
-    const float bar_w   = bars > 30 ? 0.20f : 0.32f;
-    const float bar_gap = 0.06f;
+    const int   balls  = report->number_max - report->number_min + 1;
+    int grid_cols, grid_rows;
+    calc_grid_layout(balls, &grid_cols, &grid_rows);
+    
+    const float bar_w   = 0.32f;
+    const float bar_gap = 0.08f;
     const float depth   = 0.30f;
-    const float span    = bars * (bar_w + bar_gap);
+    const float grid_w  = grid_cols * (bar_w + bar_gap);
+    const float grid_h  = grid_rows * (bar_w + bar_gap);
 
     AnalyticsCamera cam;
     acam_init(&cam);
+    cam.cam_z = -35.0f;
 
     Uint32 start   = SDL_GetTicks();
     Uint32 timeout = analytics_gl_timeout_ms();
@@ -2960,38 +2986,48 @@ int gui_render_barometer_3d(const char *title, const BarometerReport *report, in
 
         /* Floor grid */
         glColor4f(0.35f, 0.40f, 0.50f, 0.5f);
-        draw_floor_grid(span * 0.55f, bar_w + bar_gap);
+        draw_floor_grid(fmaxf(grid_w, grid_h) * 0.65f, bar_w + bar_gap);
 
         /* Reference line at factor = 1.0 (expected interval) */
         float ref_h = (float)(1.0 / max_factor) * 10.5f;
         glColor4f(0.25f, 0.85f, 0.30f, 0.75f);
         glLineWidth(2.0f);
         glBegin(GL_LINES);
-        glVertex3f(-span * 0.55f, ref_h, 0.0f);
-        glVertex3f( span * 0.55f, ref_h, 0.0f);
+        glVertex3f(-grid_w * 0.5f, ref_h, -grid_h * 0.5f);
+        glVertex3f( grid_w * 0.5f, ref_h, -grid_h * 0.5f);
+        glVertex3f(-grid_w * 0.5f, ref_h,  grid_h * 0.5f);
+        glVertex3f( grid_w * 0.5f, ref_h,  grid_h * 0.5f);
+        glVertex3f(-grid_w * 0.5f, ref_h, -grid_h * 0.5f);
+        glVertex3f(-grid_w * 0.5f, ref_h,  grid_h * 0.5f);
+        glVertex3f( grid_w * 0.5f, ref_h, -grid_h * 0.5f);
+        glVertex3f( grid_w * 0.5f, ref_h,  grid_h * 0.5f);
         glEnd();
         glLineWidth(1.0f);
 
         draw_y_axis(11.5f);
 
-        float x0 = -span * 0.5f;
-        for (int i = 0; i < bars; i++)
+        float x0 = -grid_w * 0.5f;
+        float z0 = -grid_h * 0.5f;
+        
+        for (int i = 0; i < balls; i++)
         {
-            int   number = report->number_min + i;
+            int row = i / grid_cols;
+            int col = i % grid_cols;
+            int number = report->number_min + i;
+            
             float full_h = 0.15f + (float)(report->factors[number] / max_factor) * 10.5f;
             float h = full_h * (anim < 1.0f ? anim : 1.0f);
-            float x = x0 + i * (bar_w + bar_gap);
-            /* Orange→red gradient (overdue = hot) */
-            float t = (float)i / (float)(bars > 1 ? bars - 1 : 1);
+            float x = x0 + col * (bar_w + bar_gap) + bar_w * 0.5f;
+            float z = z0 + row * (bar_w + bar_gap) + bar_w * 0.5f;
+            float t = (float)i / (float)(balls > 1 ? balls - 1 : 1);
 
             glPushMatrix();
-            glTranslatef(x, 0.0f, 0.0f);
+            glTranslatef(x, 0.0f, z);
             glColor3f(0.95f, 0.55f - 0.30f * t, 0.15f + 0.10f * t);
             draw_box_prism(bar_w, h, depth);
             glColor4f(1.0f, 1.0f, 1.0f, 0.35f);
             draw_box_prism(bar_w, 0.06f, depth + 0.02f);
             glPopMatrix();
-            glTranslatef(0, h, 0);
         }
 
         draw_analytics_hud_3d(title, dark_mode);
@@ -3036,18 +3072,22 @@ int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int d
         if (report->cold[i].count > max_count) max_count = report->cold[i].count;
     }
 
-    const int   bars    = report->top_n;
-    const float bar_w   = bars > 16 ? 0.28f : 0.40f;
-    const float bar_gap = 0.12f;
+    const int   entries = report->top_n;
+    int grid_cols, grid_rows;
+    calc_grid_layout(entries, &grid_cols, &grid_rows);
+    
+    const float bar_w   = 0.32f;
+    const float bar_gap = 0.08f;
     const float depth   = 0.28f;
-    /* Two rows: front row = hot, back row = cold, separated in Z */
-    const float row_sep = depth * 2.5f;
-    const float span    = bars * (bar_w + bar_gap);
+    const float row_sep = depth * 1.5f;
+    const float grid_w  = grid_cols * (bar_w + bar_gap);
+    const float grid_h  = grid_rows * (bar_w + bar_gap);
 
     AnalyticsCamera cam;
     acam_init(&cam);
     cam.pitch = 20.0f;
     cam.yaw   = 15.0f;
+    cam.cam_z = -38.0f;
 
     Uint32 start   = SDL_GetTicks();
     Uint32 timeout = analytics_gl_timeout_ms();
@@ -3075,31 +3115,36 @@ int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int d
 
         /* Floor grid */
         glColor4f(0.35f, 0.40f, 0.50f, 0.4f);
-        draw_floor_grid(span * 0.55f + row_sep, bar_w + bar_gap);
+        draw_floor_grid(fmaxf(grid_w, grid_h) * 0.7f, bar_w + bar_gap);
         draw_y_axis(11.5f);
 
-        float x0 = -span * 0.5f;
-        for (int i = 0; i < bars; i++)
+        float x0 = -grid_w * 0.5f;
+        float z0 = -grid_h * 0.5f;
+        
+        for (int i = 0; i < entries; i++)
         {
-            float x = x0 + i * (bar_w + bar_gap);
+            int row = i / grid_cols;
+            int col = i % grid_cols;
+            float x = x0 + col * (bar_w + bar_gap) + bar_w * 0.5f;
+            float z = z0 + row * (bar_w + bar_gap) + bar_w * 0.5f;
 
             float h_hot  = (0.15f + (10.5f * (float)report->hot[i].count)  / (float)max_count)
                            * (anim < 1.0f ? anim : 1.0f);
             float h_cold = (0.15f + (10.5f * (float)report->cold[i].count) / (float)max_count)
                            * (anim < 1.0f ? anim : 1.0f);
 
-            /* Hot row — front (positive Z), red, main-drum ball colour */
+            /* Hot bar — front (positive Z), red */
             glPushMatrix();
-            glTranslatef(x, 0.0f, row_sep);
+            glTranslatef(x, 0.0f, z + row_sep);
             glColor3f(0.92f, 0.22f, 0.20f);
             draw_box_prism(bar_w, h_hot, depth);
             glColor4f(1.0f, 0.6f, 0.3f, 0.50f);
             draw_box_prism(bar_w, 0.06f, depth + 0.02f);
             glPopMatrix();
 
-            /* Cold row — back (negative Z), blue, extra-drum ball colour */
+            /* Cold bar — back (negative Z), blue */
             glPushMatrix();
-            glTranslatef(x, 0.0f, -row_sep);
+            glTranslatef(x, 0.0f, z - row_sep);
             glColor3f(0.18f, 0.45f, 0.92f);
             draw_box_prism(bar_w, h_cold, depth);
             glColor4f(0.5f, 0.8f, 1.0f, 0.50f);
