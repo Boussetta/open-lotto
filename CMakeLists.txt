@@ -397,6 +397,23 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
+    add_executable(test_analytics_barometer
+        tests/test_analytics_barometer.c
+        src/analytics.c
+        src/validate.c
+        src/plugin_registry.c
+        src/plugin_loader.c
+        src/log.c
+    )
+    target_link_libraries(test_analytics_barometer PRIVATE ${OPEN_LOTTO_PLATFORM_LIBS})
+
+    add_test(NAME unit_analytics_barometer
+        COMMAND $<TARGET_FILE:test_analytics_barometer>
+    )
+    set_tests_properties(unit_analytics_barometer PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
     add_executable(test_dev_api
         tests/test_dev_api.c
         src/open_lotto_api.c
@@ -571,6 +588,34 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --gui 3D
     )
     set_tests_properties(cli_analytics_frequency_gui_3d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
+    )
+
+    add_test(NAME cli_analytics_barometer_table
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-barometer --from 2025-03-01 --to 2025-03-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_barometer.csv
+    )
+    set_tests_properties(cli_analytics_barometer_table PROPERTIES
+        PASS_REGULAR_EXPRESSION "Barometer|number,hits,observed_gap,factor"
+    )
+
+    add_test(NAME cli_analytics_barometer_json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-barometer --from 2025-03-01 --to 2025-03-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_barometer.csv --format json
+    )
+    set_tests_properties(cli_analytics_barometer_json PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"barometer\"|\"expected_interval\""
+    )
+
+    add_test(NAME cli_analytics_barometer_gui_2d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-barometer --from 2025-03-01 --to 2025-03-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_barometer.csv --gui 2D
+    )
+    set_tests_properties(cli_analytics_barometer_gui_2d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 2D\]"
+    )
+
+    add_test(NAME cli_analytics_barometer_gui_3d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-barometer --from 2025-03-01 --to 2025-03-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_barometer.csv --gui 3D
+    )
+    set_tests_properties(cli_analytics_barometer_gui_3d PROPERTIES
         PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
     )
 
