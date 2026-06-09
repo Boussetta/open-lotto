@@ -328,6 +328,8 @@ static const char *default_game_source_url(const char *game_name)
 {
     const char *override = NULL;
     static char configured_url[512];
+    char config_path[512];
+    const char *checked_path = "(unresolved: HOME not set)";
 
     if (!game_name)
         return NULL;
@@ -338,11 +340,16 @@ static const char *default_game_source_url(const char *game_name)
         if (override && override[0] != '\0')
             return override;
 
+        if (get_sources_config_path(config_path, sizeof(config_path)) == 0)
+            checked_path = config_path;
+
         if (load_source_url_from_config(game_name, configured_url, sizeof(configured_url)) == 0)
             return configured_url;
 
-        log_warn("[historical_db] no source URL configured for Eurojackpot; set [sources] "
-                 "eurojackpot in sources config or set OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT");
+        log_warn("[historical_db] no source URL configured for Eurojackpot; checked %s; "
+                 "set [sources] eurojackpot in sources config, or set %s, or set %s",
+                 checked_path, HISTORICAL_DB_SOURCES_CONFIG_ENV,
+                 "OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT");
         return NULL;
     }
 
