@@ -2904,7 +2904,6 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
             glColor4f(1.0f, 1.0f, 1.0f, 0.35f);
             draw_box_prism(bar_w, 0.06f, depth + 0.02f);
             glPopMatrix();
-            glTranslatef(0, h, 0);
         }
 
         draw_analytics_hud_3d(title, dark_mode);
