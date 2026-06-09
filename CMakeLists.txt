@@ -172,6 +172,7 @@ if(OPEN_LOTTO_ENABLE_OPENGL)
 endif()
 
 set(OPEN_LOTTO_SOURCES
+    src/analytics_data_quality.c
     src/main.c
     src/export.c
     src/combogen.c
@@ -358,6 +359,23 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:test_validate_period>
     )
     set_tests_properties(unit_validate_period PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    add_executable(test_analytics_data_quality
+        tests/test_analytics_data_quality.c
+        src/analytics_data_quality.c
+        src/validate.c
+        src/plugin_registry.c
+        src/plugin_loader.c
+        src/log.c
+    )
+    target_link_libraries(test_analytics_data_quality PRIVATE ${OPEN_LOTTO_PLATFORM_LIBS})
+
+    add_test(NAME unit_analytics_data_quality
+        COMMAND $<TARGET_FILE:test_analytics_data_quality>
+    )
+    set_tests_properties(unit_analytics_data_quality PROPERTIES
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
