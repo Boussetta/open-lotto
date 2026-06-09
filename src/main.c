@@ -232,6 +232,10 @@ static void print_usage(const char *prog)
             "  --seed VALUE      Deterministic seed (decimal or 0x-prefixed hex)\n"
             "  --verbose LEVEL   Log level: ERROR, WARN, INFO, DEBUG (default: INFO)\n"
             "\n"
+            "Analytics Period Options:\n"
+            "  --from YYYY-MM-DD Inclusive period start date for analytics APIs\n"
+            "  --to YYYY-MM-DD   Inclusive period end date for analytics APIs\n"
+            "\n"
             "Log Levels:\n"
             "  ERROR, WARN, INFO (default), DEBUG\n"
             "\n"
@@ -306,6 +310,8 @@ int main(int argc, char **argv)
     int reload_plugin = 0;
     int use_seed = 0;
     uint64_t seed_value = 0;
+    const char *period_from = NULL;
+    const char *period_to = NULL;
 
     /* ---------------------------------------------------------
        Parse arguments (all options, --game may appear anywhere)
@@ -453,6 +459,26 @@ int main(int argc, char **argv)
             }
             use_seed = 1;
         }
+        else if (strcmp(argv[i], "--from") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--from requires a date value in YYYY-MM-DD format.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            period_from = argv[++i];
+        }
+        else if (strcmp(argv[i], "--to") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--to requires a date value in YYYY-MM-DD format.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            period_to = argv[++i];
+        }
         else
         {
             fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
@@ -542,6 +568,21 @@ int main(int argc, char **argv)
     }
 
     if (gui_mode && validate_gui_mode(gui_mode) != VALIDATE_OK)
+    {
+        config_free(&cfg);
+        return 1;
+    }
+
+    if ((period_from && !period_to) || (!period_from && period_to))
+    {
+        fprintf(stderr, "Error: --from and --to must be provided together.\n");
+        fprintf(stderr, "Hint: Example: --from 2025-01-01 --to 2025-12-31\n");
+        config_free(&cfg);
+        return 1;
+    }
+
+    if (period_from && period_to &&
+        validate_analytics_period(period_from, period_to, NULL, NULL) != VALIDATE_OK)
     {
         config_free(&cfg);
         return 1;
