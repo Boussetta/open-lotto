@@ -2781,6 +2781,58 @@ static void draw_analytics_hud_3d(const char *subtitle, int dark_mode)
      * Current: noop placeholder so the architecture is wired. */
 }
 
+/* Render analytics stats bar at top showing ball ranges and total draws
+ * Displays format: "Ball #N: count draws (percentage) | Ball #M: ..." etc */
+static void draw_analytics_info_overlay(TTF_Font *font, int number_min, int number_max,
+                                        const int *counts, int total_draws, int dark_mode)
+{
+    (void)dark_mode;
+        return;
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0.0, 1000.0, 700.0, 0.0, -1000.0, 1000.0);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    glDisable(GL_LIGHTING);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    /* Semi-transparent background bar at top */
+    glColor4f(0.1f, 0.1f, 0.15f, 0.85f);
+    glBegin(GL_QUADS);
+    glVertex2f(0.0f, 0.0f);
+    glVertex2f(1000.0f, 0.0f);
+    glVertex2f(1000.0f, 40.0f);
+    glVertex2f(0.0f, 40.0f);
+    glEnd();
+
+    /* Render stats for first 6 balls as sample */
+    float x = 12.0f, y = 10.0f;
+    char buf[256];
+    int samples = (number_max - number_min + 1 > 6) ? 6 : (number_max - number_min + 1);
+    for (int i = 0; i < samples; i++)
+    {
+        int num = number_min + i;
+        int cnt = counts[num];
+        double pct = (100.0 * cnt) / (double)total_draws;
+        snprintf(buf, sizeof(buf), "#%d:%d (%.1f%%)", num, cnt, pct);
+        render_text_2d_at(font, buf, x, y, 0.85f, 0.90f, 0.95f);
+        x += 155.0f;
+    }
+
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
+}
+
 /* Read optional timeout (same logic as SDL helper) */
 static Uint32 analytics_gl_timeout_ms(void)
 {
@@ -2802,6 +2854,7 @@ static void calc_grid_layout(int total_balls, int *out_cols, int *out_rows)
 
 int gui_render_frequency_3d(const char *title, const FrequencyReport *report, int dark_mode)
 {
+    (void)dark_mode;
     if (!report) return -1;
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) return -1;
@@ -2822,6 +2875,11 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
 #ifdef _WIN32
     glewInit();
 #endif
+
+    if (TTF_Init() < 0) { SDL_GL_DeleteContext(gl); SDL_DestroyWindow(window); SDL_Quit(); return -1; }
+    char font_path[512];
+    snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
+    TTF_Font *font = TTF_OpenFont(font_path, 16);
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
@@ -2912,10 +2970,14 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
         }
 
         draw_analytics_hud_3d(title, dark_mode);
+        if (font) draw_analytics_info_overlay(font, report->number_min, report->number_max,
+                                             report->counts, report->total_draws, dark_mode);
         SDL_GL_SwapWindow(window);
         SDL_Delay(16);
     }
 
+    if (font) TTF_CloseFont(font);
+    TTF_Quit();
     SDL_GL_DeleteContext(gl);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -2942,6 +3004,11 @@ int gui_render_barometer_3d(const char *title, const BarometerReport *report, in
 #ifdef _WIN32
     glewInit();
 #endif
+    if (TTF_Init() < 0) { SDL_GL_DeleteContext(gl); SDL_DestroyWindow(window); SDL_Quit(); return -1; }
+    char font_path[512];
+    snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
+    TTF_Font *font = TTF_OpenFont(font_path, 16);
+
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -3040,10 +3107,25 @@ int gui_render_barometer_3d(const char *title, const BarometerReport *report, in
         }
 
         draw_analytics_hud_3d(title, dark_mode);
+        if (font)
+        {
+            /* Show sample factors: first 6 balls */
+            int *factor_int = (int *)malloc((size_t)(report->number_max - report->number_min + 1) * sizeof(int));
+            if (factor_int)
+            {
+                for (int i = report->number_min; i <= report->number_max; i++)
+                    factor_int[i - report->number_min] = (int)(report->factors[i] * 10.0 + 0.5);
+                draw_analytics_info_overlay(font, report->number_min, report->number_max,
+                                           factor_int, 1000, dark_mode);
+                free(factor_int);
+            }
+        }
         SDL_GL_SwapWindow(window);
         SDL_Delay(16);
     }
 
+    if (font) TTF_CloseFont(font);
+    TTF_Quit();
     SDL_GL_DeleteContext(gl);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -3070,6 +3152,12 @@ int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int d
 #ifdef _WIN32
     glewInit();
 #endif
+
+    if (TTF_Init() < 0) { SDL_GL_DeleteContext(gl); SDL_DestroyWindow(window); SDL_Quit(); return -1; }
+    char font_path[512];
+    snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
+    TTF_Font *font = TTF_OpenFont(font_path, 16);
+
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -3167,10 +3255,27 @@ int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int d
         }
 
         draw_analytics_hud_3d(title, dark_mode);
+        if (font)
+        {
+            /* For hot/cold, use red count as frequency for display */
+            int *counts = (int *)malloc((size_t)(report->top_n) * sizeof(int));
+            if (counts)
+            {
+                for (int i = 0; i < report->top_n; i++)
+                    counts[i] = report->hot[i].count;
+                /* Use first and last hot number as range for display */
+                int num_min = report->top_n > 0 ? report->hot[0].number : 1;
+                int num_max = report->top_n > 0 ? report->hot[report->top_n-1].number : 1;
+                draw_analytics_info_overlay(font, num_min, num_max, counts, 1000, dark_mode);
+                free(counts);
+            }
+        }
         SDL_GL_SwapWindow(window);
         SDL_Delay(16);
     }
 
+    if (font) TTF_CloseFont(font);
+    TTF_Quit();
     SDL_GL_DeleteContext(gl);
     SDL_DestroyWindow(window);
     SDL_Quit();
