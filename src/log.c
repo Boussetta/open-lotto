@@ -23,6 +23,7 @@
 
 static LogLevel current_level = LOG_INFO;
 static FILE *log_file = NULL;
+static LogLineObserver line_observer = NULL;
 
 // ANSI colors
 #define COLOR_RESET "\033[0m"
@@ -159,6 +160,11 @@ void log_init_default_file(void)
     log_enable_file_output(path);
 }
 
+void log_set_line_observer(LogLineObserver observer)
+{
+    line_observer = observer;
+}
+
 static void log_write(LogLevel level, const char *fmt, va_list args)
 {
     if (level > current_level)
@@ -177,6 +183,9 @@ static void log_write(LogLevel level, const char *fmt, va_list args)
     vfprintf(stderr, fmt, args_console);
     va_end(args_console);
     fprintf(stderr, "%s\n", COLOR_RESET);
+
+    if (line_observer)
+        line_observer();
 
     // File output (no colors)
     if (log_file)
