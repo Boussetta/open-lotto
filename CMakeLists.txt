@@ -664,6 +664,27 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
     )
 
+    add_test(NAME cli_analytics_frequency_explain
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --explain
+    )
+    set_tests_properties(cli_analytics_frequency_explain PROPERTIES
+        PASS_REGULAR_EXPRESSION "Explain: frequency percentage"
+    )
+
+    add_test(NAME cli_analytics_barometer_explain_json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-barometer --from 2025-03-01 --to 2025-03-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_barometer.csv --format json --explain
+    )
+    set_tests_properties(cli_analytics_barometer_explain_json PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"explain\"|\"mode\":\"barometer\""
+    )
+
+    add_test(NAME cli_analytics_hot_cold_explain_gui_3d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-hot-cold --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --top 5 --gui 3D --explain
+    )
+    set_tests_properties(cli_analytics_hot_cold_explain_gui_3d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 3D\]|Explain: hot numbers"
+    )
+
     add_test(NAME cli_verbose_missing_value
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --verbose
     )
