@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 Wissem Boussetta
+# SPDX-License-Identifier: MIT
+
 [download]
 # Number of parallel workers for historical draw downloads.
 workers = 4

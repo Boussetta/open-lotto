@@ -404,16 +404,16 @@ static int parse_source_url_chain(const char *raw, char urls[][512], int max_url
         while (end > start && isspace((unsigned char)*(end - 1)))
             end--;
 
-        size_t len = (size_t)(end - start);
-        if (len > 0)
-        {
-            if (len >= 512)
-                len = 511;
+        if (end <= start)
+            continue;
 
-            memcpy(urls[count], start, len);
-            urls[count][len] = '\0';
-            count++;
-        }
+        size_t len = (size_t)(end - start);
+        if (len >= 512)
+            len = 511;
+
+        memcpy(urls[count], start, len);
+        urls[count][len] = '\0';
+        count++;
     }
 
     return count;
@@ -911,7 +911,7 @@ static int mkdir_p(const char *path)
     return mkdir_single(tmp);
 }
 
-const char *historical_db_default_root(void)
+static const char *historical_db_default_root(void)
 {
     static char path[512];
     const char *home = getenv("HOME");

@@ -18,7 +18,6 @@ typedef enum
 typedef void (*LogLineObserver)(void);
 
 void log_set_level(LogLevel level);
-void log_enable_file_output(const char *filename);
 
 /**
  * Open the log file at the OS-conventional location and redirect file output

@@ -4,15 +4,32 @@
 
 #include "log.h"
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#ifdef _WIN32
+#include <direct.h>
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
+
 static LogLevel current_level = LOG_INFO;
 static FILE *log_file = NULL;
 static LogLineObserver line_observer = NULL;
+
+static int mkdir_compat(const char *path)
+{
+#ifdef _WIN32
+    return _mkdir(path);
+#else
+    return mkdir(path, 0755);
+#endif
+}
 
 // ANSI colors
 #define COLOR_RESET "\033[0m"
@@ -60,7 +77,7 @@ void log_set_level(LogLevel level)
     current_level = level;
 }
 
-void log_enable_file_output(const char *filename)
+static void log_enable_file_output(const char *filename)
 {
     log_file = fopen(filename, "a");
     if (!log_file)
@@ -88,13 +105,13 @@ static void log_mkdir_p(const char *path)
         if (tmp[i] == '/')
 #endif
         {
+            char saved = tmp[i];
             tmp[i] = '\0';
             if (mkdir_compat(tmp) != 0 && errno != EEXIST)
             {
-                tmp[i] = '/';
                 return;
             }
-            tmp[i] = '/';
+            tmp[i] = saved;
         }
     }
     mkdir_compat(tmp); /* last component */
