@@ -174,6 +174,7 @@ endif()
 set(OPEN_LOTTO_SOURCES
     src/analytics_data_quality.c
     src/analytics.c
+    src/historical_db.c
     src/main.c
     src/export.c
     src/combogen.c

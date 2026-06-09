@@ -12,6 +12,7 @@
 
 static LogLevel current_level = LOG_INFO;
 static FILE *log_file = NULL;
+static LogLineObserver line_observer = NULL;
 
 // ANSI colors
 #define COLOR_RESET "\033[0m"
@@ -59,6 +60,11 @@ void log_set_level(LogLevel level)
     current_level = level;
 }
 
+void log_set_line_observer(LogLineObserver observer)
+{
+    line_observer = observer;
+}
+
 void log_enable_file_output(const char *filename)
 {
     log_file = fopen(filename, "a");
@@ -83,6 +89,8 @@ static void log_write(LogLevel level, const char *fmt, va_list args)
     fprintf(stderr, "%s[%s] %s: ", level_to_color(level), timebuf, level_to_string(level));
     vfprintf(stderr, fmt, args);
     fprintf(stderr, "%s\n", COLOR_RESET);
+    if (line_observer)
+        line_observer();
 
     // File output (no colors)
     if (log_file)

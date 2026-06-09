@@ -15,7 +15,10 @@ typedef enum
     LOG_DEBUG
 } LogLevel;
 
+typedef void (*LogLineObserver)(void);
+
 void log_set_level(LogLevel level);
+void log_set_line_observer(LogLineObserver observer);
 void log_enable_file_output(const char *filename);
 
 void log_error(const char *fmt, ...);

@@ -7,6 +7,7 @@
 #include "export.h"
 #include "analytics.h"
 #include "analytics_data_quality.h"
+#include "historical_db.h"
 #include "gui_opengl.h"
 #include "gui_sdl.h"
 #include "localization.h"
@@ -216,6 +217,7 @@ static void print_usage(const char *prog)
             "LEVEL]\n"
             "  %s --game NAME [--draws N] [--export csv|json] [--output FILE] [--reload-plugin] "
             "[--verbose LEVEL]\n"
+            "  %s --game NAME --database-gewinnzahlen update\n"
             "  %s --game NAME --validate-only\n"
             "  %s --list-games\n"
             "\n"
@@ -227,6 +229,8 @@ static void print_usage(const char *prog)
             "  --export FORMAT        Export results to file (csv or json)\n"
             "  --reload-plugin        Reload the selected plugin from disk before running\n"
             "  --validate-only        Validate configuration without running\n"
+            "  --database-gewinnzahlen update\n"
+            "                        Sync local real-data snapshot from official sources\n"
             "\n"
             "Output Options:\n"
             "  --output FILE     Destination file for --export (required with --export)\n"
@@ -243,7 +247,8 @@ static void print_usage(const char *prog)
             "  --top N                 Number of hot/cold entries (default: 10)\n"
             "  --explain               Show formulas/assumptions for analytics outputs\n"
             "  --format FORMAT         Analytics output format: table, json, csv\n"
-            "  --historical-csv FILE   Historical draw CSV (default: results.csv)\n"
+            "  --historical-csv FILE   Historical draw CSV override (simulation/dev datasets)\n"
+            "                         By default analytics read local real-data DB snapshot\n"
             "\n"
             "Log Levels:\n"
             "  ERROR, WARN, INFO (default), DEBUG\n"
@@ -258,6 +263,7 @@ static void print_usage(const char *prog)
             "\n"
             "Examples:\n"
             "  %s --list-games\n"
+            "  %s --game \"Lotto 6aus49\" --database-gewinnzahlen update\n"
             "  %s --game \"Lotto 6aus49\"\n"
             "  %s --game \"Lotto 6aus49\" --draws 10\n"
             "  %s --game \"Lotto 6aus49\" --draws 10 --seed 0x1234abcd\n"
@@ -270,7 +276,8 @@ static void print_usage(const char *prog)
             "Environment Variables:\n"
             "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n"
             "  OPEN_LOTTO_LANG         CLI locale (en, fr; fallback to en)\n",
-            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
+            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
+            prog);
 }
 
 /* ---------------------------------------------------------
@@ -317,6 +324,7 @@ int main(int argc, char **argv)
     const char *export_filename = NULL;
     int validate_only = 0;
     int reload_plugin = 0;
+    const char *database_gewinnzahlen_cmd = NULL;
     int use_seed = 0;
     uint64_t seed_value = 0;
     const char *period_from = NULL;
@@ -327,7 +335,8 @@ int main(int argc, char **argv)
     int analytics_top = 10;
     int analytics_explain = 0;
     const char *analytics_format = "table";
-    const char *historical_csv = "results.csv";
+    const char *historical_csv = NULL;
+    int historical_csv_from_cli = 0;
 
     /* ---------------------------------------------------------
        Parse arguments (all options, --game may appear anywhere)
@@ -456,6 +465,24 @@ int main(int argc, char **argv)
         {
             reload_plugin = 1;
         }
+        else if (strcmp(argv[i], "--database-gewinnzahlen") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--database-gewinnzahlen requires a subcommand (use: update).\n");
+                config_free(&cfg);
+                return 1;
+            }
+            database_gewinnzahlen_cmd = argv[++i];
+            if (strcmp(database_gewinnzahlen_cmd, "update") != 0)
+            {
+                fprintf(stderr,
+                        "Unsupported --database-gewinnzahlen subcommand '%s' (use: update).\n",
+                        database_gewinnzahlen_cmd);
+                config_free(&cfg);
+                return 1;
+            }
+        }
         else if (strcmp(argv[i], "--seed") == 0)
         {
             if (i + 1 >= argc)
@@ -535,6 +562,7 @@ int main(int argc, char **argv)
                 return 1;
             }
             historical_csv = argv[++i];
+            historical_csv_from_cli = 1;
         }
         else if (strcmp(argv[i], "--top") == 0)
         {
@@ -740,6 +768,32 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (database_gewinnzahlen_cmd)
+    {
+        HistoricalDrawSnapshot snapshot;
+        int db_rc = historical_db_sync_latest(selected->name, NULL, &snapshot);
+        if (db_rc < 0)
+        {
+            fprintf(stderr,
+                    "Error: database sync failed for '%s' (code %d). Check source config and network.\n",
+                    selected->name, db_rc);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (db_rc == HISTORICAL_DB_SYNC_UNCHANGED)
+            printf("Local historical database already up to date for '%s' (draw_date=%s).\n",
+                   selected->name, snapshot.draw_date);
+        else
+            printf("Historical database updated for '%s' (latest draw_date=%s).\n", selected->name,
+                   snapshot.draw_date);
+
+        registry_destroy(registry);
+        config_free(&cfg);
+        return 0;
+    }
+
     if (analytics_mode_count > 0)
     {
         HistoricalDraw *draws = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
@@ -760,8 +814,20 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        if (analytics_load_historical_csv(historical_csv, draws, ANALYTICS_MAX_DRAWS, &draw_count,
-                                          &selected->info) != VALIDATE_OK)
+        int load_rc = VALIDATE_OK;
+        if (historical_csv_from_cli)
+        {
+            load_rc = analytics_load_historical_csv(historical_csv, draws, ANALYTICS_MAX_DRAWS,
+                                                    &draw_count, &selected->info);
+        }
+        else
+        {
+            load_rc = analytics_load_historical_db_snapshot(selected->name, NULL, draws,
+                                                            ANALYTICS_MAX_DRAWS, &draw_count,
+                                                            &selected->info);
+        }
+
+        if (load_rc != VALIDATE_OK)
         {
             free(draws);
             free(filtered);

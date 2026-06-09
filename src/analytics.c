@@ -3,9 +3,225 @@
  */
 
 #include "analytics.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static int slugify_game_name(const char *game_name, char *out, size_t out_size)
+{
+    if (!game_name || !out || out_size == 0)
+        return -1;
+
+    size_t j = 0;
+    for (size_t i = 0; game_name[i] != '\0'; i++)
+    {
+        unsigned char c = (unsigned char)game_name[i];
+        if (isalnum(c))
+        {
+            if (j + 1 >= out_size)
+                return -1;
+            out[j++] = (char)tolower(c);
+        }
+        else if (c == ' ' || c == '-' || c == '_')
+        {
+            if (j > 0 && out[j - 1] != '_')
+            {
+                if (j + 1 >= out_size)
+                    return -1;
+                out[j++] = '_';
+            }
+        }
+    }
+
+    if (j == 0)
+        return -1;
+
+    out[j] = '\0';
+    return 0;
+}
+
+static int build_snapshot_path(const char *game_name, const char *db_root, char *out,
+                               size_t out_size)
+{
+    if (!game_name || !out || out_size == 0)
+        return -1;
+
+    char slug[64];
+    if (slugify_game_name(game_name, slug, sizeof(slug)) != 0)
+        return -1;
+
+    const char *root = db_root;
+    char default_root[512];
+    if (!root || root[0] == '\0')
+    {
+        const char *home = getenv("HOME");
+        if (!home || home[0] == '\0')
+            return -1;
+        int n = snprintf(default_root, sizeof(default_root), "%s/.local/share/open-lotto/history",
+                         home);
+        if (n < 0 || (size_t)n >= sizeof(default_root))
+            return -1;
+        root = default_root;
+    }
+
+    int n = snprintf(out, out_size, "%s/%s_gewinnzahlen.json", root, slug);
+    return (n < 0 || (size_t)n >= out_size) ? -1 : 0;
+}
+
+static int read_file_text(const char *path, char **out)
+{
+    if (!path || !out)
+        return -1;
+
+    FILE *fp = fopen(path, "rb");
+    if (!fp)
+        return -1;
+
+    if (fseek(fp, 0, SEEK_END) != 0)
+    {
+        fclose(fp);
+        return -1;
+    }
+
+    long sz = ftell(fp);
+    if (sz < 0)
+    {
+        fclose(fp);
+        return -1;
+    }
+    rewind(fp);
+
+    char *buf = (char *)malloc((size_t)sz + 1);
+    if (!buf)
+    {
+        fclose(fp);
+        return -1;
+    }
+
+    size_t rd = fread(buf, 1, (size_t)sz, fp);
+    fclose(fp);
+    if (rd != (size_t)sz)
+    {
+        free(buf);
+        return -1;
+    }
+
+    buf[rd] = '\0';
+    *out = buf;
+    return 0;
+}
+
+static int parse_json_int_array(const char *arr_start, int *out, int max_out, int *out_count)
+{
+    if (!arr_start || !out || !out_count || max_out <= 0)
+        return -1;
+
+    const char *p = strchr(arr_start, '[');
+    if (!p)
+        return -1;
+    p++;
+
+    int count = 0;
+    while (*p)
+    {
+        while (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t')
+            p++;
+
+        if (*p == ']')
+        {
+            *out_count = count;
+            return 0;
+        }
+
+        char *end = NULL;
+        long v = strtol(p, &end, 10);
+        if (end == p)
+            return -1;
+
+        if (count >= max_out)
+            return -1;
+        out[count++] = (int)v;
+
+        p = end;
+        while (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t')
+            p++;
+
+        if (*p == ',')
+            p++;
+        else if (*p == ']')
+        {
+            *out_count = count;
+            return 0;
+        }
+        else
+            return -1;
+    }
+
+    return -1;
+}
+
+static int parse_draw_object(const char *obj, HistoricalDraw *out_draw, const LotteryInfo *rules)
+{
+    const char *date_k = strstr(obj, "\"draw_date\"");
+    const char *main_k = strstr(obj, "\"main_numbers\"");
+    const char *extra_k = strstr(obj, "\"extra_numbers\"");
+
+    if (!date_k || !main_k)
+        return -1;
+
+    const char *colon = strchr(date_k, ':');
+    if (!colon)
+        return -1;
+
+    const char *q1 = strchr(colon, '"');
+    if (!q1)
+        return -1;
+    const char *q2 = strchr(q1 + 1, '"');
+    if (!q2)
+        return -1;
+
+    size_t date_len = (size_t)(q2 - (q1 + 1));
+    if (date_len >= sizeof(out_draw->draw_date))
+        return -1;
+
+    memset(out_draw, 0, sizeof(*out_draw));
+    memcpy(out_draw->draw_date, q1 + 1, date_len);
+    out_draw->draw_date[date_len] = '\0';
+
+    if (validate_iso_date(out_draw->draw_date) != VALIDATE_OK)
+        return -1;
+
+    int main_count = 0;
+    if (parse_json_int_array(main_k, out_draw->result.main_numbers, MAX_MAIN_NUMBERS,
+                             &main_count) != 0)
+    {
+        return -1;
+    }
+    out_draw->result.main_count = main_count;
+
+    if (rules && out_draw->result.main_count != rules->main_count)
+        return -1;
+
+    if (rules && rules->extra_count > 0)
+    {
+        int extra_count = 0;
+        if (!extra_k || parse_json_int_array(extra_k, out_draw->result.extra_numbers,
+                                             MAX_EXTRA_NUMBERS, &extra_count) != 0)
+        {
+            return -1;
+        }
+        out_draw->result.extra_count = extra_count;
+        if (out_draw->result.extra_count != rules->extra_count)
+            return -1;
+    }
+    else
+    {
+        out_draw->result.extra_count = 0;
+    }
+
+    return 0;
+}
 
 static int parse_numbers(const char *field, int *out, int max_out)
 {
@@ -127,6 +343,141 @@ int analytics_load_historical_csv(const char *csv_path, HistoricalDraw *out_draw
     }
 
     fclose(f);
+    *out_count = count;
+    return VALIDATE_OK;
+}
+
+int analytics_load_historical_db_snapshot(const char *game_name, const char *db_root,
+                                          HistoricalDraw *out_draws, int max_draws,
+                                          int *out_count, const LotteryInfo *rules)
+{
+    if (!game_name || !out_draws || !out_count || !rules || max_draws <= 0)
+        return VALIDATE_ERR_EMPTY;
+
+    char path[640];
+    if (build_snapshot_path(game_name, db_root, path, sizeof(path)) != 0)
+        return VALIDATE_ERR_INVALID_FORMAT;
+
+    char *json = NULL;
+    if (read_file_text(path, &json) != 0)
+    {
+        fprintf(stderr,
+                "Error: Could not load historical DB snapshot '%s'. Run --database-gewinnzahlen "
+                "update first.\n",
+                path);
+        return VALIDATE_ERR_FILE_INVALID;
+    }
+
+    const char *draws_key = strstr(json, "\"draws\"");
+    if (!draws_key)
+    {
+        free(json);
+        fprintf(stderr, "Error: Malformed historical DB snapshot (missing draws array).\n");
+        return VALIDATE_ERR_INVALID_FORMAT;
+    }
+
+    const char *arr = strchr(draws_key, '[');
+    if (!arr)
+    {
+        free(json);
+        fprintf(stderr, "Error: Malformed historical DB snapshot (invalid draws array).\n");
+        return VALIDATE_ERR_INVALID_FORMAT;
+    }
+
+    int count = 0;
+    const char *p = arr + 1;
+    while (*p)
+    {
+        while (*p && (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t' || *p == ','))
+            p++;
+
+        if (*p == ']')
+            break;
+
+        if (*p != '{')
+        {
+            free(json);
+            fprintf(stderr, "Error: Malformed historical DB snapshot (invalid draw object).\n");
+            return VALIDATE_ERR_INVALID_FORMAT;
+        }
+
+        const char *obj_start = p;
+        int depth = 0;
+        int in_string = 0;
+        int escape = 0;
+        while (*p)
+        {
+            char c = *p;
+            if (in_string)
+            {
+                if (escape)
+                    escape = 0;
+                else if (c == '\\')
+                    escape = 1;
+                else if (c == '"')
+                    in_string = 0;
+            }
+            else
+            {
+                if (c == '"')
+                    in_string = 1;
+                else if (c == '{')
+                    depth++;
+                else if (c == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        p++;
+                        break;
+                    }
+                }
+            }
+            p++;
+        }
+
+        if (depth != 0)
+        {
+            free(json);
+            fprintf(stderr, "Error: Malformed historical DB snapshot (unclosed draw object).\n");
+            return VALIDATE_ERR_INVALID_FORMAT;
+        }
+
+        if (count >= max_draws)
+        {
+            free(json);
+            fprintf(stderr,
+                    "Error: Historical DB snapshot exceeds max supported draws (%d). Increase "
+                    "ANALYTICS_MAX_DRAWS.\n",
+                    max_draws);
+            return VALIDATE_ERR_OUT_OF_RANGE;
+        }
+
+        size_t obj_len = (size_t)(p - obj_start);
+        char *obj = (char *)malloc(obj_len + 1);
+        if (!obj)
+        {
+            free(json);
+            return VALIDATE_ERR_OUT_OF_RANGE;
+        }
+        memcpy(obj, obj_start, obj_len);
+        obj[obj_len] = '\0';
+
+        if (parse_draw_object(obj, &out_draws[count], rules) != 0)
+        {
+            free(obj);
+            free(json);
+            fprintf(stderr,
+                    "Error: Historical DB snapshot contains malformed draw data for game '%s'.\n",
+                    game_name);
+            return VALIDATE_ERR_INVALID_FORMAT;
+        }
+
+        free(obj);
+        count++;
+    }
+
+    free(json);
     *out_count = count;
     return VALIDATE_OK;
 }
