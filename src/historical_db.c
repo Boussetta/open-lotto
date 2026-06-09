@@ -746,25 +746,19 @@ static char *fetch_url_text_with_retries(const char *url, int timeout_sec, const
     return NULL;
 }
 
-static int date_already_collected(const char dates[][16], int count, const char *date)
+static int date_already_collected(const char *dates, int count, const char *date)
 {
     if (!dates || !date)
         return 0;
 
     for (int i = 0; i < count; i++)
     {
-        if (strcmp(dates[i], date) == 0)
+        const char *candidate = dates + (size_t)i * 16;
+        if (strcmp(candidate, date) == 0)
             return 1;
     }
 
     return 0;
-}
-
-static const char (*dates_as_const(char dates[][16]))[16]
-{
-    const char (*view)[16] = NULL;
-    memcpy(&view, &dates, sizeof(view));
-    return view;
 }
 
 static int collect_game_dates_all_years(const char *game_name, char dates[][16], int max_dates)
@@ -812,7 +806,7 @@ static int collect_game_dates_all_years(const char *game_name, char dates[][16],
 
         for (int i = 0; i < year_count && total < max_dates; i++)
         {
-            if (!date_already_collected(dates_as_const(dates), total, year_dates[i]))
+            if (!date_already_collected(&dates[0][0], total, year_dates[i]))
             {
                 snprintf(dates[total], 16, "%.15s", year_dates[i]);
                 total++;
