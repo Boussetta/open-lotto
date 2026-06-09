@@ -46,6 +46,8 @@
 #define HISTORICAL_DB_RETRY_ATTEMPTS_ENV "OPEN_LOTTO_HIST_MAX_RETRY_ATTEMPTS"
 #define HISTORICAL_DB_RETRY_BASE_DELAY_ENV "OPEN_LOTTO_HIST_RETRY_BASE_DELAY_MS"
 #define HISTORICAL_DB_RETRY_MAX_DELAY_ENV "OPEN_LOTTO_HIST_RETRY_MAX_DELAY_MS"
+#define HISTORICAL_DB_MAX_FETCH_DRAWS_ENV "OPEN_LOTTO_HIST_MAX_FETCH_DRAWS"
+#define HISTORICAL_DB_DOWNLOAD_CONFIG_ENV "OPEN_LOTTO_DOWNLOAD_CONFIG"
 
 /* Width (in filled/empty characters) of the terminal progress bar. */
 #define PROGRESS_BAR_WIDTH 40
@@ -109,6 +111,9 @@ static int parse_history_dates(const char *json, char dates[][16], int max_dates
 static char *fetch_draw_for_date(const char *game_name, const char *date);
 static char *fetch_url_text(const char *url);
 static char *read_stream(FILE *fp);
+static void trim_ascii_whitespace(char *s);
+static int get_download_config_path(char *out, size_t out_size);
+static int parse_int_bounded(const char *raw, int *out, int min_value, int max_value);
 
 typedef struct
 {
@@ -118,6 +123,7 @@ typedef struct
     int max_retry_attempts;
     int retry_base_delay_ms;
     int retry_max_delay_ms;
+    int max_fetch_draws;
 } DownloadSettings;
 
 typedef struct
@@ -128,6 +134,8 @@ typedef struct
     size_t bytes;
 } BulkDrawResult;
 
+static void load_download_settings_from_config(DownloadSettings *s);
+
 static DownloadSettings g_download_settings = {
     HISTORICAL_DB_DOWNLOAD_WORKERS_DEFAULT,
     HISTORICAL_DB_FETCH_TIMEOUT_SEC_DEFAULT,
@@ -135,7 +143,125 @@ static DownloadSettings g_download_settings = {
     HISTORICAL_DB_MAX_RETRY_ATTEMPTS_DEFAULT,
     HISTORICAL_DB_RETRY_BASE_DELAY_MS_DEFAULT,
     HISTORICAL_DB_RETRY_MAX_DELAY_MS_DEFAULT,
+    0,
 };
+
+static double bytes_per_sec_since(time_t start_time, size_t bytes)
+{
+    time_t now = time(NULL);
+    double elapsed = difftime(now, start_time);
+    if (elapsed <= 0.0)
+        return 0.0;
+    return (double)bytes / elapsed;
+}
+
+static void format_rate(double bytes_per_sec, double *value, const char **unit)
+{
+    *value = bytes_per_sec;
+    *unit = "B/s";
+
+    if (*value >= 1024.0 * 1024.0)
+    {
+        *value /= (1024.0 * 1024.0);
+        *unit = "MiB/s";
+    }
+    else if (*value >= 1024.0)
+    {
+        *value /= 1024.0;
+        *unit = "KiB/s";
+    }
+}
+
+static int terminal_supports_ansi_redraw(void)
+{
+    if (!isatty(fileno(stderr)))
+        return 0;
+
+    const char *term = getenv("TERM");
+    if (!term || term[0] == '\0')
+        return 0;
+
+    if (strcasecmp(term, "dumb") == 0)
+        return 0;
+
+    return 1;
+}
+
+static void print_worker_progress_bars(int done, int total, time_t start_time, size_t total_bytes,
+                                       int workers, const int *worker_done,
+                                       const size_t *worker_bytes, int *printed_lines)
+{
+    if (total <= 0)
+        return;
+
+    if (workers <= 1 || !terminal_supports_ansi_redraw())
+    {
+        print_progress_bar(done, total, start_time, total_bytes);
+        return;
+    }
+
+    if (*printed_lines > 0)
+        fprintf(stderr, "\033[%dF", *printed_lines);
+
+    int filled = (int)((double)done / (double)total * PROGRESS_BAR_WIDTH);
+    if (filled > PROGRESS_BAR_WIDTH)
+        filled = PROGRESS_BAR_WIDTH;
+    int percentage = (int)((double)done / (double)total * 100.0);
+
+    double total_rate_value = 0.0;
+    const char *total_rate_unit = "B/s";
+    format_rate(bytes_per_sec_since(start_time, total_bytes), &total_rate_value, &total_rate_unit);
+
+    fprintf(stderr, "\033[2K  All workers              [");
+    for (int i = 0; i < PROGRESS_BAR_WIDTH; i++)
+    {
+        if (i < filled - 1)
+            fputc('=', stderr);
+        else if (i == filled - 1)
+            fputc('>', stderr);
+        else
+            fputc(' ', stderr);
+    }
+    fprintf(stderr, "] %d/%d (%d%%) %.0f %s\n", done, total, percentage, total_rate_value,
+            total_rate_unit);
+
+    for (int w = 0; w < workers; w++)
+    {
+        int worker_count = worker_done[w];
+        int worker_pct = (int)((double)worker_count / (double)total * 100.0);
+        int worker_filled = (int)((double)worker_count / (double)total * PROGRESS_BAR_WIDTH);
+        if (worker_filled > PROGRESS_BAR_WIDTH)
+            worker_filled = PROGRESS_BAR_WIDTH;
+
+        double worker_rate_value = 0.0;
+        const char *worker_rate_unit = "B/s";
+
+        format_rate(bytes_per_sec_since(start_time, worker_bytes[w]), &worker_rate_value,
+                    &worker_rate_unit);
+
+        fprintf(stderr, "\033[2K  Worker %-2d               [", w + 1);
+        for (int i = 0; i < PROGRESS_BAR_WIDTH; i++)
+        {
+            if (i < worker_filled - 1)
+                fputc('=', stderr);
+            else if (i == worker_filled - 1)
+                fputc('>', stderr);
+            else
+                fputc(' ', stderr);
+        }
+        fprintf(stderr, "] %d/%d (%d%%) %.0f %s\n", worker_count, total, worker_pct,
+                worker_rate_value, worker_rate_unit);
+    }
+
+    *printed_lines = workers + 1;
+    if (done >= total)
+    {
+        *printed_lines = 0;
+        fputc('\n', stderr);
+    }
+
+    fflush(stderr);
+}
 
 static int read_env_int_bounded(const char *name, int fallback, int min_value, int max_value)
 {
@@ -155,24 +281,127 @@ static int read_env_int_bounded(const char *name, int fallback, int min_value, i
     return (int)value;
 }
 
+static int get_download_config_path(char *out, size_t out_size)
+{
+    const char *override = getenv(HISTORICAL_DB_DOWNLOAD_CONFIG_ENV);
+    if (override && override[0] != '\0')
+    {
+        int n = snprintf(out, out_size, "%s", override);
+        return (n > 0 && (size_t)n < out_size) ? 0 : -1;
+    }
+
+    const char *home = getenv("HOME");
+    if (!home || home[0] == '\0')
+        return -1;
+
+    int n = snprintf(out, out_size, "%s/.config/open-lotto/download.conf", home);
+    return (n > 0 && (size_t)n < out_size) ? 0 : -1;
+}
+
+static int parse_int_bounded(const char *raw, int *out, int min_value, int max_value)
+{
+    if (!raw || !out)
+        return 0;
+
+    char *end = NULL;
+    long value = strtol(raw, &end, 10);
+    if (end == raw || *end != '\0')
+        return 0;
+
+    if (value < min_value)
+        value = min_value;
+    if (value > max_value)
+        value = max_value;
+
+    *out = (int)value;
+    return 1;
+}
+
+static void load_download_settings_from_config(DownloadSettings *s)
+{
+    if (!s)
+        return;
+
+    char path[512];
+    if (get_download_config_path(path, sizeof(path)) != 0)
+        return;
+
+    FILE *fp = fopen(path, "r");
+    if (!fp)
+        return;
+
+    char line[512];
+    int in_download_section = 0;
+    while (fgets(line, sizeof(line), fp))
+    {
+        trim_ascii_whitespace(line);
+        if (line[0] == '\0' || line[0] == '#' || line[0] == ';')
+            continue;
+
+        if (line[0] == '[')
+        {
+            in_download_section = (strcasecmp(line, "[download]") == 0);
+            continue;
+        }
+
+        if (!in_download_section)
+            continue;
+
+        char *sep = strchr(line, '=');
+        if (!sep)
+            continue;
+
+        *sep = '\0';
+        char *key = line;
+        char *value = sep + 1;
+        trim_ascii_whitespace(key);
+        trim_ascii_whitespace(value);
+
+        if (strcasecmp(key, "workers") == 0)
+            parse_int_bounded(value, &s->workers, 1, 32);
+        else if (strcasecmp(key, "fetch_timeout_sec") == 0)
+            parse_int_bounded(value, &s->fetch_timeout_sec, 5, 300);
+        else if (strcasecmp(key, "draw_timeout_sec") == 0)
+            parse_int_bounded(value, &s->draw_timeout_sec, 5, 300);
+        else if (strcasecmp(key, "max_retry_attempts") == 0)
+            parse_int_bounded(value, &s->max_retry_attempts, 1, 10);
+        else if (strcasecmp(key, "retry_base_delay_ms") == 0)
+            parse_int_bounded(value, &s->retry_base_delay_ms, 100, 60000);
+        else if (strcasecmp(key, "retry_max_delay_ms") == 0)
+            parse_int_bounded(value, &s->retry_max_delay_ms, 100, 120000);
+        else if (strcasecmp(key, "max_fetch_draws") == 0)
+            parse_int_bounded(value, &s->max_fetch_draws, 0, HISTORICAL_DB_MAX_DATES);
+    }
+
+    fclose(fp);
+}
+
 static DownloadSettings load_download_settings(void)
 {
     DownloadSettings s;
-    s.workers = read_env_int_bounded(HISTORICAL_DB_WORKERS_ENV,
-                                     HISTORICAL_DB_DOWNLOAD_WORKERS_DEFAULT, 1, 32);
-    s.fetch_timeout_sec = read_env_int_bounded(HISTORICAL_DB_FETCH_TIMEOUT_ENV,
-                                               HISTORICAL_DB_FETCH_TIMEOUT_SEC_DEFAULT, 5, 300);
-    s.draw_timeout_sec = read_env_int_bounded(HISTORICAL_DB_DRAW_TIMEOUT_ENV,
-                                              HISTORICAL_DB_DRAW_TIMEOUT_SEC_DEFAULT, 5, 300);
-    s.max_retry_attempts =
-        read_env_int_bounded(HISTORICAL_DB_RETRY_ATTEMPTS_ENV,
-                             HISTORICAL_DB_MAX_RETRY_ATTEMPTS_DEFAULT, 1, 10);
-    s.retry_base_delay_ms =
-        read_env_int_bounded(HISTORICAL_DB_RETRY_BASE_DELAY_ENV,
-                             HISTORICAL_DB_RETRY_BASE_DELAY_MS_DEFAULT, 100, 60000);
-    s.retry_max_delay_ms =
-        read_env_int_bounded(HISTORICAL_DB_RETRY_MAX_DELAY_ENV,
-                             HISTORICAL_DB_RETRY_MAX_DELAY_MS_DEFAULT, 100, 120000);
+    s.workers = HISTORICAL_DB_DOWNLOAD_WORKERS_DEFAULT;
+    s.fetch_timeout_sec = HISTORICAL_DB_FETCH_TIMEOUT_SEC_DEFAULT;
+    s.draw_timeout_sec = HISTORICAL_DB_DRAW_TIMEOUT_SEC_DEFAULT;
+    s.max_retry_attempts = HISTORICAL_DB_MAX_RETRY_ATTEMPTS_DEFAULT;
+    s.retry_base_delay_ms = HISTORICAL_DB_RETRY_BASE_DELAY_MS_DEFAULT;
+    s.retry_max_delay_ms = HISTORICAL_DB_RETRY_MAX_DELAY_MS_DEFAULT;
+    s.max_fetch_draws = 0;
+
+    load_download_settings_from_config(&s);
+
+    s.workers = read_env_int_bounded(HISTORICAL_DB_WORKERS_ENV, s.workers, 1, 32);
+    s.fetch_timeout_sec =
+        read_env_int_bounded(HISTORICAL_DB_FETCH_TIMEOUT_ENV, s.fetch_timeout_sec, 5, 300);
+    s.draw_timeout_sec =
+        read_env_int_bounded(HISTORICAL_DB_DRAW_TIMEOUT_ENV, s.draw_timeout_sec, 5, 300);
+    s.max_retry_attempts = read_env_int_bounded(HISTORICAL_DB_RETRY_ATTEMPTS_ENV,
+                                                s.max_retry_attempts, 1, 10);
+    s.retry_base_delay_ms = read_env_int_bounded(HISTORICAL_DB_RETRY_BASE_DELAY_ENV,
+                                                 s.retry_base_delay_ms, 100, 60000);
+    s.retry_max_delay_ms = read_env_int_bounded(HISTORICAL_DB_RETRY_MAX_DELAY_ENV,
+                                                s.retry_max_delay_ms, 100, 120000);
+    s.max_fetch_draws = read_env_int_bounded(HISTORICAL_DB_MAX_FETCH_DRAWS_ENV,
+                                             s.max_fetch_draws, 0, HISTORICAL_DB_MAX_DATES);
 
     if (s.retry_max_delay_ms < s.retry_base_delay_ms)
         s.retry_max_delay_ms = s.retry_base_delay_ms;
@@ -1403,10 +1632,11 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
 
     log_info("[historical_db] sync_latest: starting sync for game='%s'", game_name);
     log_info("[historical_db] sync config: workers=%d fetch_timeout=%ds draw_timeout=%ds "
-             "retries=%d backoff=%d..%dms",
+             "retries=%d backoff=%d..%dms max_fetch=%d",
              g_download_settings.workers, g_download_settings.fetch_timeout_sec,
              g_download_settings.draw_timeout_sec, g_download_settings.max_retry_attempts,
-             g_download_settings.retry_base_delay_ms, g_download_settings.retry_max_delay_ms);
+             g_download_settings.retry_base_delay_ms, g_download_settings.retry_max_delay_ms,
+             g_download_settings.max_fetch_draws);
 #ifndef _OPENMP
     if (g_download_settings.workers > 1)
     {
@@ -1503,22 +1733,43 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
 
         int fetch_count = 0;
         int max_fetch = history_count;
+        if (g_download_settings.max_fetch_draws > 0 &&
+            g_download_settings.max_fetch_draws < max_fetch)
+        {
+            max_fetch = g_download_settings.max_fetch_draws;
+            log_info("[historical_db] sync_latest: limiting bulk fetch to %d draws due to %s",
+                     max_fetch, HISTORICAL_DB_MAX_FETCH_DRAWS_ENV);
+        }
         int first = 1;
         time_t download_start = time(NULL);
         size_t total_bytes = 0;
+        int printed_lines = 0;
         BulkDrawResult *results = calloc((size_t)max_fetch, sizeof(BulkDrawResult));
+        int *worker_done = calloc((size_t)g_download_settings.workers, sizeof(int));
+        size_t *worker_bytes = calloc((size_t)g_download_settings.workers, sizeof(size_t));
         if (!results)
         {
             fclose(fp);
             free(json);
             return HISTORICAL_DB_ERR_IO;
         }
+        if (!worker_done || !worker_bytes)
+        {
+            free(worker_done);
+            free(worker_bytes);
+            free(results);
+            fclose(fp);
+            free(json);
+            return HISTORICAL_DB_ERR_IO;
+        }
 
         log_info(
-            "[historical_db] sync_latest: bulk download — fetching up to %d historical draws",
-            max_fetch);
+            "[historical_db] sync_latest: bulk download — fetching up to %d historical draws "
+            "with %d worker(s)",
+            max_fetch, g_download_settings.workers);
         fprintf(stderr, "  Fetching %d historical draws for %s\n", max_fetch, game_name);
-        print_progress_bar(0, max_fetch, download_start, 0);
+        print_worker_progress_bars(0, max_fetch, download_start, 0, g_download_settings.workers,
+                                   worker_done, worker_bytes, &printed_lines);
 
         int completed = 0;
 
@@ -1527,6 +1778,11 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
 #endif
         for (int i = 0; i < max_fetch; i++)
         {
+#ifdef _OPENMP
+            int worker_idx = omp_get_thread_num();
+#else
+            int worker_idx = 0;
+#endif
             log_debug("[historical_db] sync_latest: fetching draw %d/%d (date=%s)", i + 1,
                       max_fetch, history_dates[i]);
 
@@ -1560,7 +1816,14 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
             {
                 total_bytes += results[i].bytes;
                 completed++;
-                print_progress_bar(completed, max_fetch, download_start, total_bytes);
+                if (worker_idx >= 0 && worker_idx < g_download_settings.workers)
+                {
+                    worker_done[worker_idx]++;
+                    worker_bytes[worker_idx] += results[i].bytes;
+                }
+                print_worker_progress_bars(completed, max_fetch, download_start, total_bytes,
+                                           g_download_settings.workers, worker_done,
+                                           worker_bytes, &printed_lines);
             }
         }
 
@@ -1623,6 +1886,8 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
                       draw->draw_date, fetch_count);
         }
 
+        free(worker_done);
+        free(worker_bytes);
         free(results);
 
         fprintf(fp, "\n  ]\n");
