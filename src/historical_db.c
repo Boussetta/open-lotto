@@ -122,6 +122,7 @@ static void trim_ascii_whitespace(char *s);
 static int get_download_config_path(char *out, size_t out_size);
 static int parse_int_bounded(const char *raw, int *out, int min_value, int max_value);
 static unsigned long historical_db_process_id(void);
+static int parse_source_url_chain(const char *raw, char urls[][512], int max_urls);
 
 typedef struct
 {
@@ -346,6 +347,45 @@ static int parse_int_bounded(const char *raw, int *out, int min_value, int max_v
 
     *out = (int)value;
     return 1;
+}
+
+static int parse_source_url_chain(const char *raw, char urls[][512], int max_urls)
+{
+    int count = 0;
+    const char *p = raw;
+
+    if (!raw || !urls || max_urls <= 0)
+        return 0;
+
+    while (*p && count < max_urls)
+    {
+        while (*p == ',' || *p == ';' || isspace((unsigned char)*p))
+            p++;
+
+        if (*p == '\0')
+            break;
+
+        const char *start = p;
+        while (*p && *p != ',' && *p != ';')
+            p++;
+
+        const char *end = p;
+        while (end > start && isspace((unsigned char)*(end - 1)))
+            end--;
+
+        size_t len = (size_t)(end - start);
+        if (len > 0)
+        {
+            if (len >= 512)
+                len = 511;
+
+            memcpy(urls[count], start, len);
+            urls[count][len] = '\0';
+            count++;
+        }
+    }
+
+    return count;
 }
 
 static void load_download_settings_from_config(DownloadSettings *s)
@@ -1919,7 +1959,10 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
     char path[768];
     char dir[768];
     char *json = NULL;
-    const char *url;
+    const char *configured_url;
+    char selected_url[512] = {0};
+    char source_urls[8][512];
+    int source_url_count = 0;
     HistoricalDrawSnapshot snapshot;
     HistoricalDrawSnapshot existing;
     int has_existing = 0;
@@ -1949,18 +1992,49 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
     }
 #endif
 
-    url = default_game_source_url(game_name);
-    if (!url)
+    configured_url = default_game_source_url(game_name);
+    if (!configured_url)
     {
         log_warn("[historical_db] sync_latest: no upstream URL configured for game='%s'",
                  game_name);
         return HISTORICAL_DB_ERR_UNSUPPORTED_GAME;
     }
 
-    log_debug("[historical_db] sync_latest: upstream URL resolved to %s", url);
+    source_url_count = parse_source_url_chain(configured_url, source_urls, 8);
+    if (source_url_count <= 0)
+    {
+        log_error("[historical_db] sync_latest: configured source URL list is empty for game='%s'",
+                  game_name);
+        return HISTORICAL_DB_ERR_UNSUPPORTED_GAME;
+    }
+
+    log_debug("[historical_db] sync_latest: upstream source chain has %d endpoint(s)",
+              source_url_count);
 
     log_info("[historical_db] sync_latest: downloading latest draw data...");
-    json = fetch_url_text(url);
+    for (int i = 0; i < source_url_count; i++)
+    {
+        log_info("[historical_db] sync_latest: trying source endpoint %d/%d", i + 1,
+                 source_url_count);
+        json = fetch_url_text(source_urls[i]);
+        if (json)
+        {
+            snprintf(selected_url, sizeof(selected_url), "%s", source_urls[i]);
+            if (i > 0)
+            {
+                log_info("[historical_db] sync_latest: fallback endpoint selected (%d/%d)", i + 1,
+                         source_url_count);
+            }
+            break;
+        }
+
+        if (i + 1 < source_url_count)
+        {
+            log_warn("[historical_db] sync_latest: source endpoint %d failed, trying fallback",
+                     i + 1);
+        }
+    }
+
     if (!json)
     {
         log_error("[historical_db] sync_latest: network fetch failed for game='%s'", game_name);
@@ -2287,7 +2361,8 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         {
             if (parse_game_json(game_name, json, &snapshot) == 0)
             {
-                strncpy(snapshot.source_url, url, sizeof(snapshot.source_url) - 1);
+                strncpy(snapshot.source_url, selected_url, sizeof(snapshot.source_url) - 1);
+                snapshot.source_url[sizeof(snapshot.source_url) - 1] = '\0';
                 *out_snapshot = snapshot;
                 free(json);
                 release_sync_lock(lock_path);
@@ -2313,7 +2388,8 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
     }
     free(json);
 
-    strncpy(snapshot.source_url, url, sizeof(snapshot.source_url) - 1);
+    strncpy(snapshot.source_url, selected_url, sizeof(snapshot.source_url) - 1);
+    snapshot.source_url[sizeof(snapshot.source_url) - 1] = '\0';
 
     if (has_existing && strcmp(snapshot.draw_date, existing.draw_date) == 0)
     {
