@@ -376,6 +376,8 @@ if(BUILD_TESTING)
 
     target_compile_definitions(test_historical_db PRIVATE
         HISTORICAL_DB_FIXTURE_PATH="${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_gewinnzahlen.json"
+        HISTORICAL_DB_FIXTURE_MALFORMED_PATH="${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_malformed.json"
+        HISTORICAL_DB_FIXTURE_PARTIAL_PATH="${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_partial.json"
     )
 
     add_test(NAME unit_historical_db
