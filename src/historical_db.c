@@ -2046,10 +2046,9 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         json = fetch_url_text(source_urls[i]);
         if (json)
         {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstringop-truncation"
-            strcpy(selected_url, source_urls[i]);
-#pragma GCC diagnostic pop
+            size_t url_len = strnlen(source_urls[i], sizeof(selected_url) - 1);
+            memcpy(selected_url, source_urls[i], url_len);
+            selected_url[url_len] = '\0';
             if (i > 0)
             {
                 log_info("[historical_db] sync_latest: fallback endpoint selected (%d/%d)", i + 1,
