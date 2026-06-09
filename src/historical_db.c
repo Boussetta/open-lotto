@@ -49,6 +49,8 @@
 #define HISTORICAL_DB_RETRY_ATTEMPTS_ENV "OPEN_LOTTO_HIST_MAX_RETRY_ATTEMPTS"
 #define HISTORICAL_DB_RETRY_BASE_DELAY_ENV "OPEN_LOTTO_HIST_RETRY_BASE_DELAY_MS"
 #define HISTORICAL_DB_RETRY_MAX_DELAY_ENV "OPEN_LOTTO_HIST_RETRY_MAX_DELAY_MS"
+#define HISTORICAL_DB_RETRY_JITTER_ENV "OPEN_LOTTO_HIST_RETRY_JITTER_MS"
+#define HISTORICAL_DB_BULK_PACE_ENV "OPEN_LOTTO_HIST_BULK_FETCH_PACE_MS"
 #define HISTORICAL_DB_MAX_FETCH_DRAWS_ENV "OPEN_LOTTO_HIST_MAX_FETCH_DRAWS"
 #define HISTORICAL_DB_FORCE_FULL_REBUILD_ENV "OPEN_LOTTO_HIST_FORCE_FULL_REBUILD"
 #define HISTORICAL_DB_DOWNLOAD_CONFIG_ENV "OPEN_LOTTO_DOWNLOAD_CONFIG"
@@ -119,6 +121,7 @@ static int read_file_text(const char *path, char **out);
 static void trim_ascii_whitespace(char *s);
 static int get_download_config_path(char *out, size_t out_size);
 static int parse_int_bounded(const char *raw, int *out, int min_value, int max_value);
+static unsigned long historical_db_process_id(void);
 
 typedef struct
 {
@@ -128,6 +131,8 @@ typedef struct
     int max_retry_attempts;
     int retry_base_delay_ms;
     int retry_max_delay_ms;
+    int retry_jitter_ms;
+    int bulk_fetch_pace_ms;
     int max_fetch_draws;
     int force_full_rebuild;
 } DownloadSettings;
@@ -149,6 +154,8 @@ static DownloadSettings g_download_settings = {
     HISTORICAL_DB_MAX_RETRY_ATTEMPTS_DEFAULT,
     HISTORICAL_DB_RETRY_BASE_DELAY_MS_DEFAULT,
     HISTORICAL_DB_RETRY_MAX_DELAY_MS_DEFAULT,
+    250,
+    0,
     0,
     0,
 };
@@ -393,6 +400,10 @@ static void load_download_settings_from_config(DownloadSettings *s)
             parse_int_bounded(value, &s->retry_base_delay_ms, 100, 60000);
         else if (strcasecmp(key, "retry_max_delay_ms") == 0)
             parse_int_bounded(value, &s->retry_max_delay_ms, 100, 120000);
+        else if (strcasecmp(key, "retry_jitter_ms") == 0)
+            parse_int_bounded(value, &s->retry_jitter_ms, 0, 10000);
+        else if (strcasecmp(key, "bulk_fetch_pace_ms") == 0)
+            parse_int_bounded(value, &s->bulk_fetch_pace_ms, 0, 10000);
         else if (strcasecmp(key, "max_fetch_draws") == 0)
             parse_int_bounded(value, &s->max_fetch_draws, 0, HISTORICAL_DB_MAX_DATES);
         else if (strcasecmp(key, "force_full_rebuild") == 0)
@@ -415,6 +426,8 @@ static DownloadSettings load_download_settings(void)
     s.max_retry_attempts = HISTORICAL_DB_MAX_RETRY_ATTEMPTS_DEFAULT;
     s.retry_base_delay_ms = HISTORICAL_DB_RETRY_BASE_DELAY_MS_DEFAULT;
     s.retry_max_delay_ms = HISTORICAL_DB_RETRY_MAX_DELAY_MS_DEFAULT;
+    s.retry_jitter_ms = 250;
+    s.bulk_fetch_pace_ms = 0;
     s.max_fetch_draws = 0;
     s.force_full_rebuild = 0;
 
@@ -431,6 +444,10 @@ static DownloadSettings load_download_settings(void)
                                                  s.retry_base_delay_ms, 100, 60000);
     s.retry_max_delay_ms = read_env_int_bounded(HISTORICAL_DB_RETRY_MAX_DELAY_ENV,
                                                 s.retry_max_delay_ms, 100, 120000);
+    s.retry_jitter_ms = read_env_int_bounded(HISTORICAL_DB_RETRY_JITTER_ENV, s.retry_jitter_ms,
+                                             0, 10000);
+    s.bulk_fetch_pace_ms = read_env_int_bounded(HISTORICAL_DB_BULK_PACE_ENV,
+                                                s.bulk_fetch_pace_ms, 0, 10000);
     s.max_fetch_draws = read_env_int_bounded(HISTORICAL_DB_MAX_FETCH_DRAWS_ENV,
                                              s.max_fetch_draws, 0, HISTORICAL_DB_MAX_DATES);
     s.force_full_rebuild =
@@ -596,6 +613,21 @@ static unsigned int retry_delay_ms(int attempt)
             return (unsigned int)g_download_settings.retry_max_delay_ms;
         delay *= 2;
     }
+
+    if (g_download_settings.retry_jitter_ms > 0)
+    {
+        unsigned int max_jitter = (unsigned int)g_download_settings.retry_jitter_ms;
+        unsigned int entropy = (unsigned int)clock() ^
+                               (unsigned int)historical_db_process_id() ^
+                               (unsigned int)(attempt * 2654435761U);
+        unsigned int jitter = entropy % (max_jitter + 1U);
+
+        if (delay + jitter > (unsigned int)g_download_settings.retry_max_delay_ms)
+            return (unsigned int)g_download_settings.retry_max_delay_ms;
+
+        return delay + jitter;
+    }
+
     return delay;
 }
 
@@ -634,7 +666,8 @@ static char *fetch_url_text_with_retries(const char *url, int timeout_sec, const
         if (attempt < g_download_settings.max_retry_attempts)
         {
             unsigned int delay = retry_delay_ms(attempt);
-            log_debug("[historical_db] %s: retrying after %u ms", context, delay);
+            log_debug("[historical_db] %s: retrying after %u ms (attempt=%d)", context, delay,
+                      attempt);
             sleep_ms(delay);
         }
     }
@@ -1900,10 +1933,12 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
 
     log_info("[historical_db] sync_latest: starting sync for game='%s'", game_name);
     log_info("[historical_db] sync config: workers=%d fetch_timeout=%ds draw_timeout=%ds "
-             "retries=%d backoff=%d..%dms max_fetch=%d force_full_rebuild=%d",
+             "retries=%d backoff=%d..%dms jitter=%dms pace=%dms max_fetch=%d "
+             "force_full_rebuild=%d",
              g_download_settings.workers, g_download_settings.fetch_timeout_sec,
              g_download_settings.draw_timeout_sec, g_download_settings.max_retry_attempts,
              g_download_settings.retry_base_delay_ms, g_download_settings.retry_max_delay_ms,
+             g_download_settings.retry_jitter_ms, g_download_settings.bulk_fetch_pace_ms,
              g_download_settings.max_fetch_draws, g_download_settings.force_full_rebuild);
 #ifndef _OPENMP
     if (g_download_settings.workers > 1)
@@ -2094,7 +2129,12 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
             }
 
             if (!draw_json)
+            {
+                if (g_download_settings.bulk_fetch_pace_ms > 0)
+                    sleep_ms((unsigned int)g_download_settings.bulk_fetch_pace_ms);
+
                 draw_json = fetch_draw_for_date(game_name, history_dates[i]);
+            }
 
             if (!draw_json)
             {
