@@ -14,6 +14,10 @@
 #include <sys/types.h>
 #include <time.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 #ifndef _WIN32
 #include <strings.h>
 #include <unistd.h>
@@ -27,14 +31,21 @@
 #define HISTORICAL_DB_MAX_DATES 4096
 #define EUROJACKPOT_FIRST_DRAW_YEAR 2012
 #define LOTTO_FIRST_DRAW_YEAR 2012
-#define HISTORICAL_DB_FETCH_TIMEOUT_SEC 30
-#define HISTORICAL_DB_DRAW_TIMEOUT_SEC 20
-#define HISTORICAL_DB_MAX_RETRY_ATTEMPTS 3
-#define HISTORICAL_DB_RETRY_BASE_DELAY_MS 1000
-#define HISTORICAL_DB_RETRY_MAX_DELAY_MS 8000
+#define HISTORICAL_DB_FETCH_TIMEOUT_SEC_DEFAULT 30
+#define HISTORICAL_DB_DRAW_TIMEOUT_SEC_DEFAULT 20
+#define HISTORICAL_DB_MAX_RETRY_ATTEMPTS_DEFAULT 3
+#define HISTORICAL_DB_RETRY_BASE_DELAY_MS_DEFAULT 1000
+#define HISTORICAL_DB_RETRY_MAX_DELAY_MS_DEFAULT 8000
+#define HISTORICAL_DB_DOWNLOAD_WORKERS_DEFAULT 4
 #define HISTORICAL_DB_SOURCES_CONFIG_ENV "OPEN_LOTTO_SOURCES_CONFIG"
 #define HISTORICAL_DB_URL_ENV_EUROJACKPOT "OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT"
 #define HISTORICAL_DB_URL_ENV_LOTTO "OPEN_LOTTO_GEWINNZAHLEN_URL_LOTTO"
+#define HISTORICAL_DB_WORKERS_ENV "OPEN_LOTTO_HIST_DOWNLOAD_WORKERS"
+#define HISTORICAL_DB_FETCH_TIMEOUT_ENV "OPEN_LOTTO_HIST_FETCH_TIMEOUT_SEC"
+#define HISTORICAL_DB_DRAW_TIMEOUT_ENV "OPEN_LOTTO_HIST_DRAW_TIMEOUT_SEC"
+#define HISTORICAL_DB_RETRY_ATTEMPTS_ENV "OPEN_LOTTO_HIST_MAX_RETRY_ATTEMPTS"
+#define HISTORICAL_DB_RETRY_BASE_DELAY_ENV "OPEN_LOTTO_HIST_RETRY_BASE_DELAY_MS"
+#define HISTORICAL_DB_RETRY_MAX_DELAY_ENV "OPEN_LOTTO_HIST_RETRY_MAX_DELAY_MS"
 
 /* Width (in filled/empty characters) of the terminal progress bar. */
 #define PROGRESS_BAR_WIDTH 40
@@ -98,6 +109,76 @@ static int parse_history_dates(const char *json, char dates[][16], int max_dates
 static char *fetch_draw_for_date(const char *game_name, const char *date);
 static char *fetch_url_text(const char *url);
 static char *read_stream(FILE *fp);
+
+typedef struct
+{
+    int workers;
+    int fetch_timeout_sec;
+    int draw_timeout_sec;
+    int max_retry_attempts;
+    int retry_base_delay_ms;
+    int retry_max_delay_ms;
+} DownloadSettings;
+
+typedef struct
+{
+    HistoricalDrawSnapshot draw;
+    int fetched_ok;
+    int parsed_ok;
+    size_t bytes;
+} BulkDrawResult;
+
+static DownloadSettings g_download_settings = {
+    HISTORICAL_DB_DOWNLOAD_WORKERS_DEFAULT,
+    HISTORICAL_DB_FETCH_TIMEOUT_SEC_DEFAULT,
+    HISTORICAL_DB_DRAW_TIMEOUT_SEC_DEFAULT,
+    HISTORICAL_DB_MAX_RETRY_ATTEMPTS_DEFAULT,
+    HISTORICAL_DB_RETRY_BASE_DELAY_MS_DEFAULT,
+    HISTORICAL_DB_RETRY_MAX_DELAY_MS_DEFAULT,
+};
+
+static int read_env_int_bounded(const char *name, int fallback, int min_value, int max_value)
+{
+    const char *raw = getenv(name);
+    if (!raw || raw[0] == '\0')
+        return fallback;
+
+    char *end = NULL;
+    long value = strtol(raw, &end, 10);
+    if (end == raw || *end != '\0')
+        return fallback;
+
+    if (value < min_value)
+        return min_value;
+    if (value > max_value)
+        return max_value;
+    return (int)value;
+}
+
+static DownloadSettings load_download_settings(void)
+{
+    DownloadSettings s;
+    s.workers = read_env_int_bounded(HISTORICAL_DB_WORKERS_ENV,
+                                     HISTORICAL_DB_DOWNLOAD_WORKERS_DEFAULT, 1, 32);
+    s.fetch_timeout_sec = read_env_int_bounded(HISTORICAL_DB_FETCH_TIMEOUT_ENV,
+                                               HISTORICAL_DB_FETCH_TIMEOUT_SEC_DEFAULT, 5, 300);
+    s.draw_timeout_sec = read_env_int_bounded(HISTORICAL_DB_DRAW_TIMEOUT_ENV,
+                                              HISTORICAL_DB_DRAW_TIMEOUT_SEC_DEFAULT, 5, 300);
+    s.max_retry_attempts =
+        read_env_int_bounded(HISTORICAL_DB_RETRY_ATTEMPTS_ENV,
+                             HISTORICAL_DB_MAX_RETRY_ATTEMPTS_DEFAULT, 1, 10);
+    s.retry_base_delay_ms =
+        read_env_int_bounded(HISTORICAL_DB_RETRY_BASE_DELAY_ENV,
+                             HISTORICAL_DB_RETRY_BASE_DELAY_MS_DEFAULT, 100, 60000);
+    s.retry_max_delay_ms =
+        read_env_int_bounded(HISTORICAL_DB_RETRY_MAX_DELAY_ENV,
+                             HISTORICAL_DB_RETRY_MAX_DELAY_MS_DEFAULT, 100, 120000);
+
+    if (s.retry_max_delay_ms < s.retry_base_delay_ms)
+        s.retry_max_delay_ms = s.retry_base_delay_ms;
+
+    return s;
+}
 
 static const char *game_source_key(const char *game_name)
 {
@@ -246,11 +327,11 @@ static void sleep_ms(unsigned int delay_ms)
 
 static unsigned int retry_delay_ms(int attempt)
 {
-    unsigned int delay = HISTORICAL_DB_RETRY_BASE_DELAY_MS;
+    unsigned int delay = (unsigned int)g_download_settings.retry_base_delay_ms;
     for (int i = 1; i < attempt; i++)
     {
-        if (delay >= HISTORICAL_DB_RETRY_MAX_DELAY_MS / 2)
-            return HISTORICAL_DB_RETRY_MAX_DELAY_MS;
+        if (delay >= (unsigned int)g_download_settings.retry_max_delay_ms / 2U)
+            return (unsigned int)g_download_settings.retry_max_delay_ms;
         delay *= 2;
     }
     return delay;
@@ -263,7 +344,7 @@ static char *fetch_url_text_with_retries(const char *url, int timeout_sec, const
     if (!url || strchr(url, '"') || strchr(url, '`'))
         return NULL;
 
-    for (int attempt = 1; attempt <= HISTORICAL_DB_MAX_RETRY_ATTEMPTS; attempt++)
+    for (int attempt = 1; attempt <= g_download_settings.max_retry_attempts; attempt++)
     {
         snprintf(cmd, sizeof(cmd), "curl -fsSL --max-time %d \"%s\"", timeout_sec, url);
 
@@ -286,9 +367,9 @@ static char *fetch_url_text_with_retries(const char *url, int timeout_sec, const
 
         free(data);
         log_warn("[historical_db] %s: curl failed (exit=%d, attempt=%d/%d, timeout=%ds)",
-                 context, rc, attempt, HISTORICAL_DB_MAX_RETRY_ATTEMPTS, timeout_sec);
+                 context, rc, attempt, g_download_settings.max_retry_attempts, timeout_sec);
 
-        if (attempt < HISTORICAL_DB_MAX_RETRY_ATTEMPTS)
+        if (attempt < g_download_settings.max_retry_attempts)
         {
             unsigned int delay = retry_delay_ms(attempt);
             log_debug("[historical_db] %s: retrying after %u ms", context, delay);
@@ -297,7 +378,7 @@ static char *fetch_url_text_with_retries(const char *url, int timeout_sec, const
     }
 
     log_error("[historical_db] %s: giving up after %d attempts for URL: %s", context,
-              HISTORICAL_DB_MAX_RETRY_ATTEMPTS, url);
+              g_download_settings.max_retry_attempts, url);
     return NULL;
 }
 
@@ -558,7 +639,8 @@ static char *fetch_url_text(const char *url)
 {
     log_debug("[historical_db] fetch_url_text: GET %s", url);
 
-    return fetch_url_text_with_retries(url, HISTORICAL_DB_FETCH_TIMEOUT_SEC, "fetch_url_text");
+    return fetch_url_text_with_retries(url, g_download_settings.fetch_timeout_sec,
+                                       "fetch_url_text");
 }
 
 static const char *skip_ws(const char *p)
@@ -982,7 +1064,7 @@ static char *fetch_draw_for_date(const char *game_name, const char *date)
     log_debug("[historical_db] fetch_draw_for_date: fetching draw for game=%s date=%s",
               game_name, date);
 
-    char *data = fetch_url_text_with_retries(url, HISTORICAL_DB_DRAW_TIMEOUT_SEC,
+    char *data = fetch_url_text_with_retries(url, g_download_settings.draw_timeout_sec,
                                              "fetch_draw_for_date");
     if (!data)
     {
@@ -1317,7 +1399,22 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
     if (!game_name || !out_snapshot)
         return HISTORICAL_DB_ERR_INVALID_ARG;
 
+    g_download_settings = load_download_settings();
+
     log_info("[historical_db] sync_latest: starting sync for game='%s'", game_name);
+    log_info("[historical_db] sync config: workers=%d fetch_timeout=%ds draw_timeout=%ds "
+             "retries=%d backoff=%d..%dms",
+             g_download_settings.workers, g_download_settings.fetch_timeout_sec,
+             g_download_settings.draw_timeout_sec, g_download_settings.max_retry_attempts,
+             g_download_settings.retry_base_delay_ms, g_download_settings.retry_max_delay_ms);
+#ifndef _OPENMP
+    if (g_download_settings.workers > 1)
+    {
+        log_warn("[historical_db] OpenMP disabled in this build; falling back to single-thread "
+                 "download execution");
+        g_download_settings.workers = 1;
+    }
+#endif
 
     url = default_game_source_url(game_name);
     if (!url)
@@ -1409,6 +1506,13 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         int first = 1;
         time_t download_start = time(NULL);
         size_t total_bytes = 0;
+        BulkDrawResult *results = calloc((size_t)max_fetch, sizeof(BulkDrawResult));
+        if (!results)
+        {
+            fclose(fp);
+            free(json);
+            return HISTORICAL_DB_ERR_IO;
+        }
 
         log_info(
             "[historical_db] sync_latest: bulk download — fetching up to %d historical draws",
@@ -1416,77 +1520,110 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         fprintf(stderr, "  Fetching %d historical draws for %s\n", max_fetch, game_name);
         print_progress_bar(0, max_fetch, download_start, 0);
 
+        int completed = 0;
+
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(g_download_settings.workers) schedule(dynamic)
+#endif
         for (int i = 0; i < max_fetch; i++)
         {
             log_debug("[historical_db] sync_latest: fetching draw %d/%d (date=%s)", i + 1,
                       max_fetch, history_dates[i]);
+
             char *draw_json = fetch_draw_for_date(game_name, history_dates[i]);
             if (!draw_json)
             {
+                results[i].fetched_ok = 0;
+                results[i].parsed_ok = 0;
+                results[i].bytes = 0;
+            }
+            else
+            {
+                results[i].bytes = strlen(draw_json);
+                results[i].fetched_ok = 1;
+
+                if (parse_game_json(game_name, draw_json, &results[i].draw) == 0)
+                {
+                    results[i].parsed_ok = 1;
+                }
+                else
+                {
+                    results[i].parsed_ok = 0;
+                }
+
+                free(draw_json);
+            }
+
+#ifdef _OPENMP
+#pragma omp critical(historical_db_progress)
+#endif
+            {
+                total_bytes += results[i].bytes;
+                completed++;
+                print_progress_bar(completed, max_fetch, download_start, total_bytes);
+            }
+        }
+
+        for (int i = 0; i < max_fetch; i++)
+        {
+            if (!results[i].fetched_ok)
+            {
                 log_warn("[historical_db] sync_latest: skipping draw %d/%d (fetch failed)",
                          i + 1, max_fetch);
-                print_progress_bar(i + 1, max_fetch, download_start, total_bytes);
+                continue;
+            }
+            if (!results[i].parsed_ok)
+            {
+                log_warn("[historical_db] sync_latest: failed to parse draw JSON for date=%s",
+                         history_dates[i]);
                 continue;
             }
 
-            total_bytes += strlen(draw_json);
+            HistoricalDrawSnapshot *draw = &results[i].draw;
+            if (!first)
+                fprintf(fp, ",\n");
+            first = 0;
 
-            HistoricalDrawSnapshot draw;
-            if (parse_game_json(game_name, draw_json, &draw) == 0)
-            {
-                if (!first)
-                    fprintf(fp, ",\n");
-                first = 0;
-
-                fprintf(fp, "    {\n");
-                fprintf(fp, "      \"draw_date\": \"%s\",\n", draw.draw_date);
-                fprintf(fp, "      \"next_draw_date\": \"%s\",\n", draw.next_draw_date);
-                const char *spielart = game_spielart_code(game_name);
-                fprintf(fp,
+            fprintf(fp, "    {\n");
+            fprintf(fp, "      \"draw_date\": \"%s\",\n", draw->draw_date);
+            fprintf(fp, "      \"next_draw_date\": \"%s\",\n", draw->next_draw_date);
+            const char *spielart = game_spielart_code(game_name);
+            fprintf(fp,
                     "      \"source_url\": "
                     "\"https://www.eurojackpot.com/wlinfo/"
                     "WL_InfoService?client=jsn&gruppe=ZahlenUndQuoten&ewGewsum=ja&"
                     "spielart=%s&datum=%s&adg=ja&lang=de\",\n",
-                    spielart ? spielart : "", draw.draw_date);
+                    spielart ? spielart : "", draw->draw_date);
 
-                fprintf(fp, "      \"main_numbers\": [");
-                for (int j = 0; j < draw.main_count; j++)
-                    fprintf(fp, "%s%d", j == 0 ? "" : ", ", draw.main_numbers[j]);
-                fprintf(fp, "],\n");
+            fprintf(fp, "      \"main_numbers\": [");
+            for (int j = 0; j < draw->main_count; j++)
+                fprintf(fp, "%s%d", j == 0 ? "" : ", ", draw->main_numbers[j]);
+            fprintf(fp, "],\n");
 
-                fprintf(fp, "      \"extra_numbers\": [");
-                for (int j = 0; j < draw.extra_count; j++)
-                    fprintf(fp, "%s%d", j == 0 ? "" : ", ", draw.extra_numbers[j]);
-                fprintf(fp, "],\n");
+            fprintf(fp, "      \"extra_numbers\": [");
+            for (int j = 0; j < draw->extra_count; j++)
+                fprintf(fp, "%s%d", j == 0 ? "" : ", ", draw->extra_numbers[j]);
+            fprintf(fp, "],\n");
 
-                fprintf(fp, "      \"winning_classes\": [\n");
-                for (int j = 0; j < draw.winning_class_count; j++)
-                {
-                    const HistoricalWinningClass *wc = &draw.winning_classes[j];
-                    fprintf(fp,
-                            "        {\"class\": \"%s\", \"description\": \"%s\", "
-                            "\"winners\": %d, \"payout\": %.2f}%s\n",
-                            wc->class_id, wc->description, wc->winners, wc->payout,
-                            j + 1 == draw.winning_class_count ? "" : ",");
-                }
-                fprintf(fp, "      ]\n");
-                fprintf(fp, "    }");
-
-                fetch_count++;
-                log_debug(
-                    "[historical_db] sync_latest: stored draw date=%s (%d so far)",
-                    draw.draw_date, fetch_count);
-            }
-            else
+            fprintf(fp, "      \"winning_classes\": [\n");
+            for (int j = 0; j < draw->winning_class_count; j++)
             {
-                log_warn(
-                    "[historical_db] sync_latest: failed to parse draw JSON for date=%s",
-                    history_dates[i]);
+                const HistoricalWinningClass *wc = &draw->winning_classes[j];
+                fprintf(fp,
+                        "        {\"class\": \"%s\", \"description\": \"%s\", "
+                        "\"winners\": %d, \"payout\": %.2f}%s\n",
+                        wc->class_id, wc->description, wc->winners, wc->payout,
+                        j + 1 == draw->winning_class_count ? "" : ",");
             }
+            fprintf(fp, "      ]\n");
+            fprintf(fp, "    }");
 
-            print_progress_bar(i + 1, max_fetch, download_start, total_bytes);
-            free(draw_json);
+            fetch_count++;
+            log_debug("[historical_db] sync_latest: stored draw date=%s (%d so far)",
+                      draw->draw_date, fetch_count);
         }
+
+        free(results);
 
         fprintf(fp, "\n  ]\n");
         fprintf(fp, "}\n");
