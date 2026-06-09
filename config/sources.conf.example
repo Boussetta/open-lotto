@@ -7,3 +7,6 @@
 [sources]
 # Eurojackpot upstream endpoint
 eurojackpot = https://www.eurojackpot.com/wlinfo/WL_InfoService?client=jsn&gruppe=ZahlenUndQuoten&ewGewsum=ja&historie=ja&spielart=EJ&adg=ja&lang=de
+
+# Lotto 6aus49 upstream endpoint
+lotto = https://www.eurojackpot.com/wlinfo/WL_InfoService?client=jsn&gruppe=ZahlenUndQuoten&ewGewsum=ja&historie=ja&spielart=LOTTO&adg=ja&lang=de

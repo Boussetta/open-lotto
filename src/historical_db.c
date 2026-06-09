@@ -26,12 +26,15 @@
 #define READ_CHUNK 4096
 #define HISTORICAL_DB_MAX_DATES 4096
 #define EUROJACKPOT_FIRST_DRAW_YEAR 2012
+#define LOTTO_FIRST_DRAW_YEAR 2012
 #define HISTORICAL_DB_FETCH_TIMEOUT_SEC 30
 #define HISTORICAL_DB_DRAW_TIMEOUT_SEC 20
 #define HISTORICAL_DB_MAX_RETRY_ATTEMPTS 3
 #define HISTORICAL_DB_RETRY_BASE_DELAY_MS 1000
 #define HISTORICAL_DB_RETRY_MAX_DELAY_MS 8000
 #define HISTORICAL_DB_SOURCES_CONFIG_ENV "OPEN_LOTTO_SOURCES_CONFIG"
+#define HISTORICAL_DB_URL_ENV_EUROJACKPOT "OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT"
+#define HISTORICAL_DB_URL_ENV_LOTTO "OPEN_LOTTO_GEWINNZAHLEN_URL_LOTTO"
 
 /* Width (in filled/empty characters) of the terminal progress bar. */
 #define PROGRESS_BAR_WIDTH 40
@@ -96,6 +99,45 @@ static char *fetch_draw_for_date(const char *game_name, const char *date);
 static char *fetch_url_text(const char *url);
 static char *read_stream(FILE *fp);
 
+static const char *game_source_key(const char *game_name)
+{
+    if (!game_name)
+        return NULL;
+
+    if (strcasecmp(game_name, "Eurojackpot") == 0)
+        return "eurojackpot";
+
+    if (strcasecmp(game_name, "Lotto 6aus49") == 0 || strcasecmp(game_name, "Lotto") == 0)
+        return "lotto";
+
+    return NULL;
+}
+
+static const char *game_spielart_code(const char *game_name)
+{
+    if (!game_name)
+        return NULL;
+
+    if (strcasecmp(game_name, "Eurojackpot") == 0)
+        return "EJ";
+
+    if (strcasecmp(game_name, "Lotto 6aus49") == 0 || strcasecmp(game_name, "Lotto") == 0)
+        return "LOTTO";
+
+    return NULL;
+}
+
+static int game_first_history_year(const char *game_name)
+{
+    if (!game_name)
+        return EUROJACKPOT_FIRST_DRAW_YEAR;
+
+    if (strcasecmp(game_name, "Lotto 6aus49") == 0 || strcasecmp(game_name, "Lotto") == 0)
+        return LOTTO_FIRST_DRAW_YEAR;
+
+    return EUROJACKPOT_FIRST_DRAW_YEAR;
+}
+
 static void trim_ascii_whitespace(char *s)
 {
     if (!s)
@@ -148,11 +190,12 @@ static int load_source_url_from_config(const char *game_name, char *out, size_t 
     int in_sources_section = 0;
     int found = -1;
 
-    char lookup_key[64];
-    if (strcasecmp(game_name, "Eurojackpot") == 0)
-        snprintf(lookup_key, sizeof(lookup_key), "eurojackpot");
-    else
-        snprintf(lookup_key, sizeof(lookup_key), "%s", game_name);
+    const char *lookup_key = game_source_key(game_name);
+    if (!lookup_key)
+    {
+        fclose(fp);
+        return -1;
+    }
 
     while (fgets(line, sizeof(line), fp))
     {
@@ -272,8 +315,12 @@ static int date_already_collected(const char dates[][16], int count, const char 
     return 0;
 }
 
-static int collect_eurojackpot_dates_all_years(char dates[][16], int max_dates)
+static int collect_game_dates_all_years(const char *game_name, char dates[][16], int max_dates)
 {
+    const char *spielart = game_spielart_code(game_name);
+    if (!spielart)
+        return 0;
+
     time_t now = time(NULL);
     struct tm tmv;
 #ifdef _WIN32
@@ -283,21 +330,23 @@ static int collect_eurojackpot_dates_all_years(char dates[][16], int max_dates)
 #endif
 
     int current_year = tmv.tm_year + 1900;
+    int first_year = game_first_history_year(game_name);
     int total = 0;
 
-    for (int year = current_year; year >= EUROJACKPOT_FIRST_DRAW_YEAR; year--)
+    for (int year = current_year; year >= first_year; year--)
     {
         char url[512];
         snprintf(url, sizeof(url),
                  "https://www.eurojackpot.com/wlinfo/WL_InfoService?client=jsn&gruppe=ZahlenUndQuoten&"
-                 "ewGewsum=ja&historie=ja&spielart=EJ&adg=ja&lang=de&jahr=%d",
-                 year);
+                 "ewGewsum=ja&historie=ja&spielart=%s&adg=ja&lang=de&jahr=%d",
+                 spielart, year);
 
         char *year_json = fetch_url_text(url);
         if (!year_json)
         {
-            log_warn("[historical_db] sync_latest: yearly history fetch failed for year=%d",
-                     year);
+            log_warn("[historical_db] sync_latest: yearly history fetch failed for game='%s' "
+                     "year=%d",
+                     game_name, year);
             continue;
         }
 
@@ -336,7 +385,7 @@ static const char *default_game_source_url(const char *game_name)
 
     if (strcasecmp(game_name, "Eurojackpot") == 0)
     {
-        override = getenv("OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT");
+        override = getenv(HISTORICAL_DB_URL_ENV_EUROJACKPOT);
         if (override && override[0] != '\0')
             return override;
 
@@ -349,7 +398,25 @@ static const char *default_game_source_url(const char *game_name)
         log_warn("[historical_db] no source URL configured for Eurojackpot; checked %s; "
                  "set [sources] eurojackpot in sources config, or set %s, or set %s",
                  checked_path, HISTORICAL_DB_SOURCES_CONFIG_ENV,
-                 "OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT");
+                 HISTORICAL_DB_URL_ENV_EUROJACKPOT);
+        return NULL;
+    }
+
+    if (strcasecmp(game_name, "Lotto 6aus49") == 0 || strcasecmp(game_name, "Lotto") == 0)
+    {
+        override = getenv(HISTORICAL_DB_URL_ENV_LOTTO);
+        if (override && override[0] != '\0')
+            return override;
+
+        if (get_sources_config_path(config_path, sizeof(config_path)) == 0)
+            checked_path = config_path;
+
+        if (load_source_url_from_config(game_name, configured_url, sizeof(configured_url)) == 0)
+            return configured_url;
+
+        log_warn("[historical_db] no source URL configured for Lotto 6aus49; checked %s; "
+                 "set [sources] lotto in sources config, or set %s, or set %s",
+                 checked_path, HISTORICAL_DB_SOURCES_CONFIG_ENV, HISTORICAL_DB_URL_ENV_LOTTO);
         return NULL;
     }
 
@@ -780,6 +847,82 @@ static int parse_eurojackpot_json(const char *json, HistoricalDrawSnapshot *snap
     return 0;
 }
 
+static int parse_lotto_json(const char *json, HistoricalDrawSnapshot *snap)
+{
+    const int expected_main_count = 6;
+    const int expected_extra_count = 1;
+    const char *numbers_root;
+    const char *first_numbers;
+    char superzahl[16];
+
+    if (!json || !snap)
+        return -1;
+
+    memset(snap, 0, sizeof(*snap));
+    strncpy(snap->game, "Lotto 6aus49", sizeof(snap->game) - 1);
+
+    const char *head = find_key(json, "head");
+    const char *follow;
+
+    if (!head)
+        return -1;
+
+    if (parse_string_field(head, "datum", snap->draw_date, sizeof(snap->draw_date)) != 0)
+        return -1;
+
+    follow = find_key(head, "folgeZiehung");
+    if (!follow || parse_string_field(follow, "datum", snap->next_draw_date,
+                                      sizeof(snap->next_draw_date)) != 0)
+    {
+        return -1;
+    }
+
+    numbers_root = find_key(json, "zahlen");
+    if (!numbers_root)
+        return -1;
+
+    numbers_root = find_key(numbers_root, "hauptlotterie");
+    if (!numbers_root)
+        return -1;
+
+    numbers_root = find_key(numbers_root, "ziehungen");
+    if (!numbers_root)
+        return -1;
+
+    first_numbers = find_key(numbers_root, "zahlenSortiert");
+    if (!first_numbers)
+        return -1;
+
+    snap->main_count = parse_number_array(first_numbers, snap->main_numbers, expected_main_count);
+    if (snap->main_count != expected_main_count)
+        return -1;
+
+    if (parse_string_field(numbers_root, "superzahl", superzahl, sizeof(superzahl)) != 0 ||
+        superzahl[0] == '\0')
+    {
+        return -1;
+    }
+
+    snap->extra_numbers[0] = atoi(superzahl);
+    snap->extra_count = expected_extra_count;
+    snap->winning_class_count = 0;
+    return 0;
+}
+
+static int parse_game_json(const char *game_name, const char *json, HistoricalDrawSnapshot *snap)
+{
+    if (!game_name || !json || !snap)
+        return -1;
+
+    if (strcasecmp(game_name, "Eurojackpot") == 0)
+        return parse_eurojackpot_json(json, snap);
+
+    if (strcasecmp(game_name, "Lotto 6aus49") == 0 || strcasecmp(game_name, "Lotto") == 0)
+        return parse_lotto_json(json, snap);
+
+    return -1;
+}
+
 static int parse_history_dates(const char *json, char dates[][16], int max_dates)
 {
     int count = 0;
@@ -819,6 +962,10 @@ static char *fetch_draw_for_date(const char *game_name, const char *date)
     if (!game_name || !date)
         return NULL;
 
+    const char *spielart = game_spielart_code(game_name);
+    if (!spielart)
+        return NULL;
+
     /* Bound the date to 15 chars so the compiler can verify format-truncation safety. */
     char safe_date[16];
     snprintf(safe_date, sizeof(safe_date), "%.15s", date);
@@ -826,8 +973,8 @@ static char *fetch_draw_for_date(const char *game_name, const char *date)
     char url[512];
     snprintf(url, sizeof(url),
              "https://www.eurojackpot.com/wlinfo/WL_InfoService?client=jsn&gruppe=ZahlenUndQuoten&"
-             "ewGewsum=ja&spielart=EJ&datum=%.15s&adg=ja&lang=de",
-             safe_date);
+             "ewGewsum=ja&spielart=%s&datum=%.15s&adg=ja&lang=de",
+             spielart, safe_date);
 
     if (strchr(url, '"') || strchr(url, '`'))
         return NULL;
@@ -1131,7 +1278,7 @@ static int parse_local_snapshot_json(const char *json, HistoricalDrawSnapshot *s
     }
 
     snap->winning_class_count = idx;
-    return idx > 0 ? 0 : -1;
+    return 0;
 }
 
 int historical_db_load_latest(const char *game_name, const char *db_root,
@@ -1230,9 +1377,11 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
 
     char history_dates[HISTORICAL_DB_MAX_DATES][16];
     int history_count = 0;
-    if (strcasecmp(game_name, "Eurojackpot") == 0)
+    if (strcasecmp(game_name, "Eurojackpot") == 0 || strcasecmp(game_name, "Lotto 6aus49") == 0 ||
+        strcasecmp(game_name, "Lotto") == 0)
     {
-        history_count = collect_eurojackpot_dates_all_years(history_dates, HISTORICAL_DB_MAX_DATES);
+        history_count =
+            collect_game_dates_all_years(game_name, history_dates, HISTORICAL_DB_MAX_DATES);
     }
     if (history_count <= 0)
     {
@@ -1283,7 +1432,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
             total_bytes += strlen(draw_json);
 
             HistoricalDrawSnapshot draw;
-            if (parse_eurojackpot_json(draw_json, &draw) == 0)
+            if (parse_game_json(game_name, draw_json, &draw) == 0)
             {
                 if (!first)
                     fprintf(fp, ",\n");
@@ -1292,12 +1441,13 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
                 fprintf(fp, "    {\n");
                 fprintf(fp, "      \"draw_date\": \"%s\",\n", draw.draw_date);
                 fprintf(fp, "      \"next_draw_date\": \"%s\",\n", draw.next_draw_date);
+                const char *spielart = game_spielart_code(game_name);
                 fprintf(fp,
-                        "      \"source_url\": "
-                        "\"https://www.eurojackpot.com/wlinfo/"
-                        "WL_InfoService?client=jsn&gruppe=ZahlenUndQuoten&ewGewsum=ja&"
-                        "spielart=EJ&datum=%s&adg=ja&lang=de\",\n",
-                        draw.draw_date);
+                    "      \"source_url\": "
+                    "\"https://www.eurojackpot.com/wlinfo/"
+                    "WL_InfoService?client=jsn&gruppe=ZahlenUndQuoten&ewGewsum=ja&"
+                    "spielart=%s&datum=%s&adg=ja&lang=de\",\n",
+                    spielart ? spielart : "", draw.draw_date);
 
                 fprintf(fp, "      \"main_numbers\": [");
                 for (int j = 0; j < draw.main_count; j++)
@@ -1348,7 +1498,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
 
         if (fetch_count > 0)
         {
-            if (parse_eurojackpot_json(json, &snapshot) == 0)
+            if (parse_game_json(game_name, json, &snapshot) == 0)
             {
                 strncpy(snapshot.source_url, url, sizeof(snapshot.source_url) - 1);
                 *out_snapshot = snapshot;
@@ -1364,7 +1514,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
     }
 
     log_debug("[historical_db] sync_latest: parsing latest draw from upstream response");
-    if (parse_eurojackpot_json(json, &snapshot) != 0)
+    if (parse_game_json(game_name, json, &snapshot) != 0)
     {
         log_error("[historical_db] sync_latest: failed to parse upstream JSON for game='%s'",
                   game_name);
