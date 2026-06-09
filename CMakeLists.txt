@@ -582,28 +582,28 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME cli_analytics_frequency_table
-        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv
     )
     set_tests_properties(cli_analytics_frequency_table PROPERTIES
         PASS_REGULAR_EXPRESSION "Frequency distribution|number,count,percentage"
     )
 
     add_test(NAME cli_analytics_frequency_json
-        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --format json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --format json
     )
     set_tests_properties(cli_analytics_frequency_json PROPERTIES
         PASS_REGULAR_EXPRESSION "\"frequency\"|\"draws\""
     )
 
     add_test(NAME cli_analytics_frequency_gui_2d
-        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --gui 2D
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --gui 2D
     )
     set_tests_properties(cli_analytics_frequency_gui_2d PROPERTIES
         PASS_REGULAR_EXPRESSION "\[GUI 2D\]"
     )
 
     add_test(NAME cli_analytics_frequency_gui_3d
-        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --gui 3D
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --gui 3D
     )
     set_tests_properties(cli_analytics_frequency_gui_3d PROPERTIES
         PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
@@ -666,7 +666,7 @@ if(BUILD_TESTING)
     )
 
     add_test(NAME cli_analytics_frequency_explain
-        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --explain
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --explain
     )
     set_tests_properties(cli_analytics_frequency_explain PROPERTIES
         PASS_REGULAR_EXPRESSION "Explain: frequency percentage"

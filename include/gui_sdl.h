@@ -5,6 +5,7 @@
 #ifndef GUI_SDL_H
 #define GUI_SDL_H
 
+#include "analytics.h"
 #include "combogen.h"
 
 /*
@@ -16,5 +17,8 @@
  * receives the same DrawEvent sequence as --animate.
  */
 void gui_run(const char *game_name, const LotteryInfo *info, int dark_mode);
+
+/* Render frequency-distribution analytics as a 2D SDL chart. */
+int gui_render_frequency_2d(const char *title, const FrequencyReport *report, int dark_mode);
 
 #endif /* GUI_SDL_H */

@@ -36,7 +36,7 @@ check_budget() {
 }
 
 check_budget "frequency" "$BUDGET_FREQUENCY_MS" \
-  "$BIN" --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 \
+  "$BIN" --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 \
   --historical-csv "$ROOT_DIR/tests/fixtures/historical_lotto_small.csv" --format json --verbose ERROR
 
 check_budget "barometer" "$BUDGET_BAROMETER_MS" \

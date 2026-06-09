@@ -241,7 +241,7 @@ static void print_usage(const char *prog)
             "Analytics Period Options:\n"
             "  --from YYYY-MM-DD Inclusive period start date for analytics APIs\n"
             "  --to YYYY-MM-DD   Inclusive period end date for analytics APIs\n"
-            "  --analytics-frequency   Print frequency distribution over historical data\n"
+            "  --frequency-distribution Print frequency distribution over historical data\n"
             "  --analytics-barometer   Print overdue barometer over historical data\n"
             "  --analytics-hot-cold    Print hot/cold number rankings over historical data\n"
             "  --top N                 Number of hot/cold entries (default: 10)\n"
@@ -522,7 +522,8 @@ int main(int argc, char **argv)
             }
             period_to = argv[++i];
         }
-        else if (strcmp(argv[i], "--analytics-frequency") == 0)
+        else if (strcmp(argv[i], "--frequency-distribution") == 0 ||
+                 strcmp(argv[i], "--analytics-frequency") == 0)
         {
             analytics_frequency = 1;
         }
@@ -909,9 +910,17 @@ int main(int argc, char **argv)
             }
 
             if (gui && strcmp(gui_mode, "3D") == 0)
-                analytics_print_frequency_gui_3d_matlab(&report);
+            {
+                printf("[GUI 3D] OpenGL frequency visualization\n");
+                if (gui_render_frequency_3d(selected->name, &report, dark_mode) != 0)
+                    analytics_print_frequency_gui_3d_matlab(&report);
+            }
             else if (gui)
-                analytics_print_frequency_gui_2d(&report);
+            {
+                printf("[GUI 2D] SDL frequency visualization\n");
+                if (gui_render_frequency_2d(selected->name, &report, dark_mode) != 0)
+                    analytics_print_frequency_gui_2d(&report);
+            }
             else if (strcmp(analytics_format, "json") == 0)
                 analytics_print_frequency_json(&report);
             else if (strcmp(analytics_format, "csv") == 0)

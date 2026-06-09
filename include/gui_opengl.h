@@ -5,6 +5,7 @@
 #ifndef GUI_OPENGL_H
 #define GUI_OPENGL_H
 
+#include "analytics.h"
 #include "combogen.h"
 
 /*
@@ -19,5 +20,8 @@
  */
 void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_overlay,
                     int dark_mode);
+
+/* Render frequency-distribution analytics as an interactive 3D OpenGL chart. */
+int gui_render_frequency_3d(const char *title, const FrequencyReport *report, int dark_mode);
 
 #endif /* GUI_OPENGL_H */

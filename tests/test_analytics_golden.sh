@@ -26,7 +26,7 @@ run_and_compare() {
 run_and_compare \
   "frequency-json" \
   "$ROOT_DIR/tests/golden/analytics_frequency_json.golden" \
-  --game "Lotto 6aus49" --analytics-frequency --from 2025-01-01 --to 2025-01-31 \
+  --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 \
   --historical-csv "$ROOT_DIR/tests/fixtures/historical_lotto_small.csv" --format json
 
 run_and_compare \

@@ -760,3 +760,149 @@ void gui_run(const char *game_name, const LotteryInfo *info, int dark_mode)
     SDL_Quit();
     g_state = NULL;
 }
+
+static void draw_text(SDL_Renderer *ren, TTF_Font *font, const char *text, int x, int y,
+                      SDL_Color color)
+{
+    SDL_Surface *surf = TTF_RenderText_Blended(font, text, color);
+    if (!surf)
+        return;
+
+    SDL_Texture *tex = SDL_CreateTextureFromSurface(ren, surf);
+    SDL_Rect dst = {x, y, surf->w, surf->h};
+    SDL_FreeSurface(surf);
+    if (!tex)
+        return;
+
+    SDL_RenderCopy(ren, tex, NULL, &dst);
+    SDL_DestroyTexture(tex);
+}
+
+int gui_render_frequency_2d(const char *title, const FrequencyReport *report, int dark_mode)
+{
+    if (!report)
+        return -1;
+
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
+        return -1;
+
+    if (TTF_Init() != 0)
+    {
+        SDL_Quit();
+        return -1;
+    }
+
+    SDL_Window *win =
+        SDL_CreateWindow(title ? title : "Frequency Distribution (2D)", SDL_WINDOWPOS_CENTERED,
+                         SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    if (!win)
+    {
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
+
+    SDL_Renderer *ren =
+        SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!ren)
+    {
+        SDL_DestroyWindow(win);
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
+
+    char font_path[512];
+    snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
+    TTF_Font *font = TTF_OpenFont(font_path, 16);
+    if (!font)
+    {
+        SDL_DestroyRenderer(ren);
+        SDL_DestroyWindow(win);
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
+
+    int max_count = 1;
+    for (int n = report->number_min; n <= report->number_max; n++)
+    {
+        if (report->counts[n] > max_count)
+            max_count = report->counts[n];
+    }
+
+    const int left = 70;
+    const int right = WINDOW_WIDTH - 30;
+    const int top = 60;
+    const int bottom = WINDOW_HEIGHT - 80;
+    const int chart_w = right - left;
+    const int chart_h = bottom - top;
+    const int points = report->number_max - report->number_min + 1;
+    const int bar_w = points > 0 ? (chart_w / points) : 1;
+
+    Uint32 start = SDL_GetTicks();
+    const Uint32 auto_close_ms = 2500;
+    int running = 1;
+    while (running)
+    {
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev))
+        {
+            if (ev.type == SDL_QUIT)
+                running = 0;
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE)
+                running = 0;
+        }
+
+        if (SDL_GetTicks() - start >= auto_close_ms)
+            running = 0;
+
+        if (dark_mode == 1)
+            SDL_SetRenderDrawColor(ren, 18, 20, 28, 255);
+        else
+            SDL_SetRenderDrawColor(ren, 246, 248, 252, 255);
+        SDL_RenderClear(ren);
+
+        SDL_Color axis_color = dark_mode == 1 ? (SDL_Color){230, 235, 245, 255}
+                                              : (SDL_Color){20, 24, 32, 255};
+        SDL_Color bar_color = dark_mode == 1 ? (SDL_Color){80, 200, 160, 255}
+                                             : (SDL_Color){40, 110, 220, 255};
+
+        SDL_SetRenderDrawColor(ren, axis_color.r, axis_color.g, axis_color.b, axis_color.a);
+        SDL_RenderDrawLine(ren, left, bottom, right, bottom);
+        SDL_RenderDrawLine(ren, left, top, left, bottom);
+
+        char header[128];
+        snprintf(header, sizeof(header), "Frequency distribution (%d draws)", report->total_draws);
+        draw_text(ren, font, header, left, 20, axis_color);
+
+        for (int i = 0; i < points; i++)
+        {
+            int number = report->number_min + i;
+            int count = report->counts[number];
+            int height = (count * chart_h) / max_count;
+            int x = left + i * bar_w + 1;
+            int y = bottom - height;
+
+            SDL_Rect bar = {x, y, bar_w > 3 ? bar_w - 2 : 1, height};
+            SDL_SetRenderDrawColor(ren, bar_color.r, bar_color.g, bar_color.b, bar_color.a);
+            SDL_RenderFillRect(ren, &bar);
+
+            if (i % 4 == 0)
+            {
+                char label[8];
+                snprintf(label, sizeof(label), "%d", number);
+                draw_text(ren, font, label, x, bottom + 6, axis_color);
+            }
+        }
+
+        SDL_RenderPresent(ren);
+    }
+
+    TTF_CloseFont(font);
+    SDL_DestroyRenderer(ren);
+    SDL_DestroyWindow(win);
+    TTF_Quit();
+    SDL_Quit();
+    return 0;
+}
