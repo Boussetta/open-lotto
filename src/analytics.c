@@ -520,6 +520,15 @@ int analytics_compute_frequency(const HistoricalDraw *draws, int draw_count, int
     out_report->number_min = number_min;
     out_report->number_max = number_max;
 
+    /* Set date range from first and last draw */
+    if (draw_count > 0)
+    {
+        strncpy(out_report->from_date, draws[0].draw_date, sizeof(out_report->from_date) - 1);
+        out_report->from_date[sizeof(out_report->from_date) - 1] = '\0';
+        strncpy(out_report->to_date, draws[draw_count - 1].draw_date, sizeof(out_report->to_date) - 1);
+        out_report->to_date[sizeof(out_report->to_date) - 1] = '\0';
+    }
+
     for (int i = 0; i < draw_count; i++)
     {
         const LotteryResult *r = &draws[i].result;
@@ -547,6 +556,15 @@ int analytics_compute_barometer(const HistoricalDraw *draws, int draw_count, int
     out_report->total_draws = draw_count;
     out_report->number_min = number_min;
     out_report->number_max = number_max;
+
+    /* Set date range from first and last draw */
+    if (draw_count > 0)
+    {
+        strncpy(out_report->from_date, draws[0].draw_date, sizeof(out_report->from_date) - 1);
+        out_report->from_date[sizeof(out_report->from_date) - 1] = '\0';
+        strncpy(out_report->to_date, draws[draw_count - 1].draw_date, sizeof(out_report->to_date) - 1);
+        out_report->to_date[sizeof(out_report->to_date) - 1] = '\0';
+    }
 
     int population = number_max - number_min + 1;
     out_report->expected_interval = (double)population / (double)picks_per_draw;
@@ -629,6 +647,15 @@ int analytics_compute_hot_cold(const HistoricalDraw *draws, int draw_count, int 
     memset(out_report, 0, sizeof(*out_report));
     out_report->total_draws = draw_count;
     out_report->top_n = (top_n < all_count) ? top_n : all_count;
+
+    /* Set date range from first and last draw */
+    if (draw_count > 0)
+    {
+        strncpy(out_report->from_date, draws[0].draw_date, sizeof(out_report->from_date) - 1);
+        out_report->from_date[sizeof(out_report->from_date) - 1] = '\0';
+        strncpy(out_report->to_date, draws[draw_count - 1].draw_date, sizeof(out_report->to_date) - 1);
+        out_report->to_date[sizeof(out_report->to_date) - 1] = '\0';
+    }
 
     qsort(all, (size_t)all_count, sizeof(HotColdEntry), hot_cmp);
     for (int i = 0; i < out_report->top_n; i++)

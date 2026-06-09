@@ -22,6 +22,8 @@ typedef struct
     int number_min;
     int number_max;
     int counts[128];
+    char from_date[11]; /* YYYY-MM-DD */
+    char to_date[11];   /* YYYY-MM-DD */
 } FrequencyReport;
 
 typedef struct
@@ -33,6 +35,8 @@ typedef struct
     int hit_counts[128];
     int observed_gaps[128];
     double factors[128];
+    char from_date[11]; /* YYYY-MM-DD */
+    char to_date[11];   /* YYYY-MM-DD */
 } BarometerReport;
 
 typedef struct
@@ -48,6 +52,8 @@ typedef struct
     int top_n;
     HotColdEntry hot[128];
     HotColdEntry cold[128];
+    char from_date[11]; /* YYYY-MM-DD */
+    char to_date[11];   /* YYYY-MM-DD */
 } HotColdReport;
 
 int analytics_load_historical_csv(const char *csv_path, HistoricalDraw *out_draws, int max_draws,

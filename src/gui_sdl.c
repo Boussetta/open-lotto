@@ -945,6 +945,16 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
                  title ? title : "", report->total_draws);
         draw_text(ren, font, header, left, 18, fg);
 
+        /* Date range */
+        if (report->from_date[0] && report->to_date[0])
+        {
+            char date_str[128];
+            snprintf(date_str, sizeof(date_str), "Period: %s to %s",
+                     report->from_date, report->to_date);
+            draw_text(ren, font_sm ? font_sm : font, date_str, left, 38, 
+                      (SDL_Color){fg.r, fg.g, fg.b, 200});
+        }
+
         if (font_sm)
             draw_text(ren, font_sm, "ESC: close", WINDOW_WIDTH - 120, 18,
                       (SDL_Color){fg.r, fg.g, fg.b, 160});
@@ -1130,6 +1140,17 @@ int gui_render_barometer_2d(const char *title, const BarometerReport *report, in
                  "Barometer — Overdue Factor  |  game: %s  |  draws: %d",
                  title ? title : "", report->total_draws);
         draw_text(ren, font, header, left, 18, fg);
+        
+        /* Date range */
+        if (report->from_date[0] && report->to_date[0])
+        {
+            char date_str[128];
+            snprintf(date_str, sizeof(date_str), "Period: %s to %s",
+                     report->from_date, report->to_date);
+            draw_text(ren, font_sm ? font_sm : font, date_str, left, 38, 
+                      (SDL_Color){fg.r, fg.g, fg.b, 200});
+        }
+
         if (font_sm)
             draw_text(ren, font_sm, "ESC: close", WINDOW_WIDTH - 120, 18,
                       (SDL_Color){fg.r, fg.g, fg.b, 160});
@@ -1293,6 +1314,17 @@ int gui_render_hot_cold_2d(const char *title, const HotColdReport *report, int d
                  "Hot / Cold  |  game: %s  |  draws: %d  |  top %d",
                  title ? title : "", report->total_draws, report->top_n);
         draw_text(ren, font, header, left, 18, fg);
+        
+        /* Date range */
+        if (report->from_date[0] && report->to_date[0])
+        {
+            char date_str[128];
+            snprintf(date_str, sizeof(date_str), "Period: %s to %s",
+                     report->from_date, report->to_date);
+            draw_text(ren, font_sm ? font_sm : font, date_str, left, 38, 
+                      (SDL_Color){fg.r, fg.g, fg.b, 200});
+        }
+
         if (font_sm)
             draw_text(ren, font_sm, "ESC: close", WINDOW_WIDTH - 120, 18,
                       (SDL_Color){fg.r, fg.g, fg.b, 160});

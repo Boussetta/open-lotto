@@ -2784,7 +2784,9 @@ static void draw_analytics_hud_3d(const char *subtitle, int dark_mode)
 /* Render analytics stats bar at top showing ball ranges and total draws
  * Displays format: "Ball #N: count draws (percentage) | Ball #M: ..." etc */
 static void draw_analytics_info_overlay(TTF_Font *font, int number_min, int number_max,
-                                        const int *counts, int total_draws, int dark_mode)
+                                        const int *counts, int total_draws, 
+                                        const char *from_date, const char *to_date,
+                                        int hovered_bar, int dark_mode)
 {
     (void)dark_mode;
         return;
@@ -2807,12 +2809,20 @@ static void draw_analytics_info_overlay(TTF_Font *font, int number_min, int numb
     glBegin(GL_QUADS);
     glVertex2f(0.0f, 0.0f);
     glVertex2f(1000.0f, 0.0f);
-    glVertex2f(1000.0f, 40.0f);
-    glVertex2f(0.0f, 40.0f);
+    glVertex2f(1000.0f, 55.0f);
+    glVertex2f(0.0f, 55.0f);
     glEnd();
 
+    /* Date range display */
+    char date_str[128];
+    if (from_date && to_date && from_date[0] && to_date[0])
+        snprintf(date_str, sizeof(date_str), "Period: %s to %s", from_date, to_date);
+    else
+        snprintf(date_str, sizeof(date_str), "Period: N/A");
+    render_text_2d_at(font, date_str, 12.0f, 8.0f, 0.80f, 0.85f, 0.95f);
+
     /* Render stats for first 6 balls as sample */
-    float x = 12.0f, y = 10.0f;
+    float x = 12.0f, y = 28.0f;
     char buf[256];
     int samples = (number_max - number_min + 1 > 6) ? 6 : (number_max - number_min + 1);
     for (int i = 0; i < samples; i++)
@@ -2821,8 +2831,26 @@ static void draw_analytics_info_overlay(TTF_Font *font, int number_min, int numb
         int cnt = counts[num];
         double pct = (100.0 * cnt) / (double)total_draws;
         snprintf(buf, sizeof(buf), "#%d:%d (%.1f%%)", num, cnt, pct);
-        render_text_2d_at(font, buf, x, y, 0.85f, 0.90f, 0.95f);
+        
+        /* Highlight hovered bar */
+        float color_r = 0.85f, color_g = 0.90f, color_b = 0.95f;
+        if (hovered_bar == i) {
+            color_r = 1.0f;
+            color_g = 1.0f;
+            color_b = 0.3f;
+        }
+        render_text_2d_at(font, buf, x, y, color_r, color_g, color_b);
         x += 155.0f;
+    }
+
+    /* Show tooltip for hovered bar if applicable */
+    if (hovered_bar >= 0 && hovered_bar < samples)
+    {
+        int num = number_min + hovered_bar;
+        int cnt = counts[num];
+        double pct = (100.0 * cnt) / (double)total_draws;
+        snprintf(buf, sizeof(buf), "Ball %d: %d draws (%.1f%%)", num, cnt, pct);
+        render_text_2d_at(font, buf, 12.0f, 700.0f - 20.0f, 1.0f, 1.0f, 0.3f);
     }
 
     glPopMatrix();
@@ -2908,6 +2936,8 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
     float  anim    = 0.0f;
     Uint32 last_t  = start;
     int    running = 1;
+    int    mouse_x = -1, mouse_y = -1;
+    int    hovered_bar = -1;
 
     while (running)
     {
@@ -2916,6 +2946,29 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
         {
             if (ev.type == SDL_QUIT || (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE))
                 running = 0;
+            else if (ev.type == SDL_MOUSEMOTION)
+            {
+                mouse_x = ev.motion.x;
+                mouse_y = ev.motion.y;
+                
+                /* Simple hover detection for first 6 balls in overlay */
+                /* Each bar spans ~155 pixels, starting at x=12 */
+                if (mouse_y >= 28 && mouse_y <= 50)
+                {
+                    if (mouse_x >= 12 && mouse_x < 12 + 155*6)
+                    {
+                        int col = (mouse_x - 12) / 155;
+                        int samples = (report->number_max - report->number_min + 1 > 6) 
+                                    ? 6 : (report->number_max - report->number_min + 1);
+                        if (col < samples) hovered_bar = col;
+                        else hovered_bar = -1;
+                    }
+                    else
+                        hovered_bar = -1;
+                }
+                else
+                    hovered_bar = -1;
+            }
             else
                 acam_handle_event(&cam, &ev, &running);
         }
@@ -2971,7 +3024,9 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
 
         draw_analytics_hud_3d(title, dark_mode);
         if (font) draw_analytics_info_overlay(font, report->number_min, report->number_max,
-                                             report->counts, report->total_draws, dark_mode);
+                                             report->counts, report->total_draws,
+                                             report->from_date, report->to_date,
+                                             hovered_bar, dark_mode);
         SDL_GL_SwapWindow(window);
         SDL_Delay(16);
     }
@@ -3036,6 +3091,8 @@ int gui_render_barometer_3d(const char *title, const BarometerReport *report, in
     float  anim    = 0.0f;
     Uint32 last_t  = start;
     int    running = 1;
+    int    mouse_x = -1, mouse_y = -1;
+    int    hovered_bar = -1;
 
     while (running)
     {
@@ -3044,6 +3101,29 @@ int gui_render_barometer_3d(const char *title, const BarometerReport *report, in
         {
             if (ev.type == SDL_QUIT || (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE))
                 running = 0;
+            else if (ev.type == SDL_MOUSEMOTION)
+            {
+                mouse_x = ev.motion.x;
+                mouse_y = ev.motion.y;
+                
+                /* Simple hover detection for first 6 balls in overlay */
+                /* Each bar spans ~155 pixels, starting at x=12 */
+                if (mouse_y >= 28 && mouse_y <= 50)
+                {
+                    if (mouse_x >= 12 && mouse_x < 12 + 155*6)
+                    {
+                        int col = (mouse_x - 12) / 155;
+                        int samples = (report->number_max - report->number_min + 1 > 6) 
+                                    ? 6 : (report->number_max - report->number_min + 1);
+                        if (col < samples) hovered_bar = col;
+                        else hovered_bar = -1;
+                    }
+                    else
+                        hovered_bar = -1;
+                }
+                else
+                    hovered_bar = -1;
+            }
             else
                 acam_handle_event(&cam, &ev, &running);
         }
@@ -3116,7 +3196,8 @@ int gui_render_barometer_3d(const char *title, const BarometerReport *report, in
                 for (int i = report->number_min; i <= report->number_max; i++)
                     factor_int[i - report->number_min] = (int)(report->factors[i] * 10.0 + 0.5);
                 draw_analytics_info_overlay(font, report->number_min, report->number_max,
-                                           factor_int, 1000, dark_mode);
+                                           factor_int, 1000, report->from_date, report->to_date,
+                                           hovered_bar, dark_mode);
                 free(factor_int);
             }
         }
@@ -3191,6 +3272,8 @@ int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int d
     float  anim    = 0.0f;
     Uint32 last_t  = start;
     int    running = 1;
+    int    mouse_x = -1, mouse_y = -1;
+    int    hovered_bar = -1;
 
     while (running)
     {
@@ -3199,6 +3282,28 @@ int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int d
         {
             if (ev.type == SDL_QUIT || (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE))
                 running = 0;
+            else if (ev.type == SDL_MOUSEMOTION)
+            {
+                mouse_x = ev.motion.x;
+                mouse_y = ev.motion.y;
+                
+                /* Simple hover detection for first 6 balls in overlay */
+                /* Each bar spans ~155 pixels, starting at x=12 */
+                if (mouse_y >= 28 && mouse_y <= 50)
+                {
+                    if (mouse_x >= 12 && mouse_x < 12 + 155*6)
+                    {
+                        int col = (mouse_x - 12) / 155;
+                        int samples = (report->top_n > 6) ? 6 : report->top_n;
+                        if (col < samples) hovered_bar = col;
+                        else hovered_bar = -1;
+                    }
+                    else
+                        hovered_bar = -1;
+                }
+                else
+                    hovered_bar = -1;
+            }
             else
                 acam_handle_event(&cam, &ev, &running);
         }
@@ -3266,7 +3371,9 @@ int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int d
                 /* Use first and last hot number as range for display */
                 int num_min = report->top_n > 0 ? report->hot[0].number : 1;
                 int num_max = report->top_n > 0 ? report->hot[report->top_n-1].number : 1;
-                draw_analytics_info_overlay(font, num_min, num_max, counts, 1000, dark_mode);
+                draw_analytics_info_overlay(font, num_min, num_max, counts, 1000,
+                                           report->from_date, report->to_date,
+                                           hovered_bar, dark_mode);
                 free(counts);
             }
         }
