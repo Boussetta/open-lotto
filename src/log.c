@@ -84,9 +84,9 @@ void log_enable_file_output(const char *filename)
 static void log_mkdir_p(const char *path)
 {
     char tmp[768];
-    size_t len = strlen(path);
-    if (!path || len == 0 || len >= sizeof(tmp))
+    if (!path || strlen(path) == 0 || strlen(path) >= sizeof(tmp))
         return;
+    size_t len = strlen(path);
 
     strncpy(tmp, path, sizeof(tmp) - 1);
     tmp[sizeof(tmp) - 1] = '\0';

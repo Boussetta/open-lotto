@@ -15,13 +15,16 @@
 #include "random_seed.h"
 #include "theme.h"
 #include "validate.h"
+#include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #ifdef _WIN32
+#include <direct.h>
 #include <windows.h>
 #define portable_msleep(ms) Sleep(ms)
 #else
@@ -244,6 +247,8 @@ static void print_usage(const char *prog)
             "[--verbose LEVEL]\n"
             "  %s --game NAME --validate-only\n"
             "  %s --game NAME --database-gewinnzahlen update\n"
+            "  %s --game NAME --download-url set URL\n"
+            "  %s --download-config NAME set VALUE\n"
             "  %s --list-games\n"
             "\n"
             "Modes:\n"
@@ -254,6 +259,10 @@ static void print_usage(const char *prog)
             "  --export FORMAT        Export results to file (csv or json)\n"
             "  --database-gewinnzahlen update\n"
             "                         Sync local DB with latest official draw (per game)\n"
+            "  --download-url set URL\n"
+            "                         Set game source URL in sources config (requires --game)\n"
+            "  --download-config NAME set VALUE\n"
+            "                         Persist a download tuning value in download config\n"
             "  --reload-plugin        Reload the selected plugin from disk before running\n"
             "  --validate-only        Validate configuration without running\n"
             "\n"
@@ -274,6 +283,10 @@ static void print_usage(const char *prog)
             "    draws = 10\n"
             "    verbose = INFO\n"
             "\n"
+            "Download Config Files:\n"
+            "  ~/.config/open-lotto/sources.conf   Upstream source URLs per game\n"
+            "  ~/.config/open-lotto/download.conf  Persistent download tuning values\n"
+            "\n"
             "Examples:\n"
             "  %s --list-games\n"
             "  %s --game \"Lotto 6aus49\"\n"
@@ -285,13 +298,346 @@ static void print_usage(const char *prog)
             "  %s --game \"Lotto 6aus49\" --validate-only\n"
             "  %s --game \"Lotto 6aus49\" --verbose DEBUG\n"
             "  %s --game \"Eurojackpot\" --database-gewinnzahlen update\n"
+            "  %s --game \"Lotto 6aus49\" --download-url set https://example/api\n"
+            "  %s --download-config \"#sym:HISTORICAL_DB_DOWNLOAD_WORKERS_DEFAULT\" set 10\n"
             "\n"
             "Environment Variables:\n"
             "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n"
             "  OPEN_LOTTO_LANG         CLI locale (en, fr; fallback to en)\n"
-            "  OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT  Override upstream sync endpoint\n",
+            "  OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT  Override upstream sync endpoint\n"
+            "  OPEN_LOTTO_SOURCES_CONFIG               Override sources config path\n"
+            "  OPEN_LOTTO_DOWNLOAD_CONFIG              Override download config path\n",
             prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
-            prog);
+            prog, prog, prog, prog, prog);
+}
+
+static void trim_whitespace(char *s)
+{
+    if (!s)
+        return;
+
+    size_t start = 0;
+    while (s[start] && isspace((unsigned char)s[start]))
+        start++;
+
+    size_t end = strlen(s);
+    while (end > start && isspace((unsigned char)s[end - 1]))
+        end--;
+
+    if (start > 0)
+        memmove(s, s + start, end - start);
+    s[end - start] = '\0';
+}
+
+static int ensure_directory_recursive(const char *dir_path)
+{
+    if (!dir_path || dir_path[0] == '\0')
+        return -1;
+
+    char tmp[PATH_MAX];
+    int n = snprintf(tmp, sizeof(tmp), "%s", dir_path);
+    if (n <= 0 || (size_t)n >= sizeof(tmp))
+        return -1;
+
+    for (char *p = tmp + 1; *p; ++p)
+    {
+        if (*p != '/')
+            continue;
+
+        *p = '\0';
+#ifdef _WIN32
+        if (_mkdir(tmp) != 0 && errno != EEXIST)
+            return -1;
+#else
+        if (mkdir(tmp, 0755) != 0 && errno != EEXIST)
+            return -1;
+#endif
+        *p = '/';
+    }
+
+#ifdef _WIN32
+    if (_mkdir(tmp) != 0 && errno != EEXIST)
+        return -1;
+#else
+    if (mkdir(tmp, 0755) != 0 && errno != EEXIST)
+        return -1;
+#endif
+    return 0;
+}
+
+static int ensure_parent_directory(const char *file_path)
+{
+    if (!file_path)
+        return -1;
+
+    char dir[PATH_MAX];
+    int n = snprintf(dir, sizeof(dir), "%s", file_path);
+    if (n <= 0 || (size_t)n >= sizeof(dir))
+        return -1;
+
+    char *slash = strrchr(dir, '/');
+    if (!slash)
+        return 0;
+
+    *slash = '\0';
+    if (dir[0] == '\0')
+        return 0;
+
+    return ensure_directory_recursive(dir);
+}
+
+static int get_sources_config_path_cli(char *out, size_t out_size)
+{
+    const char *override = getenv("OPEN_LOTTO_SOURCES_CONFIG");
+    if (override && override[0] != '\0')
+    {
+        int n = snprintf(out, out_size, "%s", override);
+        return (n > 0 && (size_t)n < out_size) ? 0 : -1;
+    }
+
+    const char *home = getenv("HOME");
+    if (!home || home[0] == '\0')
+        return -1;
+
+    int n = snprintf(out, out_size, "%s/.config/open-lotto/sources.conf", home);
+    return (n > 0 && (size_t)n < out_size) ? 0 : -1;
+}
+
+static int get_download_config_path_cli(char *out, size_t out_size)
+{
+    const char *override = getenv("OPEN_LOTTO_DOWNLOAD_CONFIG");
+    if (override && override[0] != '\0')
+    {
+        int n = snprintf(out, out_size, "%s", override);
+        return (n > 0 && (size_t)n < out_size) ? 0 : -1;
+    }
+
+    const char *home = getenv("HOME");
+    if (!home || home[0] == '\0')
+        return -1;
+
+    int n = snprintf(out, out_size, "%s/.config/open-lotto/download.conf", home);
+    return (n > 0 && (size_t)n < out_size) ? 0 : -1;
+}
+
+static int parse_section_header(const char *line, char *section, size_t section_size)
+{
+    if (!line || line[0] != '[')
+        return 0;
+
+    const char *end = strchr(line, ']');
+    if (!end || end <= line + 1)
+        return 0;
+
+    size_t len = (size_t)(end - (line + 1));
+    if (len >= section_size)
+        return 0;
+
+    memcpy(section, line + 1, len);
+    section[len] = '\0';
+    trim_whitespace(section);
+    return 1;
+}
+
+static int parse_key_value(char *line, char **key_out, char **value_out)
+{
+    char *eq = strchr(line, '=');
+    if (!eq)
+        return 0;
+
+    *eq = '\0';
+    char *key = line;
+    char *value = eq + 1;
+    trim_whitespace(key);
+    trim_whitespace(value);
+    if (key[0] == '\0')
+        return 0;
+
+    *key_out = key;
+    *value_out = value;
+    return 1;
+}
+
+static int ini_set_value(const char *path, const char *target_section, const char *target_key,
+                         const char *new_value)
+{
+    if (!path || !target_section || !target_key || !new_value)
+        return -1;
+
+    if (ensure_parent_directory(path) != 0)
+        return -1;
+
+    char temp_path[PATH_MAX];
+    int n = snprintf(temp_path, sizeof(temp_path), "%s.tmp", path);
+    if (n <= 0 || (size_t)n >= sizeof(temp_path))
+        return -1;
+
+    FILE *in = fopen(path, "r");
+    FILE *out = fopen(temp_path, "w");
+    if (!out)
+    {
+        if (in)
+            fclose(in);
+        return -1;
+    }
+
+    int found_section = 0;
+    int wrote_key = 0;
+
+    if (in)
+    {
+        int in_target_section = 0;
+        char line[1024];
+        while (fgets(line, sizeof(line), in))
+        {
+            char line_copy[1024];
+            int copied = snprintf(line_copy, sizeof(line_copy), "%s", line);
+            if (copied <= 0 || (size_t)copied >= sizeof(line_copy))
+            {
+                fclose(in);
+                fclose(out);
+                remove(temp_path);
+                return -1;
+            }
+
+            trim_whitespace(line_copy);
+
+            char section[256];
+            if (parse_section_header(line_copy, section, sizeof(section)))
+            {
+                if (in_target_section && !wrote_key)
+                {
+                    fprintf(out, "%s = %s\n", target_key, new_value);
+                    wrote_key = 1;
+                }
+
+                in_target_section = (strcasecmp(section, target_section) == 0);
+                if (in_target_section)
+                    found_section = 1;
+
+                fputs(line, out);
+                continue;
+            }
+
+            if (in_target_section && line_copy[0] != '\0' && line_copy[0] != '#' &&
+                line_copy[0] != ';')
+            {
+                char parsed[1024];
+                snprintf(parsed, sizeof(parsed), "%s", line_copy);
+                char *key = NULL;
+                char *value = NULL;
+                if (parse_key_value(parsed, &key, &value) && strcasecmp(key, target_key) == 0)
+                {
+                    fprintf(out, "%s = %s\n", target_key, new_value);
+                    wrote_key = 1;
+                    continue;
+                }
+            }
+
+            fputs(line, out);
+        }
+
+        fclose(in);
+    }
+
+    if (found_section)
+    {
+        if (!wrote_key)
+            fprintf(out, "%s = %s\n", target_key, new_value);
+    }
+    else
+    {
+        fprintf(out, "[%s]\n%s = %s\n", target_section, target_key, new_value);
+    }
+
+    if (fclose(out) != 0)
+    {
+        remove(temp_path);
+        return -1;
+    }
+
+    if (rename(temp_path, path) != 0)
+    {
+        remove(temp_path);
+        return -1;
+    }
+
+    return 0;
+}
+
+static const char *game_source_key_cli(const char *game_name)
+{
+    if (!game_name)
+        return NULL;
+
+    if (strcasecmp(game_name, "Eurojackpot") == 0)
+        return "eurojackpot";
+
+    if (strcasecmp(game_name, "Lotto 6aus49") == 0 || strcasecmp(game_name, "Lotto") == 0)
+        return "lotto";
+
+    return NULL;
+}
+
+static int map_download_config_key(const char *raw_name, const char **out_key)
+{
+    if (!raw_name || !out_key)
+        return 0;
+
+    const char *name = raw_name;
+    if (strncmp(name, "#sym:", 5) == 0)
+        name += 5;
+
+    if (strcasecmp(name, "workers") == 0 ||
+        strcasecmp(name, "HISTORICAL_DB_DOWNLOAD_WORKERS_DEFAULT") == 0 ||
+        strcasecmp(name, "OPEN_LOTTO_HIST_DOWNLOAD_WORKERS") == 0)
+    {
+        *out_key = "workers";
+        return 1;
+    }
+    if (strcasecmp(name, "fetch_timeout_sec") == 0 ||
+        strcasecmp(name, "HISTORICAL_DB_FETCH_TIMEOUT_SEC_DEFAULT") == 0 ||
+        strcasecmp(name, "OPEN_LOTTO_HIST_FETCH_TIMEOUT_SEC") == 0)
+    {
+        *out_key = "fetch_timeout_sec";
+        return 1;
+    }
+    if (strcasecmp(name, "draw_timeout_sec") == 0 ||
+        strcasecmp(name, "HISTORICAL_DB_DRAW_TIMEOUT_SEC_DEFAULT") == 0 ||
+        strcasecmp(name, "OPEN_LOTTO_HIST_DRAW_TIMEOUT_SEC") == 0)
+    {
+        *out_key = "draw_timeout_sec";
+        return 1;
+    }
+    if (strcasecmp(name, "max_retry_attempts") == 0 ||
+        strcasecmp(name, "HISTORICAL_DB_MAX_RETRY_ATTEMPTS_DEFAULT") == 0 ||
+        strcasecmp(name, "OPEN_LOTTO_HIST_MAX_RETRY_ATTEMPTS") == 0)
+    {
+        *out_key = "max_retry_attempts";
+        return 1;
+    }
+    if (strcasecmp(name, "retry_base_delay_ms") == 0 ||
+        strcasecmp(name, "HISTORICAL_DB_RETRY_BASE_DELAY_MS_DEFAULT") == 0 ||
+        strcasecmp(name, "OPEN_LOTTO_HIST_RETRY_BASE_DELAY_MS") == 0)
+    {
+        *out_key = "retry_base_delay_ms";
+        return 1;
+    }
+    if (strcasecmp(name, "retry_max_delay_ms") == 0 ||
+        strcasecmp(name, "HISTORICAL_DB_RETRY_MAX_DELAY_MS_DEFAULT") == 0 ||
+        strcasecmp(name, "OPEN_LOTTO_HIST_RETRY_MAX_DELAY_MS") == 0)
+    {
+        *out_key = "retry_max_delay_ms";
+        return 1;
+    }
+    if (strcasecmp(name, "max_fetch_draws") == 0 ||
+        strcasecmp(name, "OPEN_LOTTO_HIST_MAX_FETCH_DRAWS") == 0)
+    {
+        *out_key = "max_fetch_draws";
+        return 1;
+    }
+
+    return 0;
 }
 
 /* ---------------------------------------------------------
@@ -339,6 +685,11 @@ int main(int argc, char **argv)
     int validate_only = 0;
     int reload_plugin = 0;
     const char *database_gewinnzahlen_cmd = NULL;
+    const char *download_url_cmd = NULL;
+    const char *download_url_value = NULL;
+    const char *download_config_name = NULL;
+    const char *download_config_cmd = NULL;
+    const char *download_config_value = NULL;
     int use_seed = 0;
     uint64_t seed_value = 0;
 
@@ -487,6 +838,59 @@ int main(int argc, char **argv)
                 return 1;
             }
         }
+        else if (strcmp(argv[i], "--download-url") == 0)
+        {
+            if (i + 2 >= argc)
+            {
+                fprintf(stderr, "--download-url requires: set <url>.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            download_url_cmd = argv[++i];
+            if (strcmp(download_url_cmd, "set") != 0)
+            {
+                fprintf(stderr, "Unsupported --download-url subcommand '%s' (use: set).\n",
+                        download_url_cmd);
+                config_free(&cfg);
+                return 1;
+            }
+
+            download_url_value = argv[++i];
+            if (download_url_value[0] == '\0')
+            {
+                fprintf(stderr, "--download-url set requires a non-empty URL.\n");
+                config_free(&cfg);
+                return 1;
+            }
+        }
+        else if (strcmp(argv[i], "--download-config") == 0)
+        {
+            if (i + 3 >= argc)
+            {
+                fprintf(stderr, "--download-config requires: <name> set <value>.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            download_config_name = argv[++i];
+            download_config_cmd = argv[++i];
+            if (strcmp(download_config_cmd, "set") != 0)
+            {
+                fprintf(stderr, "Unsupported --download-config subcommand '%s' (use: set).\n",
+                        download_config_cmd);
+                config_free(&cfg);
+                return 1;
+            }
+
+            download_config_value = argv[++i];
+            if (download_config_value[0] == '\0')
+            {
+                fprintf(stderr, "--download-config set requires a non-empty value.\n");
+                config_free(&cfg);
+                return 1;
+            }
+        }
         else if (strcmp(argv[i], "--seed") == 0)
         {
             if (i + 1 >= argc)
@@ -569,6 +973,74 @@ int main(int argc, char **argv)
             gui = 1;
             log_debug("Using GUI mode from config file: %s", gui_mode);
         }
+    }
+
+    if (download_url_cmd || download_config_cmd)
+    {
+        if (download_url_cmd)
+        {
+            const char *source_key = game_source_key_cli(game_name);
+            if (!source_key)
+            {
+                fprintf(stderr, "--download-url set requires a supported --game (Eurojackpot or "
+                                "Lotto 6aus49).\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            char sources_path[PATH_MAX];
+            if (get_sources_config_path_cli(sources_path, sizeof(sources_path)) != 0)
+            {
+                fprintf(stderr, "Failed to resolve sources config path.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            if (ini_set_value(sources_path, "sources", source_key, download_url_value) != 0)
+            {
+                fprintf(stderr, "Failed to update sources config at %s.\n", sources_path);
+                config_free(&cfg);
+                return 1;
+            }
+
+            printf("Updated source URL for '%s' in %s\n", source_key, sources_path);
+        }
+
+        if (download_config_cmd)
+        {
+            const char *config_key = NULL;
+            if (!map_download_config_key(download_config_name, &config_key))
+            {
+                fprintf(
+                    stderr,
+                    "Unknown --download-config key '%s'. Use one of: workers, fetch_timeout_sec, "
+                    "draw_timeout_sec, max_retry_attempts, retry_base_delay_ms, "
+                    "retry_max_delay_ms, max_fetch_draws, or #sym:* aliases.\n",
+                    download_config_name);
+                config_free(&cfg);
+                return 1;
+            }
+
+            char download_path[PATH_MAX];
+            if (get_download_config_path_cli(download_path, sizeof(download_path)) != 0)
+            {
+                fprintf(stderr, "Failed to resolve download config path.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            if (ini_set_value(download_path, "download", config_key, download_config_value) != 0)
+            {
+                fprintf(stderr, "Failed to update download config at %s.\n", download_path);
+                config_free(&cfg);
+                return 1;
+            }
+
+            printf("Updated download setting '%s' in %s\n", config_key, download_path);
+        }
+
+        config_free(&cfg);
+        return 0;
     }
 
     /* Require --game (or game in config) */

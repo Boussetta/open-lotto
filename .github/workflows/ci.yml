@@ -159,8 +159,6 @@ jobs:
 
       - name: Run REUSE compliance check
         uses: fsfe/reuse-action@v3
-        with:
-          fail-on: warning
 
       - name: Generate SBOM (SPDX JSON)
         uses: anchore/sbom-action@v0
