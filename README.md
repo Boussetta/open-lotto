@@ -188,6 +188,26 @@ Deterministic replay (reproducible draws)
 
 ./open-lotto --game "Lotto 6aus49" --draws 10 --seed 0x1234abcd
 
+Update local historical DB snapshot
+
+./open-lotto --game "Lotto 6aus49" --database-gewinnzahlen update
+
+Frequency analytics over an inclusive date range
+
+./open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --frequency-distribution
+
+Barometer analytics in JSON format
+
+./open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --analytics-barometer --format json
+
+Hot/cold analytics (top N) with formulas
+
+./open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --analytics-hot-cold --top 15 --explain
+
+Use custom historical CSV for analytics
+
+./open-lotto --game "Lotto 6aus49" --historical-csv data.csv --from 2024-01-01 --to 2024-12-31 --frequency-distribution
+
 🧩 Plugin Architecture
 
 Each plugin must implement three symbols from `include/lottery_plugin.h`:
@@ -223,6 +243,7 @@ plugins/
 
 Comprehensive documentation is available in the `docs/` directory:
 
+- **[CLI_REFERENCE.md](docs/CLI_REFERENCE.md)** — Complete command-line interface reference with examples (modes, analytics, output formats, environment variables)
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System design, plugin system internals, physics simulation, data flow, and design principles
 - **[API_REFERENCE.md](docs/API_REFERENCE.md)** — Complete function reference for all public APIs (RNG, combogen, plugins, export, validation, configuration, logging)
 - **[DEVELOPER_API.md](docs/DEVELOPER_API.md)** — Embeddable C API for validated and deterministic seeded draw generation
