@@ -957,9 +957,17 @@ int main(int argc, char **argv)
             }
 
             if (gui && strcmp(gui_mode, "3D") == 0)
-                analytics_print_barometer_gui_3d_matlab(&report);
+            {
+                printf("[GUI 3D] OpenGL barometer visualization\n");
+                if (gui_render_barometer_3d(selected->name, &report, dark_mode) != 0)
+                    analytics_print_barometer_gui_3d_matlab(&report);
+            }
             else if (gui)
-                analytics_print_barometer_gui_2d(&report);
+            {
+                printf("[GUI 2D] SDL barometer visualization\n");
+                if (gui_render_barometer_2d(selected->name, &report, dark_mode) != 0)
+                    analytics_print_barometer_gui_2d(&report);
+            }
             else if (strcmp(analytics_format, "json") == 0)
                 analytics_print_barometer_json(&report);
             else if (strcmp(analytics_format, "csv") == 0)
@@ -995,9 +1003,17 @@ int main(int argc, char **argv)
             }
 
             if (gui && strcmp(gui_mode, "3D") == 0)
-                analytics_print_hot_cold_gui_3d_matlab(&report);
+            {
+                printf("[GUI 3D] OpenGL hot/cold visualization\n");
+                if (gui_render_hot_cold_3d(selected->name, &report, dark_mode) != 0)
+                    analytics_print_hot_cold_gui_3d_matlab(&report);
+            }
             else if (gui)
-                analytics_print_hot_cold_gui_2d(&report);
+            {
+                printf("[GUI 2D] SDL hot/cold visualization\n");
+                if (gui_render_hot_cold_2d(selected->name, &report, dark_mode) != 0)
+                    analytics_print_hot_cold_gui_2d(&report);
+            }
             else if (strcmp(analytics_format, "json") == 0)
                 analytics_print_hot_cold_json(&report);
             else if (strcmp(analytics_format, "csv") == 0)

@@ -2766,3 +2766,225 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
     SDL_Quit();
     return 0;
 }
+
+int gui_render_barometer_3d(const char *title, const BarometerReport *report, int dark_mode)
+{
+    if (!report)
+        return -1;
+
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
+        return -1;
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+
+    SDL_Window *window = SDL_CreateWindow(title ? title : "Barometer (3D OpenGL)",
+                                          SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1000,
+                                          700, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+    if (!window)
+    {
+        SDL_Quit();
+        return -1;
+    }
+
+    SDL_GLContext gl = SDL_GL_CreateContext(window);
+    if (!gl)
+    {
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return -1;
+    }
+
+#ifdef _WIN32
+    glewInit();
+#endif
+
+    glEnable(GL_DEPTH_TEST);
+
+    double max_factor = 1.0;
+    for (int n = report->number_min; n <= report->number_max; n++)
+        if (report->factors[n] > max_factor)
+            max_factor = report->factors[n];
+
+    const int bars = report->number_max - report->number_min + 1;
+    const float bar_w = bars > 30 ? 0.2f : 0.35f;
+    const float bar_gap = 0.06f;
+    const float depth = 0.35f;
+    const float span = bars * (bar_w + bar_gap);
+
+    Uint32 start = SDL_GetTicks();
+    const Uint32 auto_close_ms = 2500;
+    int running = 1;
+    while (running)
+    {
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev))
+        {
+            if (ev.type == SDL_QUIT)
+                running = 0;
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE)
+                running = 0;
+        }
+        if (SDL_GetTicks() - start >= auto_close_ms)
+            running = 0;
+
+        if (dark_mode == 1)
+            glClearColor(0.06f, 0.07f, 0.11f, 1.0f);
+        else
+            glClearColor(0.95f, 0.96f, 0.99f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        float aspect = 1000.0f / 700.0f;
+        glFrustum(-aspect, aspect, -1.0, 1.0, 1.5, 80.0);
+
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        glTranslatef(0.0f, -4.0f, -28.0f);
+        glRotatef(24.0f, 1.0f, 0.0f, 0.0f);
+        glRotatef((float)(SDL_GetTicks() - start) * 0.02f, 0.0f, 1.0f, 0.0f);
+
+        glColor3f(0.4f, 0.45f, 0.52f);
+        glBegin(GL_LINES);
+        glVertex3f(-span * 0.55f, 0.0f, 0.0f);
+        glVertex3f(span * 0.55f, 0.0f, 0.0f);
+        glVertex3f(-span * 0.55f, 0.0f, 0.0f);
+        glVertex3f(-span * 0.55f, 12.0f, 0.0f);
+        glEnd();
+
+        float x0 = -span * 0.5f;
+        for (int i = 0; i < bars; i++)
+        {
+            int number = report->number_min + i;
+            float h = 0.2f + (10.5f * (float)(report->factors[number] / max_factor));
+            float x = x0 + i * (bar_w + bar_gap);
+
+            glPushMatrix();
+            glTranslatef(x, 0.0f, 0.0f);
+            glColor3f(0.9f, 0.55f - 0.25f * ((float)i / (float)(bars > 1 ? bars - 1 : 1)), 0.28f);
+            draw_box_prism(bar_w, h, depth);
+            glPopMatrix();
+        }
+
+        SDL_GL_SwapWindow(window);
+    }
+
+    SDL_GL_DeleteContext(gl);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    return 0;
+}
+
+int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int dark_mode)
+{
+    if (!report)
+        return -1;
+
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
+        return -1;
+
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+
+    SDL_Window *window = SDL_CreateWindow(title ? title : "Hot/Cold (3D OpenGL)",
+                                          SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1000,
+                                          700, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+    if (!window)
+    {
+        SDL_Quit();
+        return -1;
+    }
+
+    SDL_GLContext gl = SDL_GL_CreateContext(window);
+    if (!gl)
+    {
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return -1;
+    }
+
+#ifdef _WIN32
+    glewInit();
+#endif
+
+    glEnable(GL_DEPTH_TEST);
+
+    int max_count = 1;
+    for (int i = 0; i < report->top_n; i++)
+    {
+        if (report->hot[i].count > max_count)
+            max_count = report->hot[i].count;
+        if (report->cold[i].count > max_count)
+            max_count = report->cold[i].count;
+    }
+
+    const int bars = report->top_n;
+    const float bar_w = bars > 16 ? 0.3f : 0.45f;
+    const float bar_gap = 0.10f;
+    const float depth = 0.35f;
+    const float span = bars * (bar_w + bar_gap);
+
+    Uint32 start = SDL_GetTicks();
+    const Uint32 auto_close_ms = 2500;
+    int running = 1;
+    while (running)
+    {
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev))
+        {
+            if (ev.type == SDL_QUIT)
+                running = 0;
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE)
+                running = 0;
+        }
+        if (SDL_GetTicks() - start >= auto_close_ms)
+            running = 0;
+
+        if (dark_mode == 1)
+            glClearColor(0.06f, 0.07f, 0.11f, 1.0f);
+        else
+            glClearColor(0.95f, 0.96f, 0.99f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        float aspect = 1000.0f / 700.0f;
+        glFrustum(-aspect, aspect, -1.0, 1.0, 1.5, 80.0);
+
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        glTranslatef(0.0f, -4.0f, -28.0f);
+        glRotatef(24.0f, 1.0f, 0.0f, 0.0f);
+        glRotatef((float)(SDL_GetTicks() - start) * 0.02f, 0.0f, 1.0f, 0.0f);
+
+        float x0 = -span * 0.5f;
+        for (int i = 0; i < bars; i++)
+        {
+            float x = x0 + i * (bar_w + bar_gap);
+            float h_hot = 0.2f + (10.5f * (float)report->hot[i].count) / (float)max_count;
+            float h_cold = 0.2f + (10.5f * (float)report->cold[i].count) / (float)max_count;
+
+            glPushMatrix();
+            glTranslatef(x, 0.0f, 0.65f);
+            glColor3f(0.90f, 0.25f, 0.22f);
+            draw_box_prism(bar_w, h_hot, depth);
+            glPopMatrix();
+
+            glPushMatrix();
+            glTranslatef(x, 0.0f, -0.65f);
+            glColor3f(0.20f, 0.45f, 0.90f);
+            draw_box_prism(bar_w, h_cold, depth);
+            glPopMatrix();
+        }
+
+        SDL_GL_SwapWindow(window);
+    }
+
+    SDL_GL_DeleteContext(gl);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    return 0;
+}

@@ -23,5 +23,7 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_ov
 
 /* Render frequency-distribution analytics as an interactive 3D OpenGL chart. */
 int gui_render_frequency_3d(const char *title, const FrequencyReport *report, int dark_mode);
+int gui_render_barometer_3d(const char *title, const BarometerReport *report, int dark_mode);
+int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int dark_mode);
 
 #endif /* GUI_OPENGL_H */
