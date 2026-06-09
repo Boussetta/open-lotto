@@ -111,6 +111,7 @@ static int parse_history_dates(const char *json, char dates[][16], int max_dates
 static char *fetch_draw_for_date(const char *game_name, const char *date);
 static char *fetch_url_text(const char *url);
 static char *read_stream(FILE *fp);
+static int read_file_text(const char *path, char **out);
 static void trim_ascii_whitespace(char *s);
 static int get_download_config_path(char *out, size_t out_size);
 static int parse_int_bounded(const char *raw, int *out, int min_value, int max_value);
@@ -826,6 +827,79 @@ static int build_snapshot_path(const char *game_name, const char *db_root, char 
         return -1;
 
     return 0;
+}
+
+static int build_checkpoint_dir_path(const char *snapshot_path, char *out, size_t out_size)
+{
+    if (!snapshot_path || !out || out_size == 0)
+        return -1;
+
+    int n = snprintf(out, out_size, "%s.sync_cache", snapshot_path);
+    if (n < 0 || (size_t)n >= out_size)
+        return -1;
+
+    return 0;
+}
+
+static int build_checkpoint_entry_path(const char *checkpoint_dir, const char *date, char *out,
+                                       size_t out_size)
+{
+    if (!checkpoint_dir || !date || !out || out_size == 0)
+        return -1;
+
+    int n = snprintf(out, out_size, "%s/%s.json", checkpoint_dir, date);
+    if (n < 0 || (size_t)n >= out_size)
+        return -1;
+
+    return 0;
+}
+
+static int write_text_file(const char *path, const char *content)
+{
+    if (!path || !content)
+        return -1;
+
+    FILE *fp = fopen(path, "wb");
+    if (!fp)
+        return -1;
+
+    size_t len = strlen(content);
+    size_t wrote = fwrite(content, 1, len, fp);
+    int rc = fclose(fp);
+    if (wrote != len || rc != 0)
+        return -1;
+
+    return 0;
+}
+
+static int load_cached_draw_json(const char *cache_path, char **out_json)
+{
+    if (!cache_path || !out_json)
+        return -1;
+
+    return read_file_text(cache_path, out_json);
+}
+
+static void cleanup_checkpoint_cache(const char *checkpoint_dir, char dates[][16], int count)
+{
+    if (!checkpoint_dir || !dates || count <= 0)
+        return;
+
+    for (int i = 0; i < count; i++)
+    {
+        char entry_path[1024];
+        if (build_checkpoint_entry_path(checkpoint_dir, dates[i], entry_path, sizeof(entry_path)) ==
+            0)
+        {
+            remove(entry_path);
+        }
+    }
+
+#ifdef _WIN32
+    _rmdir(checkpoint_dir);
+#else
+    rmdir(checkpoint_dir);
+#endif
 }
 
 static char *read_stream(FILE *fp)
@@ -1719,18 +1793,6 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
 
     if (!has_existing && history_count > 0)
     {
-        FILE *fp = fopen(path, "w");
-        if (!fp)
-        {
-            free(json);
-            return HISTORICAL_DB_ERR_IO;
-        }
-
-        fprintf(fp, "{\n");
-        fprintf(fp, "  \"game\": \"%s\",\n", game_name);
-        fprintf(fp, "  \"last_sync_at\": \"2026-06-08T20:00:00Z\",\n");
-        fprintf(fp, "  \"draws\": [\n");
-
         int fetch_count = 0;
         int max_fetch = history_count;
         if (g_download_settings.max_fetch_draws > 0 &&
@@ -1744,12 +1806,23 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         time_t download_start = time(NULL);
         size_t total_bytes = 0;
         int printed_lines = 0;
+        char checkpoint_dir[1024];
+        if (build_checkpoint_dir_path(path, checkpoint_dir, sizeof(checkpoint_dir)) != 0)
+        {
+            free(json);
+            return HISTORICAL_DB_ERR_IO;
+        }
+        if (mkdir_p(checkpoint_dir) != 0)
+        {
+            free(json);
+            return HISTORICAL_DB_ERR_IO;
+        }
+
         BulkDrawResult *results = calloc((size_t)max_fetch, sizeof(BulkDrawResult));
         int *worker_done = calloc((size_t)g_download_settings.workers, sizeof(int));
         size_t *worker_bytes = calloc((size_t)g_download_settings.workers, sizeof(size_t));
         if (!results)
         {
-            fclose(fp);
             free(json);
             return HISTORICAL_DB_ERR_IO;
         }
@@ -1758,7 +1831,6 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
             free(worker_done);
             free(worker_bytes);
             free(results);
-            fclose(fp);
             free(json);
             return HISTORICAL_DB_ERR_IO;
         }
@@ -1767,6 +1839,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
             "[historical_db] sync_latest: bulk download — fetching up to %d historical draws "
             "with %d worker(s)",
             max_fetch, g_download_settings.workers);
+        log_info("[historical_db] sync_latest: resume cache directory = %s", checkpoint_dir);
         fprintf(stderr, "  Fetching %d historical draws for %s\n", max_fetch, game_name);
         print_worker_progress_bars(0, max_fetch, download_start, 0, g_download_settings.workers,
                                    worker_done, worker_bytes, &printed_lines);
@@ -1786,7 +1859,29 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
             log_debug("[historical_db] sync_latest: fetching draw %d/%d (date=%s)", i + 1,
                       max_fetch, history_dates[i]);
 
-            char *draw_json = fetch_draw_for_date(game_name, history_dates[i]);
+            char cache_path[1024];
+            char *draw_json = NULL;
+            if (build_checkpoint_entry_path(checkpoint_dir, history_dates[i], cache_path,
+                                            sizeof(cache_path)) == 0)
+            {
+                if (load_cached_draw_json(cache_path, &draw_json) == 0 && draw_json)
+                {
+                    results[i].bytes = strlen(draw_json);
+                    results[i].fetched_ok = 1;
+                    results[i].parsed_ok =
+                        (parse_game_json(game_name, draw_json, &results[i].draw) == 0) ? 1 : 0;
+                    if (!results[i].parsed_ok)
+                    {
+                        free(draw_json);
+                        draw_json = NULL;
+                        remove(cache_path);
+                    }
+                }
+            }
+
+            if (!draw_json)
+                draw_json = fetch_draw_for_date(game_name, history_dates[i]);
+
             if (!draw_json)
             {
                 results[i].fetched_ok = 0;
@@ -1801,6 +1896,17 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
                 if (parse_game_json(game_name, draw_json, &results[i].draw) == 0)
                 {
                     results[i].parsed_ok = 1;
+
+                    if (build_checkpoint_entry_path(checkpoint_dir, history_dates[i], cache_path,
+                                                    sizeof(cache_path)) == 0)
+                    {
+                        if (write_text_file(cache_path, draw_json) != 0)
+                        {
+                            log_warn("[historical_db] sync_latest: failed to persist resume cache "
+                                     "for date=%s",
+                                     history_dates[i]);
+                        }
+                    }
                 }
                 else
                 {
@@ -1826,6 +1932,21 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
                                            worker_bytes, &printed_lines);
             }
         }
+
+        FILE *fp = fopen(path, "w");
+        if (!fp)
+        {
+            free(worker_done);
+            free(worker_bytes);
+            free(results);
+            free(json);
+            return HISTORICAL_DB_ERR_IO;
+        }
+
+        fprintf(fp, "{\n");
+        fprintf(fp, "  \"game\": \"%s\",\n", game_name);
+        fprintf(fp, "  \"last_sync_at\": \"2026-06-08T20:00:00Z\",\n");
+        fprintf(fp, "  \"draws\": [\n");
 
         for (int i = 0; i < max_fetch; i++)
         {
@@ -1889,6 +2010,8 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         free(worker_done);
         free(worker_bytes);
         free(results);
+
+        cleanup_checkpoint_cache(checkpoint_dir, history_dates, max_fetch);
 
         fprintf(fp, "\n  ]\n");
         fprintf(fp, "}\n");
