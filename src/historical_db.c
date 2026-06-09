@@ -762,7 +762,9 @@ static int date_already_collected(const char dates[][16], int count, const char 
 
 static const char (*dates_as_const(char dates[][16]))[16]
 {
-    return (const char (*)[16])(const void *)dates;
+    const char (*view)[16] = NULL;
+    memcpy(&view, &dates, sizeof(view));
+    return view;
 }
 
 static int collect_game_dates_all_years(const char *game_name, char dates[][16], int max_dates)
