@@ -2946,7 +2946,9 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
         {
             if (ev.type == SDL_QUIT || (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE))
                 running = 0;
-            else if (ev.type == SDL_MOUSEMOTION)
+            
+            /* Track mouse for hover detection */
+            if (ev.type == SDL_MOUSEMOTION)
             {
                 mouse_x = ev.motion.x;
                 mouse_y = ev.motion.y;
@@ -2969,8 +2971,9 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
                 else
                     hovered_bar = -1;
             }
-            else
-                acam_handle_event(&cam, &ev, &running);
+            
+            /* Always pass events to camera handler (for mouse orbit, keys, etc.) */
+            acam_handle_event(&cam, &ev, &running);
         }
         if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
 
@@ -3101,7 +3104,9 @@ int gui_render_barometer_3d(const char *title, const BarometerReport *report, in
         {
             if (ev.type == SDL_QUIT || (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE))
                 running = 0;
-            else if (ev.type == SDL_MOUSEMOTION)
+            
+            /* Track mouse for hover detection */
+            if (ev.type == SDL_MOUSEMOTION)
             {
                 mouse_x = ev.motion.x;
                 mouse_y = ev.motion.y;
@@ -3124,8 +3129,9 @@ int gui_render_barometer_3d(const char *title, const BarometerReport *report, in
                 else
                     hovered_bar = -1;
             }
-            else
-                acam_handle_event(&cam, &ev, &running);
+            
+            /* Always pass events to camera handler (for mouse orbit, keys, etc.) */
+            acam_handle_event(&cam, &ev, &running);
         }
         if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
 
@@ -3282,7 +3288,9 @@ int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int d
         {
             if (ev.type == SDL_QUIT || (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE))
                 running = 0;
-            else if (ev.type == SDL_MOUSEMOTION)
+            
+            /* Track mouse for hover detection */
+            if (ev.type == SDL_MOUSEMOTION)
             {
                 mouse_x = ev.motion.x;
                 mouse_y = ev.motion.y;
@@ -3304,8 +3312,9 @@ int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int d
                 else
                     hovered_bar = -1;
             }
-            else
-                acam_handle_event(&cam, &ev, &running);
+            
+            /* Always pass events to camera handler (for mouse orbit, keys, etc.) */
+            acam_handle_event(&cam, &ev, &running);
         }
         if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
 
