@@ -364,6 +364,25 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
+    add_executable(test_historical_db
+        tests/test_historical_db.c
+        src/historical_db.c
+        src/log.c
+    )
+
+    target_compile_definitions(test_historical_db PRIVATE
+        HISTORICAL_DB_FIXTURE_PATH="${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_gewinnzahlen.json"
+        HISTORICAL_DB_FIXTURE_MALFORMED_PATH="${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_malformed.json"
+        HISTORICAL_DB_FIXTURE_PARTIAL_PATH="${CMAKE_SOURCE_DIR}/tests/data/eurojackpot_partial.json"
+    )
+
+    add_test(NAME unit_historical_db
+        COMMAND $<TARGET_FILE:test_historical_db>
+    )
+    set_tests_properties(unit_historical_db PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
     # ----------------------------------------------------------------
     # CLI integration tests – success paths
     # ----------------------------------------------------------------

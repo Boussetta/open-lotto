@@ -1,0 +1,12 @@
+{
+  "head": {
+    "datum": "2026-06-05"
+  },
+  "zahlen": {
+    "hauptlotterie": {
+      "ziehungen": {
+        "zahlenSortiert": [1, 2, 3, 4, 5]
+      }
+    }
+  }
+}

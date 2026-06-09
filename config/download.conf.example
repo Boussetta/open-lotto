@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2025 Wissem Boussetta
+# SPDX-License-Identifier: MIT
+
+[download]
+# Number of parallel workers for historical draw downloads.
+workers = 4
+
+# Timeout for fetching available draw dates.
+fetch_timeout_sec = 30
+
+# Timeout for each individual draw download.
+draw_timeout_sec = 20
+
+# Retry/backoff tuning for transient network failures.
+max_retry_attempts = 3
+retry_base_delay_ms = 1000
+retry_max_delay_ms = 8000
+
+# 0 means no limit; positive value limits synced draws.
+max_fetch_draws = 0
