@@ -183,6 +183,55 @@ int analytics_compute_frequency(const HistoricalDraw *draws, int draw_count, int
     return VALIDATE_OK;
 }
 
+int analytics_compute_barometer(const HistoricalDraw *draws, int draw_count, int number_min,
+                                int number_max, int picks_per_draw, BarometerReport *out_report)
+{
+    if (!draws || !out_report || draw_count < 0 || picks_per_draw <= 0 || number_min < 0 ||
+        number_max >= 128 || number_min > number_max)
+    {
+        return VALIDATE_ERR_INVALID_FORMAT;
+    }
+
+    memset(out_report, 0, sizeof(*out_report));
+    out_report->total_draws = draw_count;
+    out_report->number_min = number_min;
+    out_report->number_max = number_max;
+
+    int population = number_max - number_min + 1;
+    out_report->expected_interval = (double)population / (double)picks_per_draw;
+
+    for (int n = number_min; n <= number_max; n++)
+    {
+        int last_seen = -1;
+        for (int i = 0; i < draw_count; i++)
+        {
+            const LotteryResult *r = &draws[i].result;
+            int found = 0;
+            for (int j = 0; j < r->main_count; j++)
+            {
+                if (r->main_numbers[j] == n)
+                {
+                    out_report->hit_counts[n]++;
+                    last_seen = i;
+                    found = 1;
+                    break;
+                }
+            }
+            if (found)
+                continue;
+        }
+
+        if (last_seen < 0)
+            out_report->observed_gaps[n] = draw_count + 1;
+        else
+            out_report->observed_gaps[n] = (draw_count - 1) - last_seen;
+
+        out_report->factors[n] = out_report->observed_gaps[n] / out_report->expected_interval;
+    }
+
+    return VALIDATE_OK;
+}
+
 void analytics_print_frequency_table(const FrequencyReport *report)
 {
     if (!report)
@@ -264,4 +313,82 @@ void analytics_print_frequency_gui_3d_matlab(const FrequencyReport *report)
     }
     printf("];\n");
     printf("bar3(y); xlabel('Number Index'); ylabel('Series'); zlabel('Frequency');\n");
+}
+
+void analytics_print_barometer_table(const BarometerReport *report)
+{
+    if (!report)
+        return;
+
+    printf("Barometer (draws: %d, expected interval: %.4f)\n", report->total_draws,
+           report->expected_interval);
+    printf("number,hits,observed_gap,factor\n");
+    for (int n = report->number_min; n <= report->number_max; n++)
+    {
+        printf("%d,%d,%d,%.6f\n", n, report->hit_counts[n], report->observed_gaps[n],
+               report->factors[n]);
+    }
+}
+
+void analytics_print_barometer_csv(const BarometerReport *report)
+{
+    analytics_print_barometer_table(report);
+}
+
+void analytics_print_barometer_json(const BarometerReport *report)
+{
+    if (!report)
+        return;
+
+    printf("{\n");
+    printf("  \"draws\": %d,\n", report->total_draws);
+    printf("  \"expected_interval\": %.6f,\n", report->expected_interval);
+    printf("  \"barometer\": [\n");
+
+    for (int n = report->number_min; n <= report->number_max; n++)
+    {
+        printf("    {\"number\": %d, \"hits\": %d, \"observed_gap\": %d, \"factor\": %.6f}%s\n",
+               n, report->hit_counts[n], report->observed_gaps[n], report->factors[n],
+               (n == report->number_max) ? "" : ",");
+    }
+
+    printf("  ]\n");
+    printf("}\n");
+}
+
+void analytics_print_barometer_gui_2d(const BarometerReport *report)
+{
+    if (!report)
+        return;
+
+    printf("[GUI 2D] Barometer\n");
+    for (int n = report->number_min; n <= report->number_max; n++)
+    {
+        int bar_len = (int)(report->factors[n] * 10.0);
+        if (bar_len < 0)
+            bar_len = 0;
+        if (bar_len > 60)
+            bar_len = 60;
+
+        printf("%2d | ", n);
+        for (int i = 0; i < bar_len; i++)
+            putchar('*');
+        printf(" (%.3f)\n", report->factors[n]);
+    }
+}
+
+void analytics_print_barometer_gui_3d_matlab(const BarometerReport *report)
+{
+    if (!report)
+        return;
+
+    printf("[GUI 3D] MatLab-style figure description\n");
+    printf("figure;\n");
+    printf("y = [");
+    for (int n = report->number_min; n <= report->number_max; n++)
+    {
+        printf("%.6f%s", report->factors[n], (n == report->number_max) ? "" : " ");
+    }
+    printf("];\n");
+    printf("bar3(y); xlabel('Number Index'); ylabel('Series'); zlabel('Overdue Factor');\n");
 }

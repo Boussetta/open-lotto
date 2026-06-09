@@ -238,6 +238,7 @@ static void print_usage(const char *prog)
             "  --from YYYY-MM-DD Inclusive period start date for analytics APIs\n"
             "  --to YYYY-MM-DD   Inclusive period end date for analytics APIs\n"
             "  --analytics-frequency   Print frequency distribution over historical data\n"
+            "  --analytics-barometer   Print overdue barometer over historical data\n"
             "  --format FORMAT         Analytics output format: table, json, csv\n"
             "  --historical-csv FILE   Historical draw CSV (default: results.csv)\n"
             "\n"
@@ -318,6 +319,7 @@ int main(int argc, char **argv)
     const char *period_from = NULL;
     const char *period_to = NULL;
     int analytics_frequency = 0;
+    int analytics_barometer = 0;
     const char *analytics_format = "table";
     const char *historical_csv = "results.csv";
 
@@ -491,6 +493,10 @@ int main(int argc, char **argv)
         {
             analytics_frequency = 1;
         }
+        else if (strcmp(argv[i], "--analytics-barometer") == 0)
+        {
+            analytics_barometer = 1;
+        }
         else if (strcmp(argv[i], "--format") == 0)
         {
             if (i + 1 >= argc)
@@ -629,9 +635,17 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (analytics_frequency && (!period_from || !period_to))
+    int analytics_mode_count = analytics_frequency + analytics_barometer;
+    if (analytics_mode_count > 1)
     {
-        fprintf(stderr, "Error: --analytics-frequency requires --from and --to.\n");
+        fprintf(stderr, "Error: Use only one analytics mode at a time.\n");
+        config_free(&cfg);
+        return 1;
+    }
+
+    if (analytics_mode_count > 0 && (!period_from || !period_to))
+    {
+        fprintf(stderr, "Error: Analytics modes require --from and --to.\n");
         config_free(&cfg);
         return 1;
     }
@@ -693,7 +707,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (analytics_frequency)
+    if (analytics_mode_count > 0)
     {
         HistoricalDraw *draws = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
         HistoricalDraw *filtered = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
@@ -781,28 +795,57 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        FrequencyReport report;
-        if (analytics_compute_frequency(filtered, filtered_count, selected->info.main_min,
-                                        selected->info.main_max, &report) != VALIDATE_OK)
+        if (analytics_frequency)
         {
-            free(draws);
-            free(filtered);
-            free(dq_records);
-            registry_destroy(registry);
-            config_free(&cfg);
-            return 1;
-        }
+            FrequencyReport report;
+            if (analytics_compute_frequency(filtered, filtered_count, selected->info.main_min,
+                                            selected->info.main_max, &report) != VALIDATE_OK)
+            {
+                free(draws);
+                free(filtered);
+                free(dq_records);
+                registry_destroy(registry);
+                config_free(&cfg);
+                return 1;
+            }
 
-        if (gui && strcmp(gui_mode, "3D") == 0)
-            analytics_print_frequency_gui_3d_matlab(&report);
-        else if (gui)
-            analytics_print_frequency_gui_2d(&report);
-        else if (strcmp(analytics_format, "json") == 0)
-            analytics_print_frequency_json(&report);
-        else if (strcmp(analytics_format, "csv") == 0)
-            analytics_print_frequency_csv(&report);
-        else
-            analytics_print_frequency_table(&report);
+            if (gui && strcmp(gui_mode, "3D") == 0)
+                analytics_print_frequency_gui_3d_matlab(&report);
+            else if (gui)
+                analytics_print_frequency_gui_2d(&report);
+            else if (strcmp(analytics_format, "json") == 0)
+                analytics_print_frequency_json(&report);
+            else if (strcmp(analytics_format, "csv") == 0)
+                analytics_print_frequency_csv(&report);
+            else
+                analytics_print_frequency_table(&report);
+        }
+        else if (analytics_barometer)
+        {
+            BarometerReport report;
+            if (analytics_compute_barometer(filtered, filtered_count, selected->info.main_min,
+                                            selected->info.main_max, selected->info.main_count,
+                                            &report) != VALIDATE_OK)
+            {
+                free(draws);
+                free(filtered);
+                free(dq_records);
+                registry_destroy(registry);
+                config_free(&cfg);
+                return 1;
+            }
+
+            if (gui && strcmp(gui_mode, "3D") == 0)
+                analytics_print_barometer_gui_3d_matlab(&report);
+            else if (gui)
+                analytics_print_barometer_gui_2d(&report);
+            else if (strcmp(analytics_format, "json") == 0)
+                analytics_print_barometer_json(&report);
+            else if (strcmp(analytics_format, "csv") == 0)
+                analytics_print_barometer_csv(&report);
+            else
+                analytics_print_barometer_table(&report);
+        }
 
         free(draws);
         free(filtered);
