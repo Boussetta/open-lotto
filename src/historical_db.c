@@ -37,6 +37,7 @@
 #define HISTORICAL_DB_RETRY_BASE_DELAY_MS_DEFAULT 1000
 #define HISTORICAL_DB_RETRY_MAX_DELAY_MS_DEFAULT 8000
 #define HISTORICAL_DB_DOWNLOAD_WORKERS_DEFAULT 4
+#define HISTORICAL_DB_SCHEMA_VERSION 1
 #define HISTORICAL_DB_SOURCES_CONFIG_ENV "OPEN_LOTTO_SOURCES_CONFIG"
 #define HISTORICAL_DB_URL_ENV_EUROJACKPOT "OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT"
 #define HISTORICAL_DB_URL_ENV_LOTTO "OPEN_LOTTO_GEWINNZAHLEN_URL_LOTTO"
@@ -1121,6 +1122,32 @@ static int parse_int_field(const char *json, const char *key, int *out)
     return 0;
 }
 
+static int validate_snapshot_integrity(const HistoricalDrawSnapshot *snap)
+{
+    if (!snap)
+        return -1;
+
+    if (snap->game[0] == '\0' || snap->draw_date[0] == '\0' || snap->next_draw_date[0] == '\0' ||
+        snap->source_url[0] == '\0')
+    {
+        return -1;
+    }
+
+    if (snap->main_count <= 0 || snap->main_count > HISTORICAL_DB_MAX_MAIN_NUMBERS)
+        return -1;
+
+    if (snap->extra_count <= 0 || snap->extra_count > HISTORICAL_DB_MAX_EXTRA_NUMBERS)
+        return -1;
+
+    if (snap->winning_class_count < 0 ||
+        snap->winning_class_count > HISTORICAL_DB_MAX_WINNING_CLASSES)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int parse_winning_classes(const char *json, HistoricalDrawSnapshot *snap)
 {
     const char *k = find_key(json, "gewinnklassen");
@@ -1449,6 +1476,7 @@ static int write_draw_to_history(const char *path, const HistoricalDrawSnapshot 
         return -1;
 
     fprintf(fp, "{\n");
+    fprintf(fp, "  \"schema_version\": %d,\n", HISTORICAL_DB_SCHEMA_VERSION);
     fprintf(fp, "  \"game\": \"%s\",\n", snap->game);
     fprintf(fp, "  \"last_sync_at\": \"%s\",\n", ts);
     fprintf(fp, "  \"draws\": [\n");
@@ -1611,11 +1639,22 @@ static int parse_local_snapshot_json(const char *json, HistoricalDrawSnapshot *s
 {
     char draw_obj[2048];
     int idx = 0;
+    int schema_version = 0;
 
     if (!json || !snap)
         return -1;
 
     memset(snap, 0, sizeof(*snap));
+
+    if (parse_int_field(json, "schema_version", &schema_version) != 0)
+    {
+        log_warn("[historical_db] local snapshot has no schema_version; treating as legacy format");
+    }
+    else if (schema_version <= 0)
+    {
+        log_error("[historical_db] invalid schema_version=%d in local snapshot", schema_version);
+        return -1;
+    }
 
     if (parse_string_field(json, "game", snap->game, sizeof(snap->game)) != 0)
         return -1;
@@ -1692,7 +1731,7 @@ static int parse_local_snapshot_json(const char *json, HistoricalDrawSnapshot *s
     }
 
     snap->winning_class_count = idx;
-    return 0;
+    return validate_snapshot_integrity(snap);
 }
 
 int historical_db_load_latest(const char *game_name, const char *db_root,
@@ -1979,6 +2018,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         }
 
         fprintf(fp, "{\n");
+        fprintf(fp, "  \"schema_version\": %d,\n", HISTORICAL_DB_SCHEMA_VERSION);
         fprintf(fp, "  \"game\": \"%s\",\n", game_name);
         fprintf(fp, "  \"last_sync_at\": \"2026-06-08T20:00:00Z\",\n");
         fprintf(fp, "  \"draws\": [\n");
