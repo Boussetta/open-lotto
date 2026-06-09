@@ -692,6 +692,13 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "analytics golden baselines OK"
     )
 
+    add_test(NAME perf_analytics_budget
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_analytics_perf_budget.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(perf_analytics_budget PROPERTIES
+        PASS_REGULAR_EXPRESSION "analytics performance budgets OK"
+    )
+
     add_test(NAME cli_verbose_missing_value
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --verbose
     )
