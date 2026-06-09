@@ -241,6 +241,7 @@ static void print_usage(const char *prog)
             "  --analytics-barometer   Print overdue barometer over historical data\n"
             "  --analytics-hot-cold    Print hot/cold number rankings over historical data\n"
             "  --top N                 Number of hot/cold entries (default: 10)\n"
+            "  --explain               Show formulas/assumptions for analytics outputs\n"
             "  --format FORMAT         Analytics output format: table, json, csv\n"
             "  --historical-csv FILE   Historical draw CSV (default: results.csv)\n"
             "\n"
@@ -324,6 +325,7 @@ int main(int argc, char **argv)
     int analytics_barometer = 0;
     int analytics_hot_cold = 0;
     int analytics_top = 10;
+    int analytics_explain = 0;
     const char *analytics_format = "table";
     const char *historical_csv = "results.csv";
 
@@ -552,6 +554,10 @@ int main(int argc, char **argv)
                 return 1;
             }
             analytics_top = (int)parsed;
+        }
+        else if (strcmp(argv[i], "--explain") == 0)
+        {
+            analytics_explain = 1;
         }
         else
         {
@@ -846,6 +852,19 @@ int main(int argc, char **argv)
                 analytics_print_frequency_csv(&report);
             else
                 analytics_print_frequency_table(&report);
+
+            if (analytics_explain)
+            {
+                if (strcmp(analytics_format, "json") == 0)
+                {
+                    printf("{\"explain\":{\"mode\":\"frequency\",\"formula\":\"count(number)/draws\",\"period\":\"inclusive\"}}\n");
+                }
+                else
+                {
+                    printf("Explain: frequency percentage = count(number) / draws in inclusive period [%s, %s].\n",
+                           period_from, period_to);
+                }
+            }
         }
         else if (analytics_barometer)
         {
@@ -872,6 +891,18 @@ int main(int argc, char **argv)
                 analytics_print_barometer_csv(&report);
             else
                 analytics_print_barometer_table(&report);
+
+            if (analytics_explain)
+            {
+                if (strcmp(analytics_format, "json") == 0)
+                {
+                    printf("{\"explain\":{\"mode\":\"barometer\",\"formula\":\"observed_gap/expected_interval\",\"expected_interval\":\"population/picks_per_draw\"}}\n");
+                }
+                else
+                {
+                    printf("Explain: barometer factor = observed_gap / expected_interval, where expected_interval = population / picks_per_draw.\n");
+                }
+            }
         }
         else if (analytics_hot_cold)
         {
@@ -898,6 +929,18 @@ int main(int argc, char **argv)
                 analytics_print_hot_cold_csv(&report);
             else
                 analytics_print_hot_cold_table(&report);
+
+            if (analytics_explain)
+            {
+                if (strcmp(analytics_format, "json") == 0)
+                {
+                    printf("{\"explain\":{\"mode\":\"hot-cold\",\"rule\":\"hot=highest frequency, cold=lowest frequency\",\"tie_break\":\"ascending number\"}}\n");
+                }
+                else
+                {
+                    printf("Explain: hot numbers are ranked by descending frequency; cold numbers by ascending frequency; ties use ascending number.\n");
+                }
+            }
         }
 
         free(draws);
