@@ -7,6 +7,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +24,7 @@
 #include <unistd.h>
 #else
 #include <direct.h>
+#include <io.h>
 #include <windows.h>
 #define strcasecmp _stricmp
 #endif
@@ -884,19 +886,132 @@ static int build_checkpoint_entry_path(const char *checkpoint_dir, const char *d
     return 0;
 }
 
+static unsigned long historical_db_process_id(void)
+{
+#ifdef _WIN32
+    return (unsigned long)GetCurrentProcessId();
+#else
+    return (unsigned long)getpid();
+#endif
+}
+
+static int build_atomic_tmp_path(const char *path, char *out, size_t out_size)
+{
+    if (!path || !out || out_size == 0)
+        return -1;
+
+    int n = snprintf(out, out_size, "%s.tmp.%lu.%ld", path, historical_db_process_id(),
+                     (long)time(NULL));
+    if (n < 0 || (size_t)n >= out_size)
+        return -1;
+
+    return 0;
+}
+
+static FILE *open_atomic_write_tmp(const char *path, char *tmp_path, size_t tmp_path_size)
+{
+    if (build_atomic_tmp_path(path, tmp_path, tmp_path_size) != 0)
+        return NULL;
+
+    return fopen(tmp_path, "wb");
+}
+
+static int replace_file_atomically(const char *tmp_path, const char *path)
+{
+#ifdef _WIN32
+    remove(path);
+#endif
+    if (rename(tmp_path, path) != 0)
+    {
+        remove(tmp_path);
+        return -1;
+    }
+
+    return 0;
+}
+
+static int commit_atomic_write(FILE *fp, const char *tmp_path, const char *path)
+{
+    if (!fp || !tmp_path || !path)
+        return -1;
+
+    if (fflush(fp) != 0)
+    {
+        fclose(fp);
+        remove(tmp_path);
+        return -1;
+    }
+
+    if (fclose(fp) != 0)
+    {
+        remove(tmp_path);
+        return -1;
+    }
+
+    return replace_file_atomically(tmp_path, path);
+}
+
+static int build_sync_lock_path(const char *snapshot_path, char *out, size_t out_size)
+{
+    if (!snapshot_path || !out || out_size == 0)
+        return -1;
+
+    int n = snprintf(out, out_size, "%s.lock", snapshot_path);
+    if (n < 0 || (size_t)n >= out_size)
+        return -1;
+
+    return 0;
+}
+
+static int acquire_sync_lock(const char *snapshot_path, char *lock_path, size_t lock_path_size)
+{
+    if (build_sync_lock_path(snapshot_path, lock_path, lock_path_size) != 0)
+        return -1;
+
+#ifdef _WIN32
+    int fd = _open(lock_path, _O_CREAT | _O_EXCL | _O_WRONLY, _S_IREAD | _S_IWRITE);
+#else
+    int fd = open(lock_path, O_CREAT | O_EXCL | O_WRONLY, 0600);
+#endif
+    if (fd < 0)
+        return -1;
+
+#ifdef _WIN32
+    _close(fd);
+#else
+    close(fd);
+#endif
+    return 0;
+}
+
+static void release_sync_lock(const char *lock_path)
+{
+    if (!lock_path || lock_path[0] == '\0')
+        return;
+
+    remove(lock_path);
+}
+
 static int write_text_file(const char *path, const char *content)
 {
+    char tmp_path[1024];
     if (!path || !content)
         return -1;
 
-    FILE *fp = fopen(path, "wb");
+    FILE *fp = open_atomic_write_tmp(path, tmp_path, sizeof(tmp_path));
     if (!fp)
         return -1;
 
     size_t len = strlen(content);
     size_t wrote = fwrite(content, 1, len, fp);
-    int rc = fclose(fp);
-    if (wrote != len || rc != 0)
+    if (wrote != len)
+    {
+        fclose(fp);
+        remove(tmp_path);
+        return -1;
+    }
+
+    if (commit_atomic_write(fp, tmp_path, path) != 0)
         return -1;
 
     return 0;
@@ -1457,6 +1572,7 @@ static int read_file_text(const char *path, char **out)
 static int write_draw_to_history(const char *path, const HistoricalDrawSnapshot *snap)
 {
     FILE *fp;
+    char tmp_path[1024];
     char ts[32];
     time_t now = time(NULL);
     struct tm tmv;
@@ -1471,7 +1587,7 @@ static int write_draw_to_history(const char *path, const HistoricalDrawSnapshot 
 #endif
     strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tmv);
 
-    fp = fopen(path, "w");
+    fp = open_atomic_write_tmp(path, tmp_path, sizeof(tmp_path));
     if (!fp)
         return -1;
 
@@ -1511,13 +1627,16 @@ static int write_draw_to_history(const char *path, const HistoricalDrawSnapshot 
     fprintf(fp, "  ]\n");
     fprintf(fp, "}\n");
 
-    fclose(fp);
+    if (commit_atomic_write(fp, tmp_path, path) != 0)
+        return -1;
+
     return 0;
 }
 
 static int append_draw_to_history(const char *path, const HistoricalDrawSnapshot *snap)
 {
     char *json = NULL;
+    char tmp_path[1024];
     FILE *fp;
 
     if (!path || !snap)
@@ -1549,7 +1668,7 @@ static int append_draw_to_history(const char *path, const HistoricalDrawSnapshot
         return write_draw_to_history(path, snap);
     }
 
-    fp = fopen(path, "w");
+    fp = open_atomic_write_tmp(path, tmp_path, sizeof(tmp_path));
     if (!fp)
     {
         free(json);
@@ -1588,7 +1707,12 @@ static int append_draw_to_history(const char *path, const HistoricalDrawSnapshot
     fprintf(fp, "  ]\n");
     fprintf(fp, "}\n");
 
-    fclose(fp);
+    if (commit_atomic_write(fp, tmp_path, path) != 0)
+    {
+        free(json);
+        return -1;
+    }
+
     free(json);
     return 0;
 }
@@ -1766,6 +1890,8 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
     HistoricalDrawSnapshot snapshot;
     HistoricalDrawSnapshot existing;
     int has_existing = 0;
+    char lock_path[1024] = {0};
+    int lock_acquired = 0;
 
     if (!game_name || !out_snapshot)
         return HISTORICAL_DB_ERR_INVALID_ARG;
@@ -1832,6 +1958,16 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         return HISTORICAL_DB_ERR_IO;
     }
 
+    if (acquire_sync_lock(path, lock_path, sizeof(lock_path)) != 0)
+    {
+        log_warn("[historical_db] sync_latest: concurrent sync detected, lock '%s' already in "
+                 "use",
+                 lock_path);
+        free(json);
+        return HISTORICAL_DB_ERR_IO;
+    }
+    lock_acquired = 1;
+
     if (historical_db_load_latest(game_name, db_root, &existing) >= 0)
     {
         has_existing = 1;
@@ -1883,11 +2019,13 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         char checkpoint_dir[1024];
         if (build_checkpoint_dir_path(path, checkpoint_dir, sizeof(checkpoint_dir)) != 0)
         {
+            release_sync_lock(lock_path);
             free(json);
             return HISTORICAL_DB_ERR_IO;
         }
         if (mkdir_p(checkpoint_dir) != 0)
         {
+            release_sync_lock(lock_path);
             free(json);
             return HISTORICAL_DB_ERR_IO;
         }
@@ -1897,6 +2035,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         size_t *worker_bytes = calloc((size_t)g_download_settings.workers, sizeof(size_t));
         if (!results)
         {
+            release_sync_lock(lock_path);
             free(json);
             return HISTORICAL_DB_ERR_IO;
         }
@@ -1905,6 +2044,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
             free(worker_done);
             free(worker_bytes);
             free(results);
+            release_sync_lock(lock_path);
             free(json);
             return HISTORICAL_DB_ERR_IO;
         }
@@ -2007,12 +2147,14 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
             }
         }
 
-        FILE *fp = fopen(path, "w");
+        char tmp_path[1024];
+        FILE *fp = open_atomic_write_tmp(path, tmp_path, sizeof(tmp_path));
         if (!fp)
         {
             free(worker_done);
             free(worker_bytes);
             free(results);
+            release_sync_lock(lock_path);
             free(json);
             return HISTORICAL_DB_ERR_IO;
         }
@@ -2090,7 +2232,12 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
 
         fprintf(fp, "\n  ]\n");
         fprintf(fp, "}\n");
-        fclose(fp);
+        if (commit_atomic_write(fp, tmp_path, path) != 0)
+        {
+            release_sync_lock(lock_path);
+            free(json);
+            return HISTORICAL_DB_ERR_IO;
+        }
 
         log_info(
             "[historical_db] sync_latest: bulk download complete — %d draws stored to %s",
@@ -2103,6 +2250,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
                 strncpy(snapshot.source_url, url, sizeof(snapshot.source_url) - 1);
                 *out_snapshot = snapshot;
                 free(json);
+                release_sync_lock(lock_path);
                 log_info("[historical_db] sync_latest: initial sync done (latest draw_date=%s)",
                          snapshot.draw_date);
                 return HISTORICAL_DB_SYNC_UPDATED;
@@ -2110,6 +2258,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         }
 
         free(json);
+        release_sync_lock(lock_path);
         return HISTORICAL_DB_ERR_PARSE;
     }
 
@@ -2119,6 +2268,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
         log_error("[historical_db] sync_latest: failed to parse upstream JSON for game='%s'",
                   game_name);
         free(json);
+        release_sync_lock(lock_path);
         return HISTORICAL_DB_ERR_PARSE;
     }
     free(json);
@@ -2131,6 +2281,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
             "[historical_db] sync_latest: local snapshot already up-to-date (draw_date=%s)",
             snapshot.draw_date);
         *out_snapshot = snapshot;
+        release_sync_lock(lock_path);
         return HISTORICAL_DB_SYNC_UNCHANGED;
     }
 
@@ -2139,10 +2290,13 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
     if (append_draw_to_history(path, &snapshot) != 0)
     {
         log_error("[historical_db] sync_latest: failed to write snapshot to '%s'", path);
+        release_sync_lock(lock_path);
         return HISTORICAL_DB_ERR_IO;
     }
 
     *out_snapshot = snapshot;
+    if (lock_acquired)
+        release_sync_lock(lock_path);
     log_info("[historical_db] sync_latest: sync complete (draw_date=%s)", snapshot.draw_date);
     return HISTORICAL_DB_SYNC_UPDATED;
 }
