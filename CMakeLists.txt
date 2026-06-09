@@ -685,6 +685,13 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "\[GUI 3D\]|Explain: hot numbers"
     )
 
+    add_test(NAME golden_analytics_outputs
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_analytics_golden.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(golden_analytics_outputs PROPERTIES
+        PASS_REGULAR_EXPRESSION "analytics golden baselines OK"
+    )
+
     add_test(NAME cli_verbose_missing_value
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --verbose
     )
