@@ -778,6 +778,40 @@ static void draw_text(SDL_Renderer *ren, TTF_Font *font, const char *text, int x
     SDL_DestroyTexture(tex);
 }
 
+/* -----------------------------------------------------------------------
+ * Shared SDL analytics helpers
+ * ----------------------------------------------------------------------- */
+
+/* Read optional timeout from OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS env var.
+ * 0 means no auto-close (interactive mode).
+ * Tests set a small value (e.g. 200) so they don't hang. */
+static Uint32 analytics_gui_timeout_ms(void)
+{
+    const char *env = getenv("OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS");
+    if (!env || env[0] == '\0')
+        return 0; /* stay open until user closes */
+    long v = atol(env);
+    return (v > 0) ? (Uint32)v : 0;
+}
+
+/* Draw horizontal grid lines at 25 / 50 / 75 / 100 % of chart height */
+static void draw_grid(SDL_Renderer *ren, int left, int right, int top, int chart_h,
+                      SDL_Color dim)
+{
+    SDL_SetRenderDrawColor(ren, dim.r, dim.g, dim.b, dim.a);
+    for (int q = 1; q <= 4; q++)
+    {
+        int y = top + chart_h - (chart_h * q / 4);
+        SDL_RenderDrawLine(ren, left, y, right, y);
+    }
+}
+
+/* Lerp float */
+static float flerpf(float a, float b, float t)
+{
+    return a + (b - a) * (t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t);
+}
+
 int gui_render_frequency_2d(const char *title, const FrequencyReport *report, int dark_mode)
 {
     if (!report)
@@ -785,120 +819,119 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
         return -1;
+    if (TTF_Init() != 0) { SDL_Quit(); return -1; }
 
-    if (TTF_Init() != 0)
-    {
-        SDL_Quit();
-        return -1;
-    }
+    SDL_Window *win = SDL_CreateWindow(
+        title ? title : "Frequency Distribution", SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    if (!win) { TTF_Quit(); SDL_Quit(); return -1; }
 
-    SDL_Window *win =
-        SDL_CreateWindow(title ? title : "Frequency Distribution (2D)", SDL_WINDOWPOS_CENTERED,
-                         SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
-    if (!win)
-    {
-        TTF_Quit();
-        SDL_Quit();
-        return -1;
-    }
-
-    SDL_Renderer *ren =
-        SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!ren)
-    {
-        SDL_DestroyWindow(win);
-        TTF_Quit();
-        SDL_Quit();
-        return -1;
-    }
+    SDL_Renderer *ren = SDL_CreateRenderer(
+        win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!ren) { SDL_DestroyWindow(win); TTF_Quit(); SDL_Quit(); return -1; }
 
     char font_path[512];
     snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
-    TTF_Font *font = TTF_OpenFont(font_path, 16);
+    TTF_Font *font    = TTF_OpenFont(font_path, 16);
+    TTF_Font *font_sm = TTF_OpenFont(font_path, 13);
     if (!font)
     {
-        SDL_DestroyRenderer(ren);
-        SDL_DestroyWindow(win);
-        TTF_Quit();
-        SDL_Quit();
+        SDL_DestroyRenderer(ren); SDL_DestroyWindow(win); TTF_Quit(); SDL_Quit();
         return -1;
     }
 
     int max_count = 1;
     for (int n = report->number_min; n <= report->number_max; n++)
-    {
         if (report->counts[n] > max_count)
             max_count = report->counts[n];
-    }
 
-    const int left = 70;
-    const int right = WINDOW_WIDTH - 30;
-    const int top = 60;
-    const int bottom = WINDOW_HEIGHT - 80;
-    const int chart_w = right - left;
-    const int chart_h = bottom - top;
-    const int points = report->number_max - report->number_min + 1;
-    const int bar_w = points > 0 ? (chart_w / points) : 1;
+    const int left = 70, right = WINDOW_WIDTH - 30, top = 60, bottom = WINDOW_HEIGHT - 80;
+    const int chart_w = right - left, chart_h = bottom - top;
+    const int points  = report->number_max - report->number_min + 1;
+    const int bar_w   = points > 0 ? (chart_w / points) : 1;
 
-    Uint32 start = SDL_GetTicks();
-    const Uint32 auto_close_ms = 2500;
-    int running = 1;
+    Uint32 start  = SDL_GetTicks();
+    Uint32 timeout = analytics_gui_timeout_ms();
+    float  anim   = 0.0f; /* 0→1 bar grow progress */
+    Uint32 last   = start;
+    int    running = 1;
+
     while (running)
     {
         SDL_Event ev;
         while (SDL_PollEvent(&ev))
         {
-            if (ev.type == SDL_QUIT)
-                running = 0;
-            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE)
-                running = 0;
+            if (ev.type == SDL_QUIT) running = 0;
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE) running = 0;
         }
+        if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
 
-        if (SDL_GetTicks() - start >= auto_close_ms)
-            running = 0;
+        Uint32 now = SDL_GetTicks();
+        float dt = (now - last) / 1000.0f;
+        last = now;
+        anim += dt / 0.45f; /* bars fully grown in 0.45 s */
+        if (anim > 1.0f) anim = 1.0f;
 
-        if (dark_mode == 1)
-            SDL_SetRenderDrawColor(ren, 18, 20, 28, 255);
-        else
-            SDL_SetRenderDrawColor(ren, 246, 248, 252, 255);
+        /* Background */
+        if (dark_mode == 1) SDL_SetRenderDrawColor(ren, 12, 14, 20, 255);
+        else                SDL_SetRenderDrawColor(ren, 242, 244, 250, 255);
         SDL_RenderClear(ren);
 
-        SDL_Color axis_color = dark_mode == 1 ? (SDL_Color){230, 235, 245, 255}
-                                              : (SDL_Color){20, 24, 32, 255};
-        SDL_Color bar_color = dark_mode == 1 ? (SDL_Color){80, 200, 160, 255}
-                                             : (SDL_Color){40, 110, 220, 255};
+        SDL_Color fg   = dark_mode==1 ? (SDL_Color){220,228,245,255} : (SDL_Color){15,20,35,255};
+        SDL_Color dim  = dark_mode==1 ? (SDL_Color){40,50,65,255}    : (SDL_Color){200,210,225,255};
+        /* Ball-gold colour for frequency, matching main-drum balls */
+        SDL_Color bar_c = dark_mode==1 ? (SDL_Color){255,215,0,230} : (SDL_Color){40,120,230,255};
 
-        SDL_SetRenderDrawColor(ren, axis_color.r, axis_color.g, axis_color.b, axis_color.a);
+        /* Grid */
+        draw_grid(ren, left, right, top, chart_h, dim);
+
+        /* Axes */
+        SDL_SetRenderDrawColor(ren, fg.r, fg.g, fg.b, fg.a);
         SDL_RenderDrawLine(ren, left, bottom, right, bottom);
-        SDL_RenderDrawLine(ren, left, top, left, bottom);
+        SDL_RenderDrawLine(ren, left, top,    left,  bottom);
 
-        char header[128];
-        snprintf(header, sizeof(header), "Frequency distribution (%d draws)", report->total_draws);
-        draw_text(ren, font, header, left, 20, axis_color);
+        /* Title */
+        char header[160];
+        snprintf(header, sizeof(header),
+                 "Frequency Distribution  |  game: %s  |  draws: %d",
+                 title ? title : "", report->total_draws);
+        draw_text(ren, font, header, left, 18, fg);
 
+        /* HUD hint */
+        if (font_sm)
+            draw_text(ren, font_sm, "ESC: close", WINDOW_WIDTH - 120, 18,
+                      (SDL_Color){fg.r, fg.g, fg.b, 160});
+
+        /* Bars */
         for (int i = 0; i < points; i++)
         {
-            int number = report->number_min + i;
-            int count = report->counts[number];
-            int height = (count * chart_h) / max_count;
-            int x = left + i * bar_w + 1;
-            int y = bottom - height;
+            int  number = report->number_min + i;
+            int  full_h = (report->counts[number] * chart_h) / max_count;
+            int  height = (int)flerpf(0.0f, (float)full_h, anim);
+            int  x = left + i * bar_w + 1;
 
-            SDL_Rect bar = {x, y, bar_w > 3 ? bar_w - 2 : 1, height};
-            SDL_SetRenderDrawColor(ren, bar_color.r, bar_color.g, bar_color.b, bar_color.a);
+            SDL_Rect bar = {x, bottom - height, bar_w > 3 ? bar_w - 2 : 1, height};
+            SDL_SetRenderDrawColor(ren, bar_c.r, bar_c.g, bar_c.b, bar_c.a);
             SDL_RenderFillRect(ren, &bar);
 
-            if (i % 4 == 0)
+            /* Lighter top cap */
+            SDL_Rect cap = {x, bottom - height, bar_w > 3 ? bar_w - 2 : 1, 3};
+            SDL_SetRenderDrawColor(ren, 255, 255, 255, 80);
+            SDL_RenderFillRect(ren, &cap);
+
+            if (i % 5 == 0)
             {
                 char label[8];
                 snprintf(label, sizeof(label), "%d", number);
-                draw_text(ren, font, label, x, bottom + 6, axis_color);
+                draw_text(ren, font_sm ? font_sm : font, label, x - 2, bottom + 5, fg);
             }
         }
 
         SDL_RenderPresent(ren);
+        SDL_Delay(16);
     }
 
+    if (font_sm) TTF_CloseFont(font_sm);
     TTF_CloseFont(font);
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);
@@ -909,110 +942,118 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
 
 int gui_render_barometer_2d(const char *title, const BarometerReport *report, int dark_mode)
 {
-    if (!report)
-        return -1;
+    if (!report) return -1;
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) return -1;
+    if (TTF_Init() != 0) { SDL_Quit(); return -1; }
 
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
-        return -1;
-    if (TTF_Init() != 0)
-    {
-        SDL_Quit();
-        return -1;
-    }
+    SDL_Window *win = SDL_CreateWindow(
+        title ? title : "Barometer — Overdue Factor", SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    if (!win) { TTF_Quit(); SDL_Quit(); return -1; }
 
-    SDL_Window *win =
-        SDL_CreateWindow(title ? title : "Barometer (2D)", SDL_WINDOWPOS_CENTERED,
-                         SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
-    if (!win)
-    {
-        TTF_Quit();
-        SDL_Quit();
-        return -1;
-    }
-
-    SDL_Renderer *ren =
-        SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!ren)
-    {
-        SDL_DestroyWindow(win);
-        TTF_Quit();
-        SDL_Quit();
-        return -1;
-    }
+    SDL_Renderer *ren = SDL_CreateRenderer(
+        win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!ren) { SDL_DestroyWindow(win); TTF_Quit(); SDL_Quit(); return -1; }
 
     char font_path[512];
     snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
-    TTF_Font *font = TTF_OpenFont(font_path, 16);
-    if (!font)
-    {
-        SDL_DestroyRenderer(ren);
-        SDL_DestroyWindow(win);
-        TTF_Quit();
-        SDL_Quit();
-        return -1;
-    }
+    TTF_Font *font    = TTF_OpenFont(font_path, 16);
+    TTF_Font *font_sm = TTF_OpenFont(font_path, 13);
+    if (!font) { SDL_DestroyRenderer(ren); SDL_DestroyWindow(win); TTF_Quit(); SDL_Quit(); return -1; }
 
-    double max_factor = 1.0;
+    double max_factor = 0.01;
     for (int n = report->number_min; n <= report->number_max; n++)
         if (report->factors[n] > max_factor)
             max_factor = report->factors[n];
 
     const int left = 70, right = WINDOW_WIDTH - 30, top = 60, bottom = WINDOW_HEIGHT - 80;
     const int chart_w = right - left, chart_h = bottom - top;
-    const int points = report->number_max - report->number_min + 1;
-    const int bar_w = points > 0 ? (chart_w / points) : 1;
+    const int points  = report->number_max - report->number_min + 1;
+    const int bar_w   = points > 0 ? (chart_w / points) : 1;
 
-    Uint32 start = SDL_GetTicks();
-    const Uint32 auto_close_ms = 2500;
-    int running = 1;
+    /* reference line = expected interval (factor = 1.0) */
+    int ref_y = bottom - (int)(1.0 / max_factor * chart_h);
+
+    Uint32 start  = SDL_GetTicks();
+    Uint32 timeout = analytics_gui_timeout_ms();
+    float  anim   = 0.0f;
+    Uint32 last   = start;
+    int    running = 1;
+
     while (running)
     {
         SDL_Event ev;
         while (SDL_PollEvent(&ev))
         {
-            if (ev.type == SDL_QUIT)
-                running = 0;
-            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE)
-                running = 0;
+            if (ev.type == SDL_QUIT) running = 0;
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE) running = 0;
         }
-        if (SDL_GetTicks() - start >= auto_close_ms)
-            running = 0;
+        if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
 
-        if (dark_mode == 1)
-            SDL_SetRenderDrawColor(ren, 18, 20, 28, 255);
-        else
-            SDL_SetRenderDrawColor(ren, 246, 248, 252, 255);
+        Uint32 now = SDL_GetTicks();
+        anim += (now - last) / 1000.0f / 0.45f;
+        last = now;
+        if (anim > 1.0f) anim = 1.0f;
+
+        if (dark_mode == 1) SDL_SetRenderDrawColor(ren, 12, 14, 20, 255);
+        else                SDL_SetRenderDrawColor(ren, 242, 244, 250, 255);
         SDL_RenderClear(ren);
 
-        SDL_Color axis = dark_mode == 1 ? (SDL_Color){230, 235, 245, 255} : (SDL_Color){20, 24, 32, 255};
-        SDL_Color bars = dark_mode == 1 ? (SDL_Color){255, 170, 90, 255} : (SDL_Color){210, 90, 40, 255};
+        SDL_Color fg  = dark_mode==1 ? (SDL_Color){220,228,245,255} : (SDL_Color){15,20,35,255};
+        SDL_Color dim = dark_mode==1 ? (SDL_Color){40,50,65,255}    : (SDL_Color){200,210,225,255};
+        /* Orange = fire / overdue – matches palette intuition */
+        SDL_Color bar_c = dark_mode==1 ? (SDL_Color){255,145,50,230} : (SDL_Color){210,80,30,255};
 
-        SDL_SetRenderDrawColor(ren, axis.r, axis.g, axis.b, axis.a);
+        draw_grid(ren, left, right, top, chart_h, dim);
+
+        SDL_SetRenderDrawColor(ren, fg.r, fg.g, fg.b, fg.a);
         SDL_RenderDrawLine(ren, left, bottom, right, bottom);
-        SDL_RenderDrawLine(ren, left, top, left, bottom);
-        draw_text(ren, font, "Barometer overdue factor", left, 20, axis);
+        SDL_RenderDrawLine(ren, left, top,    left,  bottom);
+
+        /* Expected-interval reference line */
+        if (ref_y >= top && ref_y <= bottom)
+        {
+            SDL_SetRenderDrawColor(ren, 100, 220, 100, 180);
+            SDL_RenderDrawLine(ren, left, ref_y, right, ref_y);
+            if (font_sm)
+                draw_text(ren, font_sm, "expected", right - 68, ref_y - 14,
+                          (SDL_Color){100, 220, 100, 200});
+        }
+
+        char header[160];
+        snprintf(header, sizeof(header),
+                 "Barometer — Overdue Factor  |  game: %s  |  draws: %d",
+                 title ? title : "", report->total_draws);
+        draw_text(ren, font, header, left, 18, fg);
+        if (font_sm)
+            draw_text(ren, font_sm, "ESC: close", WINDOW_WIDTH - 120, 18,
+                      (SDL_Color){fg.r, fg.g, fg.b, 160});
 
         for (int i = 0; i < points; i++)
         {
-            int number = report->number_min + i;
-            int height = (int)((report->factors[number] / max_factor) * chart_h);
+            int number  = report->number_min + i;
+            int full_h  = (int)((report->factors[number] / max_factor) * chart_h);
+            int height  = (int)flerpf(0.0f, (float)full_h, anim);
             int x = left + i * bar_w + 1;
-            int y = bottom - height;
-            SDL_Rect bar = {x, y, bar_w > 3 ? bar_w - 2 : 1, height};
-
-            SDL_SetRenderDrawColor(ren, bars.r, bars.g, bars.b, bars.a);
+            SDL_Rect bar = {x, bottom - height, bar_w > 3 ? bar_w - 2 : 1, height};
+            SDL_SetRenderDrawColor(ren, bar_c.r, bar_c.g, bar_c.b, bar_c.a);
             SDL_RenderFillRect(ren, &bar);
-            if (i % 4 == 0)
+            SDL_Rect cap = {x, bottom - height, bar_w > 3 ? bar_w - 2 : 1, 3};
+            SDL_SetRenderDrawColor(ren, 255, 255, 255, 80);
+            SDL_RenderFillRect(ren, &cap);
+            if (i % 5 == 0)
             {
                 char label[8];
                 snprintf(label, sizeof(label), "%d", number);
-                draw_text(ren, font, label, x, bottom + 6, axis);
+                draw_text(ren, font_sm ? font_sm : font, label, x - 2, bottom + 5, fg);
             }
         }
 
         SDL_RenderPresent(ren);
+        SDL_Delay(16);
     }
 
+    if (font_sm) TTF_CloseFont(font_sm);
     TTF_CloseFont(font);
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);
@@ -1023,122 +1064,132 @@ int gui_render_barometer_2d(const char *title, const BarometerReport *report, in
 
 int gui_render_hot_cold_2d(const char *title, const HotColdReport *report, int dark_mode)
 {
-    if (!report)
-        return -1;
+    if (!report) return -1;
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) return -1;
+    if (TTF_Init() != 0) { SDL_Quit(); return -1; }
 
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
-        return -1;
-    if (TTF_Init() != 0)
-    {
-        SDL_Quit();
-        return -1;
-    }
+    SDL_Window *win = SDL_CreateWindow(
+        title ? title : "Hot / Cold Numbers", SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    if (!win) { TTF_Quit(); SDL_Quit(); return -1; }
 
-    SDL_Window *win =
-        SDL_CreateWindow(title ? title : "Hot/Cold (2D)", SDL_WINDOWPOS_CENTERED,
-                         SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
-    if (!win)
-    {
-        TTF_Quit();
-        SDL_Quit();
-        return -1;
-    }
-
-    SDL_Renderer *ren =
-        SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!ren)
-    {
-        SDL_DestroyWindow(win);
-        TTF_Quit();
-        SDL_Quit();
-        return -1;
-    }
+    SDL_Renderer *ren = SDL_CreateRenderer(
+        win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!ren) { SDL_DestroyWindow(win); TTF_Quit(); SDL_Quit(); return -1; }
 
     char font_path[512];
     snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
-    TTF_Font *font = TTF_OpenFont(font_path, 16);
-    if (!font)
-    {
-        SDL_DestroyRenderer(ren);
-        SDL_DestroyWindow(win);
-        TTF_Quit();
-        SDL_Quit();
-        return -1;
-    }
+    TTF_Font *font    = TTF_OpenFont(font_path, 16);
+    TTF_Font *font_sm = TTF_OpenFont(font_path, 13);
+    if (!font) { SDL_DestroyRenderer(ren); SDL_DestroyWindow(win); TTF_Quit(); SDL_Quit(); return -1; }
 
     int max_count = 1;
     for (int i = 0; i < report->top_n; i++)
     {
-        if (report->hot[i].count > max_count)
-            max_count = report->hot[i].count;
-        if (report->cold[i].count > max_count)
-            max_count = report->cold[i].count;
+        if (report->hot[i].count  > max_count) max_count = report->hot[i].count;
+        if (report->cold[i].count > max_count) max_count = report->cold[i].count;
     }
 
     const int left = 80, right = WINDOW_WIDTH - 40, top = 70, bottom = WINDOW_HEIGHT - 70;
     const int chart_w = right - left, chart_h = bottom - top;
-    const int groups = report->top_n;
+    const int groups  = report->top_n;
     const int group_w = groups > 0 ? chart_w / groups : 1;
 
-    Uint32 start = SDL_GetTicks();
-    const Uint32 auto_close_ms = 2500;
-    int running = 1;
+    Uint32 start  = SDL_GetTicks();
+    Uint32 timeout = analytics_gui_timeout_ms();
+    float  anim   = 0.0f;
+    Uint32 last   = start;
+    int    running = 1;
+
     while (running)
     {
         SDL_Event ev;
         while (SDL_PollEvent(&ev))
         {
-            if (ev.type == SDL_QUIT)
-                running = 0;
-            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE)
-                running = 0;
+            if (ev.type == SDL_QUIT) running = 0;
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE) running = 0;
         }
-        if (SDL_GetTicks() - start >= auto_close_ms)
-            running = 0;
+        if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
 
-        if (dark_mode == 1)
-            SDL_SetRenderDrawColor(ren, 18, 20, 28, 255);
-        else
-            SDL_SetRenderDrawColor(ren, 246, 248, 252, 255);
+        Uint32 now = SDL_GetTicks();
+        anim += (now - last) / 1000.0f / 0.45f;
+        last = now;
+        if (anim > 1.0f) anim = 1.0f;
+
+        if (dark_mode == 1) SDL_SetRenderDrawColor(ren, 12, 14, 20, 255);
+        else                SDL_SetRenderDrawColor(ren, 242, 244, 250, 255);
         SDL_RenderClear(ren);
 
-        SDL_Color axis = dark_mode == 1 ? (SDL_Color){230, 235, 245, 255} : (SDL_Color){20, 24, 32, 255};
-        SDL_Color hot = (SDL_Color){220, 80, 70, 255};
-        SDL_Color cold = (SDL_Color){70, 120, 220, 255};
+        SDL_Color fg   = dark_mode==1 ? (SDL_Color){220,228,245,255} : (SDL_Color){15,20,35,255};
+        SDL_Color dim  = dark_mode==1 ? (SDL_Color){40,50,65,255}    : (SDL_Color){200,210,225,255};
+        /* Red = hot (fire), Blue = cold (ice) – matching extra-drum ball palette */
+        SDL_Color hot_c  = (SDL_Color){230, 75,  60, 230};
+        SDL_Color cold_c = (SDL_Color){ 60,120, 235, 230};
 
-        SDL_SetRenderDrawColor(ren, axis.r, axis.g, axis.b, axis.a);
+        draw_grid(ren, left, right, top, chart_h, dim);
+
+        SDL_SetRenderDrawColor(ren, fg.r, fg.g, fg.b, fg.a);
         SDL_RenderDrawLine(ren, left, bottom, right, bottom);
-        SDL_RenderDrawLine(ren, left, top, left, bottom);
-        draw_text(ren, font, "Hot/Cold ranking counts", left, 20, axis);
+        SDL_RenderDrawLine(ren, left, top,    left,  bottom);
+
+        char header[160];
+        snprintf(header, sizeof(header),
+                 "Hot / Cold  |  game: %s  |  draws: %d  |  top %d",
+                 title ? title : "", report->total_draws, report->top_n);
+        draw_text(ren, font, header, left, 18, fg);
+        if (font_sm)
+            draw_text(ren, font_sm, "ESC: close", WINDOW_WIDTH - 120, 18,
+                      (SDL_Color){fg.r, fg.g, fg.b, 160});
 
         for (int i = 0; i < groups; i++)
         {
-            int x = left + i * group_w;
+            int x  = left + i * group_w;
             int hw = (group_w / 2) - 4;
-            if (hw < 2)
-                hw = 2;
+            if (hw < 2) hw = 2;
 
-            int h_hot = (report->hot[i].count * chart_h) / max_count;
-            int h_cold = (report->cold[i].count * chart_h) / max_count;
+            int h_hot  = (int)flerpf(0.0f, (float)(report->hot[i].count  * chart_h / max_count), anim);
+            int h_cold = (int)flerpf(0.0f, (float)(report->cold[i].count * chart_h / max_count), anim);
 
-            SDL_Rect hot_bar = {x + 2, bottom - h_hot, hw, h_hot};
-            SDL_Rect cold_bar = {x + hw + 6, bottom - h_cold, hw, h_cold};
+            /* Hot bar + cap */
+            SDL_Rect hbar = {x + 2,      bottom - h_hot,  hw, h_hot};
+            SDL_SetRenderDrawColor(ren, hot_c.r, hot_c.g, hot_c.b, hot_c.a);
+            SDL_RenderFillRect(ren, &hbar);
+            SDL_SetRenderDrawColor(ren, 255, 255, 255, 80);
+            SDL_Rect hcap = {x + 2, bottom - h_hot, hw, 3};
+            SDL_RenderFillRect(ren, &hcap);
 
-            SDL_SetRenderDrawColor(ren, hot.r, hot.g, hot.b, hot.a);
-            SDL_RenderFillRect(ren, &hot_bar);
-            SDL_SetRenderDrawColor(ren, cold.r, cold.g, cold.b, cold.a);
-            SDL_RenderFillRect(ren, &cold_bar);
+            /* Cold bar + cap */
+            SDL_Rect cbar = {x + hw + 6, bottom - h_cold, hw, h_cold};
+            SDL_SetRenderDrawColor(ren, cold_c.r, cold_c.g, cold_c.b, cold_c.a);
+            SDL_RenderFillRect(ren, &cbar);
+            SDL_SetRenderDrawColor(ren, 255, 255, 255, 80);
+            SDL_Rect ccap = {x + hw + 6, bottom - h_cold, hw, 3};
+            SDL_RenderFillRect(ren, &ccap);
 
-            char rank[8];
-            snprintf(rank, sizeof(rank), "%d", i + 1);
-            draw_text(ren, font, rank, x + 4, bottom + 6, axis);
+            /* Number labels under each group */
+            char hot_lbl[8], cold_lbl[8];
+            snprintf(hot_lbl,  sizeof(hot_lbl),  "%d", report->hot[i].number);
+            snprintf(cold_lbl, sizeof(cold_lbl), "%d", report->cold[i].number);
+            draw_text(ren, font_sm ? font_sm : font, hot_lbl,  x + 2,      bottom + 5, hot_c);
+            draw_text(ren, font_sm ? font_sm : font, cold_lbl, x + hw + 6, bottom + 5, cold_c);
         }
 
-        draw_text(ren, font, "HOT", right - 130, top + 10, hot);
-        draw_text(ren, font, "COLD", right - 130, top + 30, cold);
+        /* Legend box */
+        int lx = right - 90, ly = top + 6;
+        SDL_Rect box = {lx - 8, ly - 4, 88, 46};
+        SDL_SetRenderDrawColor(ren,
+            dark_mode==1 ? 30 : 210, dark_mode==1 ? 34 : 215, dark_mode==1 ? 46 : 228, 200);
+        SDL_RenderFillRect(ren, &box);
+        SDL_SetRenderDrawColor(ren, fg.r, fg.g, fg.b, 255);
+        SDL_RenderDrawRect(ren, &box);
+        draw_text(ren, font_sm ? font_sm : font, "HOT",  lx, ly,      hot_c);
+        draw_text(ren, font_sm ? font_sm : font, "COLD", lx, ly + 22, cold_c);
+
         SDL_RenderPresent(ren);
+        SDL_Delay(16);
     }
 
+    if (font_sm) TTF_CloseFont(font_sm);
     TTF_CloseFont(font);
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);

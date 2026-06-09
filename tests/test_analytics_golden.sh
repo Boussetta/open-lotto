@@ -11,7 +11,7 @@ run_and_compare() {
 
   local actual
   actual="$(mktemp)"
-  "$BIN" "$@" --verbose ERROR > "$actual"
+  OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200 "$BIN" "$@" --verbose ERROR > "$actual"
 
   if ! diff -u "$golden" "$actual"; then
     echo "golden mismatch: $name"

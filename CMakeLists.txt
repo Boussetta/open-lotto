@@ -600,6 +600,7 @@ if(BUILD_TESTING)
     )
     set_tests_properties(cli_analytics_frequency_gui_2d PROPERTIES
         PASS_REGULAR_EXPRESSION "\[GUI 2D\]"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
     )
 
     add_test(NAME cli_analytics_frequency_gui_3d
@@ -607,6 +608,7 @@ if(BUILD_TESTING)
     )
     set_tests_properties(cli_analytics_frequency_gui_3d PROPERTIES
         PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
     )
 
     add_test(NAME cli_analytics_barometer_table
@@ -628,6 +630,7 @@ if(BUILD_TESTING)
     )
     set_tests_properties(cli_analytics_barometer_gui_2d PROPERTIES
         PASS_REGULAR_EXPRESSION "\[GUI 2D\]"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
     )
 
     add_test(NAME cli_analytics_barometer_gui_3d
@@ -635,6 +638,7 @@ if(BUILD_TESTING)
     )
     set_tests_properties(cli_analytics_barometer_gui_3d PROPERTIES
         PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
     )
 
     add_test(NAME cli_analytics_hot_cold_table
@@ -656,6 +660,7 @@ if(BUILD_TESTING)
     )
     set_tests_properties(cli_analytics_hot_cold_gui_2d PROPERTIES
         PASS_REGULAR_EXPRESSION "\[GUI 2D\]|HOT:|COLD:"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
     )
 
     add_test(NAME cli_analytics_hot_cold_gui_3d
@@ -663,6 +668,7 @@ if(BUILD_TESTING)
     )
     set_tests_properties(cli_analytics_hot_cold_gui_3d PROPERTIES
         PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
     )
 
     add_test(NAME cli_analytics_frequency_explain

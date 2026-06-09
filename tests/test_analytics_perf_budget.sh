@@ -12,7 +12,7 @@ BUDGET_HOTCOLD_MS="${BUDGET_HOTCOLD_MS:-800}"
 measure_ms() {
   local start end elapsed
   start="$(date +%s%N)"
-  "$@" >/dev/null
+  OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200 "$@" >/dev/null
   end="$(date +%s%N)"
   elapsed=$(( (end - start) / 1000000 ))
   printf '%d' "$elapsed"
