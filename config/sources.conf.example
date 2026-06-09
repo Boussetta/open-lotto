@@ -1,0 +1,9 @@
+# Historical data source configuration for open-lotto
+#
+# Copy to:
+#   ~/.config/open-lotto/sources.conf
+# or point OPEN_LOTTO_SOURCES_CONFIG to a custom file.
+
+[sources]
+# Eurojackpot upstream endpoint
+eurojackpot = https://www.eurojackpot.com/wlinfo/WL_InfoService?client=jsn&gruppe=ZahlenUndQuoten&ewGewsum=ja&historie=ja&spielart=EJ&adg=ja&lang=de

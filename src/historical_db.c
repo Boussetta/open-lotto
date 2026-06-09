@@ -31,6 +31,7 @@
 #define HISTORICAL_DB_MAX_RETRY_ATTEMPTS 3
 #define HISTORICAL_DB_RETRY_BASE_DELAY_MS 1000
 #define HISTORICAL_DB_RETRY_MAX_DELAY_MS 8000
+#define HISTORICAL_DB_SOURCES_CONFIG_ENV "OPEN_LOTTO_SOURCES_CONFIG"
 
 /* Width (in filled/empty characters) of the terminal progress bar. */
 #define PROGRESS_BAR_WIDTH 40
@@ -94,6 +95,102 @@ static int parse_history_dates(const char *json, char dates[][16], int max_dates
 static char *fetch_draw_for_date(const char *game_name, const char *date);
 static char *fetch_url_text(const char *url);
 static char *read_stream(FILE *fp);
+
+static void trim_ascii_whitespace(char *s)
+{
+    if (!s)
+        return;
+
+    size_t start = 0;
+    while (s[start] && isspace((unsigned char)s[start]))
+        start++;
+
+    size_t end = strlen(s);
+    while (end > start && isspace((unsigned char)s[end - 1]))
+        end--;
+
+    if (start > 0)
+        memmove(s, s + start, end - start);
+    s[end - start] = '\0';
+}
+
+static int get_sources_config_path(char *out, size_t out_size)
+{
+    const char *override = getenv(HISTORICAL_DB_SOURCES_CONFIG_ENV);
+    if (override && override[0] != '\0')
+    {
+        int n = snprintf(out, out_size, "%s", override);
+        return (n > 0 && (size_t)n < out_size) ? 0 : -1;
+    }
+
+    const char *home = getenv("HOME");
+    if (!home || home[0] == '\0')
+        return -1;
+
+    int n = snprintf(out, out_size, "%s/.config/open-lotto/sources.conf", home);
+    return (n > 0 && (size_t)n < out_size) ? 0 : -1;
+}
+
+static int load_source_url_from_config(const char *game_name, char *out, size_t out_size)
+{
+    if (!game_name || !out || out_size == 0)
+        return -1;
+
+    char path[512];
+    if (get_sources_config_path(path, sizeof(path)) != 0)
+        return -1;
+
+    FILE *fp = fopen(path, "r");
+    if (!fp)
+        return -1;
+
+    char line[1024];
+    int in_sources_section = 0;
+    int found = -1;
+
+    char lookup_key[64];
+    if (strcasecmp(game_name, "Eurojackpot") == 0)
+        snprintf(lookup_key, sizeof(lookup_key), "eurojackpot");
+    else
+        snprintf(lookup_key, sizeof(lookup_key), "%s", game_name);
+
+    while (fgets(line, sizeof(line), fp))
+    {
+        trim_ascii_whitespace(line);
+        if (line[0] == '\0' || line[0] == '#' || line[0] == ';')
+            continue;
+
+        if (line[0] == '[')
+        {
+            in_sources_section = (strcasecmp(line, "[sources]") == 0);
+            continue;
+        }
+
+        if (!in_sources_section)
+            continue;
+
+        char *sep = strchr(line, '=');
+        if (!sep)
+            continue;
+
+        *sep = '\0';
+        char *key = line;
+        char *value = sep + 1;
+        trim_ascii_whitespace(key);
+        trim_ascii_whitespace(value);
+
+        if (strcasecmp(key, lookup_key) == 0 && value[0] != '\0')
+        {
+            int n = snprintf(out, out_size, "%s", value);
+            if (n > 0 && (size_t)n < out_size)
+                found = 0;
+            break;
+        }
+    }
+
+    fclose(fp);
+    return found;
+}
 
 static void sleep_ms(unsigned int delay_ms)
 {
@@ -227,13 +324,10 @@ static int collect_eurojackpot_dates_all_years(char dates[][16], int max_dates)
     return total;
 }
 
-static const char *EUROJACKPOT_DEFAULT_URL =
-    "https://www.eurojackpot.com/wlinfo/WL_InfoService?client=jsn&gruppe=ZahlenUndQuoten&"
-    "ewGewsum=ja&historie=ja&spielart=EJ&adg=ja&lang=de";
-
 static const char *default_game_source_url(const char *game_name)
 {
     const char *override = NULL;
+    static char configured_url[512];
 
     if (!game_name)
         return NULL;
@@ -241,7 +335,15 @@ static const char *default_game_source_url(const char *game_name)
     if (strcasecmp(game_name, "Eurojackpot") == 0)
     {
         override = getenv("OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT");
-        return (override && override[0] != '\0') ? override : EUROJACKPOT_DEFAULT_URL;
+        if (override && override[0] != '\0')
+            return override;
+
+        if (load_source_url_from_config(game_name, configured_url, sizeof(configured_url)) == 0)
+            return configured_url;
+
+        log_warn("[historical_db] no source URL configured for Eurojackpot; set [sources] "
+                 "eurojackpot in sources config or set OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT");
+        return NULL;
     }
 
     return NULL;
