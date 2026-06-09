@@ -139,38 +139,6 @@ int validate_export_pair(const char *export_format, const char *export_filename)
 int validate_option_conflicts(int animate, int gui, const char *export_format);
 
 /**
- * @brief Validate a strict ISO date string in YYYY-MM-DD format.
- *
- * Checks that:
- * - date_str is non-empty
- * - format is exactly YYYY-MM-DD
- * - month/day values are valid (including leap years)
- *
- * @param date_str The date string to validate
- * @return VALIDATE_OK on success, or ValidateError code with error message on stderr
- */
-int validate_iso_date(const char *date_str);
-
-/**
- * @brief Validate an analytics period and optional available-data bounds.
- *
- * Checks that:
- * - both from_date and to_date are provided
- * - both are valid ISO dates
- * - from_date <= to_date
- * - when available_from/available_to are provided, the requested period intersects
- *   the available range
- *
- * @param from_date Inclusive start date (YYYY-MM-DD)
- * @param to_date Inclusive end date (YYYY-MM-DD)
- * @param available_from Optional earliest available date (YYYY-MM-DD), or NULL
- * @param available_to Optional latest available date (YYYY-MM-DD), or NULL
- * @return VALIDATE_OK on success, or ValidateError code with error message on stderr
- */
-int validate_analytics_period(const char *from_date, const char *to_date,
-                              const char *available_from, const char *available_to);
-
-/**
  * @brief Get a human-readable error hint for common validation mistakes.
  *
  * @param error_code The ValidateError code
