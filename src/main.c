@@ -7,7 +7,6 @@
 #include "export.h"
 #include "gui_opengl.h"
 #include "gui_sdl.h"
-#include "historical_db.h"
 #include "localization.h"
 #include "log.h"
 #include "plugin_loader.h"
@@ -155,33 +154,6 @@ static void print_draw_result(const char *game_name, int draw_num, const Lottery
     }
 
     printf("\n\n");
-}
-
-static void print_historical_snapshot(const HistoricalDrawSnapshot *snapshot, int unchanged)
-{
-    printf("Local historical database (%s):\n", unchanged ? "unchanged" : "updated");
-    printf("  Game: %s\n", snapshot->game);
-    printf("  Draw date: %s\n", snapshot->draw_date);
-    printf("  Next draw: %s\n", snapshot->next_draw_date);
-    printf("  Main numbers: ");
-    for (int i = 0; i < snapshot->main_count; i++)
-        printf("%d%s", snapshot->main_numbers[i], i + 1 == snapshot->main_count ? "" : " ");
-
-    if (snapshot->extra_count > 0)
-    {
-        printf(" | Extra numbers: ");
-        for (int i = 0; i < snapshot->extra_count; i++)
-            printf("%d%s", snapshot->extra_numbers[i], i + 1 == snapshot->extra_count ? "" : " ");
-    }
-    printf("\n");
-
-    printf("  Winning classes (winners / payout):\n");
-    for (int i = 0; i < snapshot->winning_class_count; i++)
-    {
-        const HistoricalWinningClass *wc = &snapshot->winning_classes[i];
-        printf("    %s %s: %d / %.2f EUR\n", wc->class_id, wc->description, wc->winners,
-               wc->payout);
-    }
 }
 
 /* ---------------------------------------------------------
@@ -1066,14 +1038,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (database_gewinnzahlen_cmd && (animate || gui || export_format || use_seed || cli_draws > 0))
-    {
-        fprintf(stderr,
-                "Error: --database-gewinnzahlen update cannot be combined with draw options.\n");
-        config_free(&cfg);
-        return 1;
-    }
-
     if (gui_mode && validate_gui_mode(gui_mode) != VALIDATE_OK)
     {
         config_free(&cfg);
@@ -1095,7 +1059,6 @@ int main(int argc, char **argv)
 
     /* Set the log level early so all subsequent operations are logged */
     log_set_level(log_level);
-    log_init_default_file();
     log_debug("Starting open-lotto with log level set to DEBUG");
 
     /* ---------------------------------------------------------
@@ -1136,58 +1099,6 @@ int main(int argc, char **argv)
         registry_destroy(registry);
         config_free(&cfg);
         return 1;
-    }
-
-    if (database_gewinnzahlen_cmd)
-    {
-        HistoricalDrawSnapshot snapshot;
-        int rc = historical_db_sync_latest(selected->name, NULL, &snapshot);
-
-        if (rc == HISTORICAL_DB_ERR_UNSUPPORTED_GAME)
-        {
-            fprintf(stderr, "Local historical DB sync is not supported for game '%s' yet.\n",
-                    selected->name);
-            registry_destroy(registry);
-            config_free(&cfg);
-            return 1;
-        }
-
-        if (rc == HISTORICAL_DB_ERR_NETWORK)
-        {
-            fprintf(stderr, "Failed to fetch latest official draw data from upstream source.\n");
-            registry_destroy(registry);
-            config_free(&cfg);
-            return 1;
-        }
-
-        if (rc == HISTORICAL_DB_ERR_PARSE)
-        {
-            fprintf(stderr, "Failed to parse upstream draw data payload.\n");
-            registry_destroy(registry);
-            config_free(&cfg);
-            return 1;
-        }
-
-        if (rc == HISTORICAL_DB_ERR_IO)
-        {
-            fprintf(stderr, "Failed to write local historical database file.\n");
-            registry_destroy(registry);
-            config_free(&cfg);
-            return 1;
-        }
-
-        if (rc != HISTORICAL_DB_SYNC_UPDATED && rc != HISTORICAL_DB_SYNC_UNCHANGED)
-        {
-            fprintf(stderr, "Historical sync failed with unknown error code: %d\n", rc);
-            registry_destroy(registry);
-            config_free(&cfg);
-            return 1;
-        }
-
-        print_historical_snapshot(&snapshot, rc == HISTORICAL_DB_SYNC_UNCHANGED);
-        registry_destroy(registry);
-        config_free(&cfg);
-        return 0;
     }
 
     /* If --validate-only flag is set, exit after successful validation */

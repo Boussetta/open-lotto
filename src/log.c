@@ -4,22 +4,11 @@
 
 #include "log.h"
 
-#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <time.h>
-
-#ifdef _WIN32
-#include <direct.h>
-#define mkdir_compat(p) _mkdir(p)
-#else
-#include <unistd.h>
-#define mkdir_compat(p) mkdir((p), 0755)
-#endif
 
 static LogLevel current_level = LOG_INFO;
 static FILE *log_file = NULL;
@@ -178,10 +167,7 @@ static void log_write(LogLevel level, const char *fmt, va_list args)
 
     // Console output (colored)
     fprintf(stderr, "%s[%s] %s: ", level_to_color(level), timebuf, level_to_string(level));
-    va_list args_console;
-    va_copy(args_console, args);
-    vfprintf(stderr, fmt, args_console);
-    va_end(args_console);
+    vfprintf(stderr, fmt, args);
     fprintf(stderr, "%s\n", COLOR_RESET);
 
     if (line_observer)
