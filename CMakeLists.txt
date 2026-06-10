@@ -176,6 +176,7 @@ set(OPEN_LOTTO_SOURCES
     src/analytics.c
     src/historical_db.c
     src/main.c
+    src/seed_calibration.c
     src/export.c
     src/combogen.c
     src/config.c
@@ -441,6 +442,19 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:test_simulation_analytics_property>
     )
     set_tests_properties(unit_simulation_analytics_property PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    add_executable(test_seed_calibration
+        tests/test_seed_calibration.c
+        src/seed_calibration.c
+    )
+    target_link_libraries(test_seed_calibration PRIVATE m)
+
+    add_test(NAME unit_seed_calibration
+        COMMAND $<TARGET_FILE:test_seed_calibration>
+    )
+    set_tests_properties(unit_seed_calibration PROPERTIES
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
