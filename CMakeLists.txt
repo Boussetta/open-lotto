@@ -183,6 +183,7 @@ set(OPEN_LOTTO_SOURCES
     src/plugin_loader.c
     src/plugin_registry.c
     src/random_seed.c
+    src/simulation_analytics_core.c
     src/simulation_analytics_metadata.c
     src/gui_sdl.c
     src/log.c
@@ -396,6 +397,18 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:test_simulation_analytics_metadata>
     )
     set_tests_properties(unit_simulation_analytics_metadata PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    add_executable(test_simulation_analytics_core
+        tests/test_simulation_analytics_core.c
+        src/simulation_analytics_core.c
+    )
+
+    add_test(NAME unit_simulation_analytics_core
+        COMMAND $<TARGET_FILE:test_simulation_analytics_core>
+    )
+    set_tests_properties(unit_simulation_analytics_core PROPERTIES
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
