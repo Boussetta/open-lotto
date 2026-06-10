@@ -588,6 +588,45 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "Main:"
     )
 
+    add_test(NAME cli_closest_seed_json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --closest-seed --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --seed-start 0 --seed-end 200 --max-evals 50 --format json --verbose ERROR
+    )
+    set_tests_properties(cli_closest_seed_json PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"mode\": \"closest-seed\"|\"top_candidates\""
+    )
+
+    add_test(NAME cli_closest_seed_missing_seed_start
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --closest-seed --from 2025-01-01 --to 2025-02-28 --seed-end 200 --max-evals 50 --verbose ERROR
+    )
+    set_tests_properties(cli_closest_seed_missing_seed_start PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_closest_seed_invalid_seed_range
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --closest-seed --from 2025-01-01 --to 2025-02-28 --seed-start 200 --seed-end 0 --max-evals 50 --verbose ERROR
+    )
+    set_tests_properties(cli_closest_seed_invalid_seed_range PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_closest_seed_top_too_high
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --closest-seed --from 2025-01-01 --to 2025-02-28 --seed-start 0 --seed-end 200 --max-evals 50 --top 100 --verbose ERROR
+    )
+    set_tests_properties(cli_closest_seed_top_too_high PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_closest_seed_invalid_calendar_date
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --closest-seed --from 2026-01-01 --to 2026-06-31 --seed-start 0 --seed-end 200 --max-evals 50 --verbose ERROR
+    )
+    set_tests_properties(cli_closest_seed_invalid_calendar_date PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_closest_seed_threads_without_mode
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --draws 1 --threads 2 --verbose ERROR
+    )
+    set_tests_properties(cli_closest_seed_threads_without_mode PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_closest_seed_determinism
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_closest_seed_determinism.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(cli_closest_seed_determinism PROPERTIES
+        PASS_REGULAR_EXPRESSION "closest-seed deterministic output OK"
+    )
+
     add_test(NAME cli_analytics_frequency_table
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv
     )
