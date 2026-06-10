@@ -183,6 +183,10 @@ set(OPEN_LOTTO_SOURCES
     src/plugin_loader.c
     src/plugin_registry.c
     src/random_seed.c
+    src/simulation_analytics_advanced.c
+    src/simulation_analytics_core.c
+    src/simulation_analytics_export.c
+    src/simulation_analytics_metadata.c
     src/gui_sdl.c
     src/log.c
     src/theme.c
@@ -383,6 +387,60 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:test_historical_db>
     )
     set_tests_properties(unit_historical_db PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    add_executable(test_simulation_analytics_metadata
+        tests/test_simulation_analytics_metadata.c
+        src/simulation_analytics_metadata.c
+    )
+
+    add_test(NAME unit_simulation_analytics_metadata
+        COMMAND $<TARGET_FILE:test_simulation_analytics_metadata>
+    )
+    set_tests_properties(unit_simulation_analytics_metadata PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    add_executable(test_simulation_analytics_core
+        tests/test_simulation_analytics_core.c
+        src/simulation_analytics_core.c
+    )
+
+    add_test(NAME unit_simulation_analytics_core
+        COMMAND $<TARGET_FILE:test_simulation_analytics_core>
+    )
+    set_tests_properties(unit_simulation_analytics_core PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    add_executable(test_simulation_analytics_advanced
+        tests/test_simulation_analytics_advanced.c
+        src/simulation_analytics_advanced.c
+    )
+    target_link_libraries(test_simulation_analytics_advanced PRIVATE m)
+
+    add_test(NAME unit_simulation_analytics_advanced
+        COMMAND $<TARGET_FILE:test_simulation_analytics_advanced>
+    )
+    set_tests_properties(unit_simulation_analytics_advanced PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
+    add_executable(test_simulation_analytics_property
+        tests/test_simulation_analytics_property.c
+        src/combogen.c
+        src/random_seed.c
+        src/simulation_analytics_core.c
+        src/simulation_analytics_advanced.c
+        src/log.c
+    )
+    target_link_libraries(test_simulation_analytics_property PRIVATE m)
+
+    add_test(NAME unit_simulation_analytics_property
+        COMMAND $<TARGET_FILE:test_simulation_analytics_property>
+    )
+    set_tests_properties(unit_simulation_analytics_property PROPERTIES
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
@@ -590,6 +648,20 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "\"hot\"|\"cold\""
     )
 
+    add_test(NAME cli_simulation_analytics_table
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --draws 200 --seed 0x1234 --simulation-analytics --format table
+    )
+    set_tests_properties(cli_simulation_analytics_table PROPERTIES
+        PASS_REGULAR_EXPRESSION "Simulation analytics summary|Top Hot Numbers"
+    )
+
+    add_test(NAME cli_simulation_analytics_json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --draws 200 --seed 0x1234 --simulation-analytics --format json
+    )
+    set_tests_properties(cli_simulation_analytics_json PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"schema_version\": \"simulation-analytics/v1\"|\"advanced\""
+    )
+
     add_test(NAME cli_analytics_hot_cold_gui_2d
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-hot-cold --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --top 5 --gui 2D
     )
@@ -641,6 +713,34 @@ if(BUILD_TESTING)
     )
     set_tests_properties(perf_analytics_budget PROPERTIES
         PASS_REGULAR_EXPRESSION "analytics performance budgets OK"
+    )
+
+    add_test(NAME perf_simulation_analytics_budget
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_simulation_analytics_perf_budget.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(perf_simulation_analytics_budget PROPERTIES
+        PASS_REGULAR_EXPRESSION "simulation analytics performance budgets OK"
+    )
+
+    add_test(NAME schema_simulation_analytics_contract
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_simulation_analytics_schema.sh"
+    )
+    set_tests_properties(schema_simulation_analytics_contract PROPERTIES
+        PASS_REGULAR_EXPRESSION "simulation analytics schema contract OK"
+    )
+
+    add_test(NAME cli_simulation_analytics_export
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_simulation_analytics_export.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(cli_simulation_analytics_export PROPERTIES
+        PASS_REGULAR_EXPRESSION "simulation analytics export OK"
+    )
+
+    add_test(NAME cli_simulation_analytics_e2e
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_simulation_analytics_e2e.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(cli_simulation_analytics_e2e PROPERTIES
+        PASS_REGULAR_EXPRESSION "simulation analytics e2e deterministic OK"
     )
 
     add_test(NAME cli_verbose_missing_value

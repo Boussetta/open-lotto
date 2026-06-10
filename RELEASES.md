@@ -7,6 +7,21 @@ SPDX-License-Identifier: MIT
 
 This document describes how to create and publish releases for the open-lotto project.
 
+## Upcoming Milestone Notes (v0.4.0)
+
+For `v0.4.0` (Simulation Analytics), release notes should include at minimum:
+
+- `--simulation-analytics` CLI mode
+- Versioned simulation schema (`simulation-analytics/v1`)
+- Simulation analytics export support (`csv`, `json`)
+- E2E/property/performance budget test additions
+- Links to:
+  - `docs/SIMULATION_ANALYTICS_METRIC_CATALOG.md`
+  - `docs/SIMULATION_ANALYTICS_SCHEMA.md`
+  - `docs/SIMULATION_ANALYTICS_PERFORMANCE.md`
+
+Use these items as a release checklist before tagging `v0.4.0`.
+
 ## Versioning Scheme
 
 open-lotto uses [Semantic Versioning](https://semver.org/) in the format `MAJOR.MINOR.PATCH`:

@@ -12,6 +12,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### Simulation Analytics (milestone/v0.4.0-simulation-analytics)
+- New CLI mode: `--simulation-analytics` to compute analytics directly from simulated draws
+- Simulation analytics core aggregation engine (`simulation_analytics_core`)
+- Simulation analytics advanced metrics (`simulation_analytics_advanced`):
+  - Gap/streak tracking
+  - Hot/cold ranking
+  - Normalized entropy
+- Simulation analytics metadata model (`simulation_analytics_metadata`) with schema version
+- Simulation analytics file export (`--export csv|json --output FILE`) in simulation analytics mode
+- Versioned schema contract documentation and schema file:
+  - `docs/SIMULATION_ANALYTICS_SCHEMA.md`
+  - `docs/schemas/simulation_analytics_v1.schema.json`
+- Metric catalog and acceptance formulas:
+  - `docs/SIMULATION_ANALYTICS_METRIC_CATALOG.md`
+
+### Tests
+
+- New unit tests:
+  - `test_simulation_analytics_metadata`
+  - `test_simulation_analytics_core`
+  - `test_simulation_analytics_advanced`
+  - `test_simulation_analytics_property`
+- New integration and contract tests:
+  - `tests/test_simulation_analytics_e2e.sh`
+  - `tests/test_simulation_analytics_export.sh`
+  - `tests/test_simulation_analytics_schema.sh`
+- New performance budget guard:
+  - `tests/test_simulation_analytics_perf_budget.sh`
+
+### Documentation
+
+- Added `docs/SIMULATION_ANALYTICS_PERFORMANCE.md`
+- README docs index updated with simulation analytics references
+
 ## [1.1.0] - 2026-06-10
 
 ### Added

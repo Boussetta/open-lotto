@@ -215,7 +215,7 @@ Show FPS and physics debug information.
 
 ### Export Mode (`--export`)
 
-Export draw results to file.
+Export draw results or simulation analytics results to file.
 
 - **Formats:** `csv`, `json`
 - **Requires:** `--output FILE`
@@ -225,11 +225,36 @@ Export draw results to file.
 ```bash
 ./open-lotto --game lotto --draws 100 --export csv --output results.csv
 ./open-lotto --game eurojackpot --draws 50 --export json --output draws.json
+./open-lotto --game "Lotto 6aus49" --draws 10000 --simulation-analytics --export json --output sim_analytics.json
 ```
 
 ---
 
 ## Analytics Commands
+
+### Simulation Analytics
+
+Compute analytics from simulated draws (instead of historical DB snapshots).
+
+**Syntax:**
+```bash
+./open-lotto --game NAME --draws N --simulation-analytics [--top N] [--format table|json|csv]
+./open-lotto --game NAME --draws N --simulation-analytics --export csv|json --output FILE
+```
+
+**Behavior:**
+- Uses generated draws from the selected plugin/game configuration
+- Supports deterministic runs via `--seed`
+- Outputs include schema version `simulation-analytics/v1`
+
+**Example:**
+```bash
+./open-lotto --game "Lotto 6aus49" --draws 5000 --seed 0x1234 --simulation-analytics --format table
+./open-lotto --game "Lotto 6aus49" --draws 5000 --seed 0x1234 --simulation-analytics --format json --top 10
+./open-lotto --game "Lotto 6aus49" --draws 5000 --seed 0x1234 --simulation-analytics --export csv --output sim_analytics.csv
+```
+
+---
 
 ### Frequency Distribution
 
