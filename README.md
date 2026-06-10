@@ -266,6 +266,7 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[PLUGIN_REVIEW_CHECKLIST.md](docs/PLUGIN_REVIEW_CHECKLIST.md)** — Formal security/quality checklist for plugin submissions
 - **[LOCALIZATION.md](docs/LOCALIZATION.md)** — Translation string table, fallback behavior, and locale contribution workflow
 - **[PERFORMANCE.md](docs/PERFORMANCE.md)** — Benchmark results and optimization notes
+- **[SIMULATION_ANALYTICS_METRIC_CATALOG.md](docs/SIMULATION_ANALYTICS_METRIC_CATALOG.md)** — v0.4.0 metric definitions, formulas, and acceptance rules
 - **[OPENMP_QUICKSTART.md](docs/OPENMP_QUICKSTART.md)** — Quick start for parallel physics simulation
 
 For IDE setup, see [docs/ide-setup.md](docs/ide-setup.md).
