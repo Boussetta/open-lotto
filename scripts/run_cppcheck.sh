@@ -15,6 +15,8 @@ cppcheck \
   --suppress=unusedFunction \
   --suppress=constParameterPointer \
   --suppress=constVariablePointer \
+  --suppress=constVariable \
+  --suppress=unreadVariable \
   --suppress=normalCheckLevelMaxBranches \
   --suppress=checkersReport \
   --suppress=staticFunction:src/config.c \

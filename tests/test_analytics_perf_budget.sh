@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2025 Wissem Boussetta
+# SPDX-License-Identifier: MIT
 set -euo pipefail
 
 BIN="$1"

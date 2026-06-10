@@ -43,6 +43,11 @@ Files: Testing/Temporary/* open-lotto.log
 Copyright: 2025 Wissem Boussetta
 License: MIT
 
+# Analytics golden baseline files
+Files: tests/golden/*
+Copyright: 2025 Wissem Boussetta
+License: MIT
+
 # Installation scripts and installers
 Files: scripts/homebrew/open-lotto.rb scripts/windows/open-lotto-installer.nsi scripts/macos/sign-and-notarize.sh scripts/windows/build-installer.sh
 Copyright: 2025 Wissem Boussetta
