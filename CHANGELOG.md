@@ -12,26 +12,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-10
+
 ### Added
-- Deterministic seeded draw generation via `generate_draw_seeded()` for reproducible replay
-- New CLI `--seed` option (decimal or `0x` hex) for reproducible multi-draw runs
-- Developer-facing C API (`include/open_lotto_api.h`, target `open_lotto_devapi`)
-- CI/CTest reproducibility coverage for seeded CLI and API workflows
+
+#### Real Lottery Analytics (milestone/v1.1.0-real-lottery-analytics)
+- **Frequency distribution analytics**: `--frequency-distribution --from YYYY-MM-DD --to YYYY-MM-DD`
+  - Table, JSON, and CSV output formats (`--format`)
+  - 2D SDL and 3D OpenGL visualizations (`--gui 2D|3D`)
+  - Explain mode (`--explain`) showing formula: `count(number) / draws_in_period`
+- **Barometer analytics**: `--analytics-barometer` — overdue-number scoring per draw
+  - factor = `observed_gap / expected_interval` where `expected_interval = population / picks_per_draw`
+  - Table, JSON, CSV, 2D GUI, and 3D matrix GUI views
+- **Hot/cold analytics**: `--analytics-hot-cold --top N` — ranked by ascending/descending frequency
+  - Table, JSON, CSV, 2D GUI, and 3D GUI views
+- **Shared analytics period parsing**: `--from` / `--to` validated by `validate_analytics_period()`
+- **Analytics data quality evaluation**: automatic gap, duplicate, and range checks before computation
+- **Analytics golden baselines**: regression test harness (`tests/test_analytics_golden.sh`)
+- **Analytics performance budgets**: CI enforcement of per-command latency caps (`tests/test_analytics_perf_budget.sh`)
+- **Historical CSV override**: `--historical-csv FILE` for simulation/dev datasets
+- **Explain mode for all three analytics commands** (CLI text and JSON variants)
+- New CLI reference guide: `docs/CLI_REFERENCE.md`
+
+#### Bug Fixes
+- **Fixed interleaved terminal output during parallel historical sync** (#97): moved all `log_warn`
+  and `log_debug` calls inside the existing `omp critical(historical_db_progress)` section so
+  no log output can race with ANSI cursor-movement sequences from the progress panel
 
 ### Changed
-- Plugins can now honor host-selected deterministic seeds through combogen seed override hooks
-
-### Deprecated
-- Soon-to-be removed features in development
-
-### Removed
-- Removed features in development
-
-### Fixed
-- Bug fixes in development
-
-### Security
-- Security vulnerability fixes in development
+- Analytics commands default to the local real-data historical DB snapshot (no `--historical-csv` needed for live use)
+- `validate.h` / `validate.c`: added `validate_iso_date()` and `validate_analytics_period()` public functions
 
 ## [0.1.0] - 2025
 
