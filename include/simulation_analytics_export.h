@@ -10,18 +10,19 @@
 #include "simulation_analytics_metadata.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-int simulation_analytics_export_json_file(const char *filename,
-                                          const SimulationAnalyticsMetadata *metadata,
-                                          const SimulationAnalyticsCoreReport *core,
-                                          const SimulationAnalyticsAdvancedReport *advanced);
+    int simulation_analytics_export_json_file(const char *filename,
+                                              const SimulationAnalyticsMetadata *metadata,
+                                              const SimulationAnalyticsCoreReport *core,
+                                              const SimulationAnalyticsAdvancedReport *advanced);
 
-int simulation_analytics_export_csv_file(const char *filename,
-                                         const SimulationAnalyticsMetadata *metadata,
-                                         const SimulationAnalyticsCoreReport *core,
-                                         const SimulationAnalyticsAdvancedReport *advanced);
+    int simulation_analytics_export_csv_file(const char *filename,
+                                             const SimulationAnalyticsMetadata *metadata,
+                                             const SimulationAnalyticsCoreReport *core,
+                                             const SimulationAnalyticsAdvancedReport *advanced);
 
 #ifdef __cplusplus
 }

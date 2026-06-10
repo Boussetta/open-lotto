@@ -40,7 +40,8 @@ int simulation_analytics_export_json_file(const char *filename,
             "\"variance_hits_per_number\": %.6f},\n",
             core->draw_count, core->number_min, core->number_max, core->total_hits,
             core->mean_hits_per_number, core->variance_hits_per_number);
-    fprintf(f, "  \"advanced\": {\"entropy_normalized\": %.6f, \"hot\": [", advanced->entropy_normalized);
+    fprintf(f, "  \"advanced\": {\"entropy_normalized\": %.6f, \"hot\": [",
+            advanced->entropy_normalized);
     for (int i = 0; i < advanced->top_n; i++)
     {
         fprintf(f, "{\"number\":%d,\"count\":%d,\"percentage\":%.6f}%s", advanced->hot[i].number,
@@ -100,8 +101,8 @@ int simulation_analytics_export_csv_file(const char *filename,
     {
         fprintf(f, "hot,number,%d,%d|%.6f\n", advanced->hot[i].number, advanced->hot[i].count,
                 advanced->hot[i].percentage);
-        fprintf(f, "cold,number,%d,%d|%.6f\n", advanced->cold[i].number,
-                advanced->cold[i].count, advanced->cold[i].percentage);
+        fprintf(f, "cold,number,%d,%d|%.6f\n", advanced->cold[i].number, advanced->cold[i].count,
+                advanced->cold[i].percentage);
     }
 
     fclose(f);

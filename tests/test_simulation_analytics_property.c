@@ -33,12 +33,12 @@ static void test_simulation_property_invariants(void)
                                  no_cb);
         }
 
-        assert_equals(simulation_analytics_core_aggregate(draws, DRAWS_PER_ITERATION, 1, 49, 6,
-                                                          &core),
-                      0, "core aggregate succeeds");
-        assert_equals(simulation_analytics_advanced_compute(draws, DRAWS_PER_ITERATION, 1, 49, 5,
-                                                            &advanced),
-                      0, "advanced compute succeeds");
+        assert_equals(
+            simulation_analytics_core_aggregate(draws, DRAWS_PER_ITERATION, 1, 49, 6, &core), 0,
+            "core aggregate succeeds");
+        assert_equals(
+            simulation_analytics_advanced_compute(draws, DRAWS_PER_ITERATION, 1, 49, 5, &advanced),
+            0, "advanced compute succeeds");
 
         for (int n = 1; n <= 49; n++)
         {

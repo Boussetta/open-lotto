@@ -5,11 +5,8 @@
 #include "simulation_analytics_core.h"
 #include <string.h>
 
-int simulation_analytics_core_aggregate(const LotteryResult *draws,
-                                        int draw_count,
-                                        int number_min,
-                                        int number_max,
-                                        int picks_per_draw,
+int simulation_analytics_core_aggregate(const LotteryResult *draws, int draw_count, int number_min,
+                                        int number_max, int picks_per_draw,
                                         SimulationAnalyticsCoreReport *out_report)
 {
     int population;
@@ -47,11 +44,6 @@ int simulation_analytics_core_aggregate(const LotteryResult *draws,
     out_report->total_hits = total;
 
     population = number_max - number_min + 1;
-    if (population <= 0)
-    {
-        return -1;
-    }
-
     mean = (double)total / (double)population;
     out_report->mean_hits_per_number = mean;
 

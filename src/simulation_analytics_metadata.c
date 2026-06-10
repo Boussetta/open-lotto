@@ -14,11 +14,8 @@ static void copy_or_default(char *dst, size_t dst_size, const char *src, const c
     dst[dst_size - 1] = '\0';
 }
 
-int simulation_analytics_metadata_init(SimulationAnalyticsMetadata *out,
-                                       const char *game,
-                                       int run_count,
-                                       int has_seed,
-                                       uint64_t seed,
+int simulation_analytics_metadata_init(SimulationAnalyticsMetadata *out, const char *game,
+                                       int run_count, int has_seed, uint64_t seed,
                                        const char *source)
 {
     time_t now;
@@ -31,8 +28,8 @@ int simulation_analytics_metadata_init(SimulationAnalyticsMetadata *out,
 
     memset(out, 0, sizeof(*out));
 
-    copy_or_default(out->schema_version, sizeof(out->schema_version),
-                    SIM_ANALYTICS_SCHEMA_VERSION, SIM_ANALYTICS_SCHEMA_VERSION);
+    copy_or_default(out->schema_version, sizeof(out->schema_version), SIM_ANALYTICS_SCHEMA_VERSION,
+                    SIM_ANALYTICS_SCHEMA_VERSION);
     copy_or_default(out->game, sizeof(out->game), game, "unknown");
     copy_or_default(out->source, sizeof(out->source), source, "simulation");
 
@@ -56,8 +53,7 @@ int simulation_analytics_metadata_init(SimulationAnalyticsMetadata *out,
     return 0;
 }
 
-int simulation_analytics_metadata_to_json(const SimulationAnalyticsMetadata *meta,
-                                          char *out,
+int simulation_analytics_metadata_to_json(const SimulationAnalyticsMetadata *meta, char *out,
                                           size_t out_size)
 {
     int written;
@@ -73,16 +69,16 @@ int simulation_analytics_metadata_to_json(const SimulationAnalyticsMetadata *met
                            "{\"schema_version\":\"%s\",\"generated_at\":\"%s\","
                            "\"game\":\"%s\",\"source\":\"%s\",\"run_count\":%d,"
                            "\"seed\":%llu}",
-                           meta->schema_version, meta->generated_at_utc, meta->game,
-                           meta->source, meta->run_count, (unsigned long long)meta->seed);
+                           meta->schema_version, meta->generated_at_utc, meta->game, meta->source,
+                           meta->run_count, (unsigned long long)meta->seed);
     }
     else
     {
         written = snprintf(out, out_size,
                            "{\"schema_version\":\"%s\",\"generated_at\":\"%s\","
                            "\"game\":\"%s\",\"source\":\"%s\",\"run_count\":%d}",
-                           meta->schema_version, meta->generated_at_utc, meta->game,
-                           meta->source, meta->run_count);
+                           meta->schema_version, meta->generated_at_utc, meta->game, meta->source,
+                           meta->run_count);
     }
 
     if (written < 0 || (size_t)written >= out_size)

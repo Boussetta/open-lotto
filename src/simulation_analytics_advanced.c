@@ -25,11 +25,8 @@ static int cold_cmp(const void *a, const void *b)
     return x->number - y->number;
 }
 
-int simulation_analytics_advanced_compute(const LotteryResult *draws,
-                                          int draw_count,
-                                          int number_min,
-                                          int number_max,
-                                          int top_n,
+int simulation_analytics_advanced_compute(const LotteryResult *draws, int draw_count,
+                                          int number_min, int number_max, int top_n,
                                           SimulationAnalyticsAdvancedReport *out_report)
 {
     int i;
@@ -112,14 +109,15 @@ int simulation_analytics_advanced_compute(const LotteryResult *draws,
         }
     }
 
-    out_report->entropy_normalized = (population > 1) ? entropy / (log((double)population) / log(2.0))
-                                                       : 0.0;
+    out_report->entropy_normalized =
+        (population > 1) ? entropy / (log((double)population) / log(2.0)) : 0.0;
 
     for (n = number_min; n <= number_max; n++)
     {
         all[all_count].number = n;
         all[all_count].count = counts[n];
-        all[all_count].percentage = (draw_count > 0) ? (100.0 * counts[n] / (double)draw_count) : 0.0;
+        all[all_count].percentage =
+            (draw_count > 0) ? (100.0 * counts[n] / (double)draw_count) : 0.0;
         all_count++;
     }
 

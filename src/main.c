@@ -260,7 +260,8 @@ static void print_simulation_analytics_json(const SimulationAnalyticsMetadata *m
            "\"variance_hits_per_number\": %.6f},\n",
            core->draw_count, core->number_min, core->number_max, core->total_hits,
            core->mean_hits_per_number, core->variance_hits_per_number);
-    printf("  \"advanced\": {\"entropy_normalized\": %.6f, \"hot\": [", advanced->entropy_normalized);
+    printf("  \"advanced\": {\"entropy_normalized\": %.6f, \"hot\": [",
+           advanced->entropy_normalized);
     for (int i = 0; i < advanced->top_n; i++)
     {
         printf("{\"number\":%d,\"count\":%d,\"percentage\":%.6f}%s", advanced->hot[i].number,
@@ -348,6 +349,10 @@ static void print_usage(const char *prog)
             "  --format FORMAT         Analytics output format: table, json, csv\n"
             "  --historical-csv FILE   Historical draw CSV override (simulation/dev datasets)\n"
             "                         By default analytics read local real-data DB snapshot\n"
+            "  --sim-historical-csv FILE\n"
+            "                         Export simulated draws as historical-format CSV (requires\n"
+            "                         --from DATE as the synthetic start date). The output can\n"
+            "                         then be passed to --historical-csv for 2D/3D GUI analytics\n"
             "\n"
             "Log Levels:\n"
             "  ERROR, WARN, INFO (default), DEBUG\n"
@@ -785,6 +790,7 @@ int main(int argc, char **argv)
     int analytics_barometer = 0;
     int analytics_hot_cold = 0;
     int simulation_analytics = 0;
+    const char *sim_historical_csv_output = NULL;
     int analytics_top = 10;
     int analytics_explain = 0;
     const char *analytics_format = "table";
@@ -1098,6 +1104,16 @@ int main(int argc, char **argv)
         {
             analytics_explain = 1;
         }
+        else if (strcmp(argv[i], "--sim-historical-csv") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--sim-historical-csv requires a file path.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            sim_historical_csv_output = argv[++i];
+        }
         else
         {
             fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
@@ -1262,8 +1278,12 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    /* Validate --from / --to period: both must be present if either is given */
-    if (period_from && !period_to)
+    /* Validate --from / --to period: both must be present if either is given.
+       Exceptions:
+       - --historical-csv: dates are optional; defaults come from the file.
+       - --sim-historical-csv: only --from is needed as start date; optional (defaults to today).
+    */
+    if (period_from && !period_to && !sim_historical_csv_output && !historical_csv_from_cli)
     {
         fprintf(stderr, "Error: --from requires --to.\n");
         fprintf(stderr, "Hint: Example: --from 2025-01-01 --to 2025-12-31\n");
@@ -1291,6 +1311,18 @@ int main(int argc, char **argv)
         fprintf(stderr, "Error: --seed is currently supported only in CLI mode.\n");
         config_free(&cfg);
         return 1;
+    }
+
+    if (sim_historical_csv_output)
+    {
+        if (gui || animate || export_format)
+        {
+            fprintf(
+                stderr,
+                "Error: --sim-historical-csv cannot be combined with --gui/--animate/--export.\n");
+            config_free(&cfg);
+            return 1;
+        }
     }
 
     if (simulation_analytics)
@@ -1429,6 +1461,16 @@ int main(int argc, char **argv)
             registry_destroy(registry);
             config_free(&cfg);
             return 1;
+        }
+
+        /* Default period to full file range when --historical-csv is used without --from/--to */
+        static char auto_from[11], auto_to[11];
+        if (!period_from && historical_csv_from_cli && draw_count > 0)
+        {
+            snprintf(auto_from, sizeof(auto_from), "%s", historical_draws[0].draw_date);
+            snprintf(auto_to, sizeof(auto_to), "%s", historical_draws[draw_count - 1].draw_date);
+            period_from = auto_from;
+            period_to = auto_to;
         }
 
         if (analytics_filter_period(historical_draws, draw_count, period_from, period_to, filtered,
@@ -1651,6 +1693,73 @@ int main(int argc, char **argv)
         free(historical_draws);
         free(filtered);
         free(dq_records);
+        registry_destroy(registry);
+        config_free(&cfg);
+        return 0;
+    }
+
+    if (sim_historical_csv_output)
+    {
+        /* Default start date to today if --from not given */
+        static char sim_from_buf[16];
+        if (!period_from)
+        {
+            time_t now = time(NULL);
+            struct tm *tm_now = localtime(&now);
+            snprintf(sim_from_buf, sizeof(sim_from_buf), "%04d-%02d-%02d",
+                     (tm_now->tm_year + 1900) % 10000, (tm_now->tm_mon + 1) % 100,
+                     tm_now->tm_mday % 100);
+            period_from = sim_from_buf;
+        }
+
+        FILE *hcsv = fopen(sim_historical_csv_output, "w");
+        if (!hcsv)
+        {
+            fprintf(stderr, "Error: Cannot open '%s' for writing.\n", sim_historical_csv_output);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        /* Parse start date from --from */
+        int sy = 2025, sm = 1, sd = 1;
+        sscanf(period_from, "%d-%d-%d", &sy, &sm, &sd);
+
+        fprintf(hcsv, "draw_date,main_numbers,extra_numbers\n");
+        for (int i = 0; i < draws; i++)
+        {
+            LotteryResult result;
+
+            if (use_seed)
+                combogen_set_forced_seed(derive_draw_seed(seed_value, i));
+            else
+                combogen_clear_forced_seed();
+
+            selected->draw(&result, silent_callback);
+
+            /* Advance date by i days from start */
+            struct tm t = {0};
+            t.tm_year = sy - 1900;
+            t.tm_mon = sm - 1;
+            t.tm_mday = sd + i;
+            mktime(&t);
+
+            char date_buf[16];
+            snprintf(date_buf, sizeof(date_buf), "%04d-%02d-%02d", (t.tm_year + 1900) % 10000,
+                     (t.tm_mon + 1) % 100, t.tm_mday % 100);
+
+            fprintf(hcsv, "%s,", date_buf);
+            for (int j = 0; j < result.main_count; j++)
+                fprintf(hcsv, "%s%d", j ? " " : "", result.main_numbers[j]);
+            fprintf(hcsv, ",");
+            for (int j = 0; j < result.extra_count; j++)
+                fprintf(hcsv, "%s%d", j ? " " : "", result.extra_numbers[j]);
+            fprintf(hcsv, "\n");
+        }
+        combogen_clear_forced_seed();
+        fclose(hcsv);
+        printf("Simulated historical CSV written to %s (%d draws from %s).\n",
+               sim_historical_csv_output, draws, period_from);
         registry_destroy(registry);
         config_free(&cfg);
         return 0;
