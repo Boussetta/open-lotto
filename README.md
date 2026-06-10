@@ -268,6 +268,7 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[PERFORMANCE.md](docs/PERFORMANCE.md)** — Benchmark results and optimization notes
 - **[SIMULATION_ANALYTICS_METRIC_CATALOG.md](docs/SIMULATION_ANALYTICS_METRIC_CATALOG.md)** — v0.4.0 metric definitions, formulas, and acceptance rules
 - **[SIMULATION_ANALYTICS_SCHEMA.md](docs/SIMULATION_ANALYTICS_SCHEMA.md)** — Versioned output contract for simulation analytics JSON
+- **[SIMULATION_ANALYTICS_PERFORMANCE.md](docs/SIMULATION_ANALYTICS_PERFORMANCE.md)** — Baseline and performance budget policy for simulation analytics
 - **[OPENMP_QUICKSTART.md](docs/OPENMP_QUICKSTART.md)** — Quick start for parallel physics simulation
 
 For IDE setup, see [docs/ide-setup.md](docs/ide-setup.md).
