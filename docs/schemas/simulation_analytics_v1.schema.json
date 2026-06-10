@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-lotto.dev/schemas/simulation_analytics_v1.schema.json",
+  "title": "Open Lotto Simulation Analytics v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "metadata",
+    "core",
+    "advanced"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "simulation-analytics/v1"
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "generated_at",
+        "game",
+        "source",
+        "run_count"
+      ],
+      "properties": {
+        "generated_at": { "type": "string" },
+        "game": { "type": "string" },
+        "source": { "type": "string" },
+        "run_count": { "type": "integer", "minimum": 1 },
+        "seed": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "core": {
+      "type": "object",
+      "required": ["draw_count", "number_min", "number_max", "total_hits"],
+      "properties": {
+        "draw_count": { "type": "integer", "minimum": 1 },
+        "number_min": { "type": "integer", "minimum": 0 },
+        "number_max": { "type": "integer", "maximum": 127 },
+        "total_hits": { "type": "integer", "minimum": 0 },
+        "mean_hits_per_number": { "type": "number" },
+        "variance_hits_per_number": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "advanced": {
+      "type": "object",
+      "required": ["entropy_normalized", "hot", "cold"],
+      "properties": {
+        "entropy_normalized": { "type": "number", "minimum": 0, "maximum": 1 },
+        "hot": { "type": "array" },
+        "cold": { "type": "array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
