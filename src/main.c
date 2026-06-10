@@ -244,8 +244,8 @@ static void print_closest_seed_table(const SeedCalibrationResult *result)
     for (int i = 0; i < result->top_candidate_count; i++)
     {
         const SeedCalibrationCandidate *c = &result->top_candidates[i];
-        printf("%d,%llu,%.9f,%.9f,%.9f,%.9f\n", i + 1, (unsigned long long)c->seed,
-               c->total_score, c->frequency_score, c->gap_score, c->rank_score);
+        printf("%d,%llu,%.9f,%.9f,%.9f,%.9f\n", i + 1, (unsigned long long)c->seed, c->total_score,
+               c->frequency_score, c->gap_score, c->rank_score);
     }
 }
 
@@ -259,9 +259,8 @@ static void print_closest_seed_csv(const SeedCalibrationResult *result)
     for (int i = 0; i < result->top_candidate_count; i++)
     {
         const SeedCalibrationCandidate *c = &result->top_candidates[i];
-        printf("top_candidates,%d,%llu,%.9f|%.9f|%.9f|%.9f\n", i + 1,
-               (unsigned long long)c->seed, c->total_score, c->frequency_score, c->gap_score,
-               c->rank_score);
+        printf("top_candidates,%d,%llu,%.9f|%.9f|%.9f|%.9f\n", i + 1, (unsigned long long)c->seed,
+               c->total_score, c->frequency_score, c->gap_score, c->rank_score);
     }
 }
 
@@ -271,21 +270,22 @@ static void print_closest_seed_json(const SeedCalibrationResult *result, const c
     printf("{\n");
     printf("  \"mode\": \"closest-seed\",\n");
     printf("  \"schema_version\": \"seed-calibration/v1\",\n");
-    printf("  \"period\": {\"from\": \"%s\", \"to\": \"%s\"},\n", from_date,
-           to_date);
+    printf("  \"period\": {\"from\": \"%s\", \"to\": \"%s\"},\n", from_date, to_date);
     printf("  \"summary\": {\"best_seed\": %llu, \"best_score\": %.9f, \"evaluated_seeds\": %d},\n",
-           (unsigned long long)result->best.seed, result->best.total_score, result->evaluated_seeds);
-    printf("  \"diagnostics\": {\"score_gap\": %.9f, \"score_components\": {\"frequency\": %.9f, \"gap\": %.9f, \"rank\": %.9f}},\n",
+           (unsigned long long)result->best.seed, result->best.total_score,
+           result->evaluated_seeds);
+    printf("  \"diagnostics\": {\"score_gap\": %.9f, \"score_components\": {\"frequency\": %.9f, "
+           "\"gap\": %.9f, \"rank\": %.9f}},\n",
            result->score_gap, result->best.frequency_score, result->best.gap_score,
            result->best.rank_score);
     printf("  \"top_candidates\": [\n");
     for (int i = 0; i < result->top_candidate_count; i++)
     {
         const SeedCalibrationCandidate *c = &result->top_candidates[i];
-        printf("    {\"rank\": %d, \"seed\": %llu, \"score\": %.9f, \"frequency\": %.9f, \"gap\": %.9f, \"rank_score\": %.9f}%s\n",
-               i + 1, (unsigned long long)c->seed, c->total_score, c->frequency_score,
-               c->gap_score, c->rank_score,
-               (i + 1 == result->top_candidate_count) ? "" : ",");
+        printf("    {\"rank\": %d, \"seed\": %llu, \"score\": %.9f, \"frequency\": %.9f, \"gap\": "
+               "%.9f, \"rank_score\": %.9f}%s\n",
+               i + 1, (unsigned long long)c->seed, c->total_score, c->frequency_score, c->gap_score,
+               c->rank_score, (i + 1 == result->top_candidate_count) ? "" : ",");
     }
     printf("  ]\n");
     printf("}\n");
@@ -470,20 +470,21 @@ static void print_usage(const char *prog)
             "  OPEN_LOTTO_SOURCES_CONFIG               Override sources config path\n"
             "  OPEN_LOTTO_DOWNLOAD_CONFIG              Override download config path\n",
             prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
-                prog, prog, prog, prog, prog, prog, prog);
+            prog, prog, prog, prog, prog, prog, prog);
 
-            fprintf(stderr,
-                "\nClosest-Seed Mode:\n"
-                "  --closest-seed          Find best-fit simulator seed for one fixed period\n"
-                "  --seed-start VALUE      Start of seed search range (required)\n"
-                "  --seed-end VALUE        End of seed search range (required)\n"
-                "  --max-evals N           Max seed evaluations (default: 100000)\n"
-                    "  --threads N             Worker thread hint (reserved; default: 1)\n"
-                    "  --timeout-ms N          Soft time budget hint in milliseconds\n"
-                "\n"
-                "Closest-Seed Example:\n"
-                "  %s --game \"Lotto 6aus49\" --closest-seed --from 2026-01-01 --to 2026-06-30 --seed-start 0 --seed-end 100000 --format json\n",
-                prog);
+    fprintf(stderr,
+            "\nClosest-Seed Mode:\n"
+            "  --closest-seed          Find best-fit simulator seed for one fixed period\n"
+            "  --seed-start VALUE      Start of seed search range (required)\n"
+            "  --seed-end VALUE        End of seed search range (required)\n"
+            "  --max-evals N           Max seed evaluations (default: 100000)\n"
+            "  --threads N             Worker thread hint (reserved; default: 1)\n"
+            "  --timeout-ms N          Soft time budget hint in milliseconds\n"
+            "\n"
+            "Closest-Seed Example:\n"
+            "  %s --game \"Lotto 6aus49\" --closest-seed --from 2026-01-01 --to 2026-06-30 "
+            "--seed-start 0 --seed-end 100000 --format json\n",
+            prog);
 }
 
 static void trim_whitespace(char *s)
@@ -1552,14 +1553,15 @@ int main(int argc, char **argv)
         if (gui || animate || export_format || simulation_analytics || analytics_mode_count > 0 ||
             sim_historical_csv_output)
         {
-            fprintf(stderr,
-                    "Error: --closest-seed cannot be combined with GUI/animate/export or other analytics modes.\n");
+            fprintf(stderr, "Error: --closest-seed cannot be combined with GUI/animate/export or "
+                            "other analytics modes.\n");
             config_free(&cfg);
             return 1;
         }
         if (!period_from || !period_to)
         {
-            fprintf(stderr, "Error: --closest-seed requires --from and --to for one fixed period.\n");
+            fprintf(stderr,
+                    "Error: --closest-seed requires --from and --to for one fixed period.\n");
             config_free(&cfg);
             return 1;
         }
@@ -1585,7 +1587,8 @@ int main(int argc, char **argv)
     }
     else if (closest_seed_threads_set || closest_seed_timeout_set)
     {
-        fprintf(stderr, "Error: --threads and --timeout-ms are supported only with --closest-seed.\n");
+        fprintf(stderr,
+                "Error: --threads and --timeout-ms are supported only with --closest-seed.\n");
         config_free(&cfg);
         return 1;
     }
@@ -1687,9 +1690,9 @@ int main(int argc, char **argv)
         int load_rc = VALIDATE_OK;
         if (historical_csv_from_cli)
         {
-            load_rc = analytics_load_historical_csv(historical_csv, historical_draws,
-                                                    ANALYTICS_MAX_DRAWS, &draw_count,
-                                                    &selected->info);
+            load_rc =
+                analytics_load_historical_csv(historical_csv, historical_draws, ANALYTICS_MAX_DRAWS,
+                                              &draw_count, &selected->info);
         }
         else
         {
@@ -1739,8 +1742,9 @@ int main(int argc, char **argv)
 
         if (closest_seed_threads != 1)
         {
-            log_warn("--threads=%d is currently reserved; running deterministic single-thread search.",
-                     closest_seed_threads);
+            log_warn(
+                "--threads=%d is currently reserved; running deterministic single-thread search.",
+                closest_seed_threads);
         }
         if (closest_seed_timeout_ms > 0)
         {
