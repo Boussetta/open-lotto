@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # Simulation Analytics Performance Baseline
 
 This document tracks the baseline budget for simulation analytics in v0.4.0.

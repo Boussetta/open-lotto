@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # Simulation Analytics Output Schema
 
 The simulation analytics output schema is versioned and starts at:

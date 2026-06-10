@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Wissem Boussetta
+SPDX-License-Identifier: MIT
+-->
+
 # Simulation Analytics Metric Catalog (v0.4.0)
 
 This document defines the simulation analytics metrics included in milestone `v0.4.0`.
