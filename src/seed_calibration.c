@@ -315,7 +315,8 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
     out->top_candidate_count = kept;
     out->evaluated_seeds = evals;
     out->best = out->top_candidates[0];
-    out->score_gap = (kept >= 2) ? (out->top_candidates[1].total_score - out->best.total_score) : 0.0;
+    out->score_gap =
+        (kept >= 2) ? (out->top_candidates[1].total_score - out->best.total_score) : 0.0;
     out->status = SEED_CALIBRATION_OK;
     return out->status;
 }
