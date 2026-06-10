@@ -427,6 +427,23 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
+    add_executable(test_simulation_analytics_property
+        tests/test_simulation_analytics_property.c
+        src/combogen.c
+        src/random_seed.c
+        src/simulation_analytics_core.c
+        src/simulation_analytics_advanced.c
+        src/log.c
+    )
+    target_link_libraries(test_simulation_analytics_property PRIVATE m)
+
+    add_test(NAME unit_simulation_analytics_property
+        COMMAND $<TARGET_FILE:test_simulation_analytics_property>
+    )
+    set_tests_properties(unit_simulation_analytics_property PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
     # ----------------------------------------------------------------
     # CLI integration tests – success paths
     # ----------------------------------------------------------------
@@ -710,6 +727,13 @@ if(BUILD_TESTING)
     )
     set_tests_properties(cli_simulation_analytics_export PROPERTIES
         PASS_REGULAR_EXPRESSION "simulation analytics export OK"
+    )
+
+    add_test(NAME cli_simulation_analytics_e2e
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_simulation_analytics_e2e.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(cli_simulation_analytics_e2e PROPERTIES
+        PASS_REGULAR_EXPRESSION "simulation analytics e2e deterministic OK"
     )
 
     add_test(NAME cli_verbose_missing_value
