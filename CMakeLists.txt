@@ -445,6 +445,19 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "Tests passed:"
     )
 
+    add_executable(test_seed_calibration
+        tests/test_seed_calibration.c
+        src/seed_calibration.c
+    )
+    target_link_libraries(test_seed_calibration PRIVATE m)
+
+    add_test(NAME unit_seed_calibration
+        COMMAND $<TARGET_FILE:test_seed_calibration>
+    )
+    set_tests_properties(unit_seed_calibration PROPERTIES
+        PASS_REGULAR_EXPRESSION "Tests passed:"
+    )
+
     # ----------------------------------------------------------------
     # CLI integration tests – success paths
     # ----------------------------------------------------------------
