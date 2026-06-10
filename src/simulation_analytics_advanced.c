@@ -116,8 +116,7 @@ int simulation_analytics_advanced_compute(const LotteryResult *draws, int draw_c
     {
         all[all_count].number = n;
         all[all_count].count = counts[n];
-        all[all_count].percentage =
-            (draw_count > 0) ? (100.0 * counts[n] / (double)draw_count) : 0.0;
+        all[all_count].percentage = 100.0 * counts[n] / (double)draw_count;
         all_count++;
     }
 
