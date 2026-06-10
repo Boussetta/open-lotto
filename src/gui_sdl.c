@@ -795,8 +795,7 @@ static Uint32 analytics_gui_timeout_ms(void)
 }
 
 /* Draw horizontal grid lines at 25 / 50 / 75 / 100 % of chart height */
-static void draw_grid(SDL_Renderer *ren, int left, int right, int top, int chart_h,
-                      SDL_Color dim)
+static void draw_grid(SDL_Renderer *ren, int left, int right, int top, int chart_h, SDL_Color dim)
 {
     SDL_SetRenderDrawColor(ren, dim.r, dim.g, dim.b, dim.a);
     for (int q = 1; q <= 4; q++)
@@ -817,26 +816,32 @@ static float flerpf(float a, float b, float t)
 static void draw_tooltip(SDL_Renderer *ren, TTF_Font *font, const char *line1, const char *line2,
                          int tx, int ty, int win_w, int win_h)
 {
-    if (!font) return;
+    if (!font)
+        return;
 
     /* Measure both lines */
     int w1 = 0, h1 = 0, w2 = 0, h2 = 0;
     TTF_SizeText(font, line1, &w1, &h1);
-    if (line2 && line2[0]) TTF_SizeText(font, line2, &w2, &h2);
+    if (line2 && line2[0])
+        TTF_SizeText(font, line2, &w2, &h2);
 
-    int pad    = 8;
-    int box_w  = (w1 > w2 ? w1 : w2) + pad * 2;
-    int box_h  = h1 + (line2 && line2[0] ? h2 + 4 : 0) + pad * 2;
+    int pad = 8;
+    int box_w = (w1 > w2 ? w1 : w2) + pad * 2;
+    int box_h = h1 + (line2 && line2[0] ? h2 + 4 : 0) + pad * 2;
 
     /* Offset from cursor */
     int bx = tx + 14;
     int by = ty - box_h - 6;
 
     /* Clamp to window */
-    if (bx + box_w > win_w - 4) bx = tx - box_w - 6;
-    if (bx < 4)                  bx = 4;
-    if (by < 4)                  by = ty + 16;
-    if (by + box_h > win_h - 4)  by = win_h - box_h - 4;
+    if (bx + box_w > win_w - 4)
+        bx = tx - box_w - 6;
+    if (bx < 4)
+        bx = 4;
+    if (by < 4)
+        by = ty + 16;
+    if (by + box_h > win_h - 4)
+        by = win_h - box_h - 4;
 
     /* Shadow */
     SDL_Rect shadow = {bx + 3, by + 3, box_w, box_h};
@@ -853,8 +858,8 @@ static void draw_tooltip(SDL_Renderer *ren, TTF_Font *font, const char *line1, c
     SDL_RenderDrawRect(ren, &bg);
 
     SDL_Color white = {240, 244, 255, 255};
-    SDL_Color gold  = {255, 215, 0,   255};
-    draw_text(ren, font, line1, bx + pad, by + pad,        gold);
+    SDL_Color gold = {255, 215, 0, 255};
+    draw_text(ren, font, line1, bx + pad, by + pad, gold);
     if (line2 && line2[0])
         draw_text(ren, font, line2, bx + pad, by + pad + h1 + 4, white);
 }
@@ -866,24 +871,42 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
         return -1;
-    if (TTF_Init() != 0) { SDL_Quit(); return -1; }
+    if (TTF_Init() != 0)
+    {
+        SDL_Quit();
+        return -1;
+    }
 
-    SDL_Window *win = SDL_CreateWindow(
-        title ? title : "Frequency Distribution", SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
-    if (!win) { TTF_Quit(); SDL_Quit(); return -1; }
+    SDL_Window *win =
+        SDL_CreateWindow(title ? title : "Frequency Distribution", SDL_WINDOWPOS_CENTERED,
+                         SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    if (!win)
+    {
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
 
-    SDL_Renderer *ren = SDL_CreateRenderer(
-        win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!ren) { SDL_DestroyWindow(win); TTF_Quit(); SDL_Quit(); return -1; }
+    SDL_Renderer *ren =
+        SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!ren)
+    {
+        SDL_DestroyWindow(win);
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
 
     char font_path[512];
     snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
-    TTF_Font *font    = TTF_OpenFont(font_path, 16);
+    TTF_Font *font = TTF_OpenFont(font_path, 16);
     TTF_Font *font_sm = TTF_OpenFont(font_path, 13);
     if (!font)
     {
-        SDL_DestroyRenderer(ren); SDL_DestroyWindow(win); TTF_Quit(); SDL_Quit();
+        SDL_DestroyRenderer(ren);
+        SDL_DestroyWindow(win);
+        TTF_Quit();
+        SDL_Quit();
         return -1;
     }
 
@@ -894,54 +917,66 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
 
     const int left = 70, right = WINDOW_WIDTH - 30, top = 60, bottom = WINDOW_HEIGHT - 80;
     const int chart_w = right - left, chart_h = bottom - top;
-    const int points  = report->number_max - report->number_min + 1;
-    const int bar_w   = points > 0 ? (chart_w / points) : 1;
+    const int points = report->number_max - report->number_min + 1;
+    const int bar_w = points > 0 ? (chart_w / points) : 1;
 
-    Uint32 start   = SDL_GetTicks();
+    Uint32 start = SDL_GetTicks();
     Uint32 timeout = analytics_gui_timeout_ms();
-    float  anim    = 0.0f; /* 0→1 bar grow progress */
-    Uint32 last    = start;
-    int    running = 1;
-    int    mouse_x = -1, mouse_y = -1; /* current cursor position */
+    float anim = 0.0f; /* 0→1 bar grow progress */
+    Uint32 last = start;
+    int running = 1;
+    int mouse_x = -1, mouse_y = -1; /* current cursor position */
 
     while (running)
     {
         SDL_Event ev;
         while (SDL_PollEvent(&ev))
         {
-            if (ev.type == SDL_QUIT) running = 0;
-            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE) running = 0;
-            if (ev.type == SDL_MOUSEMOTION) { mouse_x = ev.motion.x; mouse_y = ev.motion.y; }
+            if (ev.type == SDL_QUIT)
+                running = 0;
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE)
+                running = 0;
+            if (ev.type == SDL_MOUSEMOTION)
+            {
+                mouse_x = ev.motion.x;
+                mouse_y = ev.motion.y;
+            }
         }
-        if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
+        if (timeout > 0 && SDL_GetTicks() - start >= timeout)
+            running = 0;
 
         Uint32 now = SDL_GetTicks();
         float dt = (now - last) / 1000.0f;
         last = now;
         anim += dt / 0.45f;
-        if (anim > 1.0f) anim = 1.0f;
+        if (anim > 1.0f)
+            anim = 1.0f;
 
         /* Background */
-        if (dark_mode == 1) SDL_SetRenderDrawColor(ren, 12, 14, 20, 255);
-        else                SDL_SetRenderDrawColor(ren, 242, 244, 250, 255);
+        if (dark_mode == 1)
+            SDL_SetRenderDrawColor(ren, 12, 14, 20, 255);
+        else
+            SDL_SetRenderDrawColor(ren, 242, 244, 250, 255);
         SDL_RenderClear(ren);
 
-        SDL_Color fg    = dark_mode==1 ? (SDL_Color){220,228,245,255} : (SDL_Color){15,20,35,255};
-        SDL_Color dim   = dark_mode==1 ? (SDL_Color){40,50,65,255}    : (SDL_Color){200,210,225,255};
-        SDL_Color bar_c = dark_mode==1 ? (SDL_Color){255,215,0,230}   : (SDL_Color){40,120,230,255};
-        SDL_Color hi_c  = (SDL_Color){255, 255, 120, 255}; /* highlighted bar colour */
+        SDL_Color fg =
+            dark_mode == 1 ? (SDL_Color){220, 228, 245, 255} : (SDL_Color){15, 20, 35, 255};
+        SDL_Color dim =
+            dark_mode == 1 ? (SDL_Color){40, 50, 65, 255} : (SDL_Color){200, 210, 225, 255};
+        SDL_Color bar_c =
+            dark_mode == 1 ? (SDL_Color){255, 215, 0, 230} : (SDL_Color){40, 120, 230, 255};
+        SDL_Color hi_c = (SDL_Color){255, 255, 120, 255}; /* highlighted bar colour */
 
         draw_grid(ren, left, right, top, chart_h, dim);
 
         /* Axes */
         SDL_SetRenderDrawColor(ren, fg.r, fg.g, fg.b, fg.a);
         SDL_RenderDrawLine(ren, left, bottom, right, bottom);
-        SDL_RenderDrawLine(ren, left, top,    left,  bottom);
+        SDL_RenderDrawLine(ren, left, top, left, bottom);
 
         /* Title */
         char header[160];
-        snprintf(header, sizeof(header),
-                 "Frequency Distribution  |  game: %s  |  draws: %d",
+        snprintf(header, sizeof(header), "Frequency Distribution  |  game: %s  |  draws: %d",
                  title ? title : "", report->total_draws);
         draw_text(ren, font, header, left, 18, fg);
 
@@ -949,9 +984,9 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
         if (report->from_date[0] && report->to_date[0])
         {
             char date_str[128];
-            snprintf(date_str, sizeof(date_str), "Period: %s to %s",
-                     report->from_date, report->to_date);
-            draw_text(ren, font_sm ? font_sm : font, date_str, left, 38, 
+            snprintf(date_str, sizeof(date_str), "Period: %s to %s", report->from_date,
+                     report->to_date);
+            draw_text(ren, font_sm ? font_sm : font, date_str, left, 38,
                       (SDL_Color){fg.r, fg.g, fg.b, 200});
         }
 
@@ -973,11 +1008,11 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
         int tooltip_number = -1;
         for (int i = 0; i < points; i++)
         {
-            int  number = report->number_min + i;
-            int  full_h = (report->counts[number] * chart_h) / max_count;
-            int  height = (int)flerpf(0.0f, (float)full_h, anim);
-            int  x = left + i * bar_w + 1;
-            int  bw = bar_w > 3 ? bar_w - 2 : 1;
+            int number = report->number_min + i;
+            int full_h = (report->counts[number] * chart_h) / max_count;
+            int height = (int)flerpf(0.0f, (float)full_h, anim);
+            int x = left + i * bar_w + 1;
+            int bw = bar_w > 3 ? bar_w - 2 : 1;
 
             int is_hovered = (i == hovered_bar);
 
@@ -986,7 +1021,7 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
             int scaled_h = height;
             int scaled_x = x;
             int scaled_y = bottom - height;
-            
+
             if (is_hovered && height > 0)
             {
                 /* Scale bar 20% wider and 10% taller, keeping it centered */
@@ -994,7 +1029,7 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
                 scaled_h = (int)(height * 1.10f);
                 scaled_x = x - (scaled_w - bw) / 2;
                 scaled_y = bottom - scaled_h;
-                
+
                 /* Glow effect: semi-transparent yellow rings */
                 SDL_SetRenderDrawColor(ren, 255, 255, 120, 80);
                 SDL_Rect glow = {scaled_x - 2, scaled_y - 2, scaled_w + 4, scaled_h + 4};
@@ -1015,8 +1050,8 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
 
             if (is_hovered)
             {
-                tooltip_x      = scaled_x + scaled_w / 2;
-                tooltip_y      = scaled_y;
+                tooltip_x = scaled_x + scaled_w / 2;
+                tooltip_y = scaled_y;
                 tooltip_number = number;
             }
 
@@ -1031,21 +1066,22 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
         /* Tooltip */
         if (tooltip_number >= 0 && font_sm && anim >= 1.0f)
         {
-            int   count = report->counts[tooltip_number];
-            double pct  = report->total_draws > 0
-                          ? (100.0 * count) / (double)report->total_draws : 0.0;
-            char  line1[32], line2[48];
+            int count = report->counts[tooltip_number];
+            double pct =
+                report->total_draws > 0 ? (100.0 * count) / (double)report->total_draws : 0.0;
+            char line1[32], line2[48];
             snprintf(line1, sizeof(line1), "Ball %d", tooltip_number);
             snprintf(line2, sizeof(line2), "%d draws  (%.1f%%)", count, pct);
-            draw_tooltip(ren, font_sm, line1, line2,
-                         tooltip_x, tooltip_y, WINDOW_WIDTH, WINDOW_HEIGHT);
+            draw_tooltip(ren, font_sm, line1, line2, tooltip_x, tooltip_y, WINDOW_WIDTH,
+                         WINDOW_HEIGHT);
         }
 
         SDL_RenderPresent(ren);
         SDL_Delay(16);
     }
 
-    if (font_sm) TTF_CloseFont(font_sm);
+    if (font_sm)
+        TTF_CloseFont(font_sm);
     TTF_CloseFont(font);
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);
@@ -1056,24 +1092,48 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
 
 int gui_render_barometer_2d(const char *title, const BarometerReport *report, int dark_mode)
 {
-    if (!report) return -1;
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) return -1;
-    if (TTF_Init() != 0) { SDL_Quit(); return -1; }
+    if (!report)
+        return -1;
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
+        return -1;
+    if (TTF_Init() != 0)
+    {
+        SDL_Quit();
+        return -1;
+    }
 
-    SDL_Window *win = SDL_CreateWindow(
-        title ? title : "Barometer — Overdue Factor", SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
-    if (!win) { TTF_Quit(); SDL_Quit(); return -1; }
+    SDL_Window *win =
+        SDL_CreateWindow(title ? title : "Barometer — Overdue Factor", SDL_WINDOWPOS_CENTERED,
+                         SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    if (!win)
+    {
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
 
-    SDL_Renderer *ren = SDL_CreateRenderer(
-        win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!ren) { SDL_DestroyWindow(win); TTF_Quit(); SDL_Quit(); return -1; }
+    SDL_Renderer *ren =
+        SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!ren)
+    {
+        SDL_DestroyWindow(win);
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
 
     char font_path[512];
     snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
-    TTF_Font *font    = TTF_OpenFont(font_path, 16);
+    TTF_Font *font = TTF_OpenFont(font_path, 16);
     TTF_Font *font_sm = TTF_OpenFont(font_path, 13);
-    if (!font) { SDL_DestroyRenderer(ren); SDL_DestroyWindow(win); TTF_Quit(); SDL_Quit(); return -1; }
+    if (!font)
+    {
+        SDL_DestroyRenderer(ren);
+        SDL_DestroyWindow(win);
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
 
     double max_factor = 0.01;
     for (int n = report->number_min; n <= report->number_max; n++)
@@ -1082,49 +1142,62 @@ int gui_render_barometer_2d(const char *title, const BarometerReport *report, in
 
     const int left = 70, right = WINDOW_WIDTH - 30, top = 60, bottom = WINDOW_HEIGHT - 80;
     const int chart_w = right - left, chart_h = bottom - top;
-    const int points  = report->number_max - report->number_min + 1;
-    const int bar_w   = points > 0 ? (chart_w / points) : 1;
+    const int points = report->number_max - report->number_min + 1;
+    const int bar_w = points > 0 ? (chart_w / points) : 1;
 
     /* reference line = expected interval (factor = 1.0) */
     int ref_y = bottom - (int)(1.0 / max_factor * chart_h);
 
-    Uint32 start  = SDL_GetTicks();
+    Uint32 start = SDL_GetTicks();
     Uint32 timeout = analytics_gui_timeout_ms();
-    float  anim    = 0.0f;
-    Uint32 last     = start;
-    int    running  = 1;
-    int    mouse_x  = -1, mouse_y = -1;
+    float anim = 0.0f;
+    Uint32 last = start;
+    int running = 1;
+    int mouse_x = -1, mouse_y = -1;
 
     while (running)
     {
         SDL_Event ev;
         while (SDL_PollEvent(&ev))
         {
-            if (ev.type == SDL_QUIT) running = 0;
-            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE) running = 0;
-            if (ev.type == SDL_MOUSEMOTION) { mouse_x = ev.motion.x; mouse_y = ev.motion.y; }
+            if (ev.type == SDL_QUIT)
+                running = 0;
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE)
+                running = 0;
+            if (ev.type == SDL_MOUSEMOTION)
+            {
+                mouse_x = ev.motion.x;
+                mouse_y = ev.motion.y;
+            }
         }
-        if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
+        if (timeout > 0 && SDL_GetTicks() - start >= timeout)
+            running = 0;
 
         Uint32 now = SDL_GetTicks();
         anim += (now - last) / 1000.0f / 0.45f;
         last = now;
-        if (anim > 1.0f) anim = 1.0f;
+        if (anim > 1.0f)
+            anim = 1.0f;
 
-        if (dark_mode == 1) SDL_SetRenderDrawColor(ren, 12, 14, 20, 255);
-        else                SDL_SetRenderDrawColor(ren, 242, 244, 250, 255);
+        if (dark_mode == 1)
+            SDL_SetRenderDrawColor(ren, 12, 14, 20, 255);
+        else
+            SDL_SetRenderDrawColor(ren, 242, 244, 250, 255);
         SDL_RenderClear(ren);
 
-        SDL_Color fg    = dark_mode==1 ? (SDL_Color){220,228,245,255} : (SDL_Color){15,20,35,255};
-        SDL_Color dim   = dark_mode==1 ? (SDL_Color){40,50,65,255}    : (SDL_Color){200,210,225,255};
-        SDL_Color bar_c = dark_mode==1 ? (SDL_Color){255,145,50,230}  : (SDL_Color){210,80,30,255};
-        SDL_Color hi_c  = (SDL_Color){255, 255, 120, 255};
+        SDL_Color fg =
+            dark_mode == 1 ? (SDL_Color){220, 228, 245, 255} : (SDL_Color){15, 20, 35, 255};
+        SDL_Color dim =
+            dark_mode == 1 ? (SDL_Color){40, 50, 65, 255} : (SDL_Color){200, 210, 225, 255};
+        SDL_Color bar_c =
+            dark_mode == 1 ? (SDL_Color){255, 145, 50, 230} : (SDL_Color){210, 80, 30, 255};
+        SDL_Color hi_c = (SDL_Color){255, 255, 120, 255};
 
         draw_grid(ren, left, right, top, chart_h, dim);
 
         SDL_SetRenderDrawColor(ren, fg.r, fg.g, fg.b, fg.a);
         SDL_RenderDrawLine(ren, left, bottom, right, bottom);
-        SDL_RenderDrawLine(ren, left, top,    left,  bottom);
+        SDL_RenderDrawLine(ren, left, top, left, bottom);
 
         if (ref_y >= top && ref_y <= bottom)
         {
@@ -1136,18 +1209,17 @@ int gui_render_barometer_2d(const char *title, const BarometerReport *report, in
         }
 
         char header[160];
-        snprintf(header, sizeof(header),
-                 "Barometer — Overdue Factor  |  game: %s  |  draws: %d",
+        snprintf(header, sizeof(header), "Barometer — Overdue Factor  |  game: %s  |  draws: %d",
                  title ? title : "", report->total_draws);
         draw_text(ren, font, header, left, 18, fg);
-        
+
         /* Date range */
         if (report->from_date[0] && report->to_date[0])
         {
             char date_str[128];
-            snprintf(date_str, sizeof(date_str), "Period: %s to %s",
-                     report->from_date, report->to_date);
-            draw_text(ren, font_sm ? font_sm : font, date_str, left, 38, 
+            snprintf(date_str, sizeof(date_str), "Period: %s to %s", report->from_date,
+                     report->to_date);
+            draw_text(ren, font_sm ? font_sm : font, date_str, left, 38,
                       (SDL_Color){fg.r, fg.g, fg.b, 200});
         }
 
@@ -1160,16 +1232,17 @@ int gui_render_barometer_2d(const char *title, const BarometerReport *report, in
         if (mouse_x >= left && mouse_x < right && mouse_y >= top && mouse_y <= bottom)
         {
             int idx = (mouse_x - left) / (bar_w > 0 ? bar_w : 1);
-            if (idx >= 0 && idx < points) hovered_bar = idx;
+            if (idx >= 0 && idx < points)
+                hovered_bar = idx;
         }
 
         int tooltip_x = -1, tooltip_y = -1, tooltip_number = -1;
         for (int i = 0; i < points; i++)
         {
-            int number  = report->number_min + i;
-            int full_h  = (int)((report->factors[number] / max_factor) * chart_h);
-            int height  = (int)flerpf(0.0f, (float)full_h, anim);
-            int x  = left + i * bar_w + 1;
+            int number = report->number_min + i;
+            int full_h = (int)((report->factors[number] / max_factor) * chart_h);
+            int height = (int)flerpf(0.0f, (float)full_h, anim);
+            int x = left + i * bar_w + 1;
             int bw = bar_w > 3 ? bar_w - 2 : 1;
             int is_hovered = (i == hovered_bar);
 
@@ -1178,14 +1251,14 @@ int gui_render_barometer_2d(const char *title, const BarometerReport *report, in
             int scaled_h = height;
             int scaled_x = x;
             int scaled_y = bottom - height;
-            
+
             if (is_hovered && height > 0)
             {
                 scaled_w = (int)(bw * 1.20f);
                 scaled_h = (int)(height * 1.10f);
                 scaled_x = x - (scaled_w - bw) / 2;
                 scaled_y = bottom - scaled_h;
-                
+
                 SDL_SetRenderDrawColor(ren, 255, 200, 80, 100);
                 SDL_Rect glow = {scaled_x - 2, scaled_y - 2, scaled_w + 4, scaled_h + 4};
                 SDL_RenderDrawRect(ren, &glow);
@@ -1203,7 +1276,8 @@ int gui_render_barometer_2d(const char *title, const BarometerReport *report, in
 
             if (is_hovered)
             {
-                tooltip_x = scaled_x + scaled_w / 2; tooltip_y = scaled_y;
+                tooltip_x = scaled_x + scaled_w / 2;
+                tooltip_y = scaled_y;
                 tooltip_number = number;
             }
 
@@ -1221,15 +1295,16 @@ int gui_render_barometer_2d(const char *title, const BarometerReport *report, in
             snprintf(line1, sizeof(line1), "Ball %d", tooltip_number);
             snprintf(line2, sizeof(line2), "factor %.3f  |  hits %d",
                      report->factors[tooltip_number], report->hit_counts[tooltip_number]);
-            draw_tooltip(ren, font_sm, line1, line2,
-                         tooltip_x, tooltip_y, WINDOW_WIDTH, WINDOW_HEIGHT);
+            draw_tooltip(ren, font_sm, line1, line2, tooltip_x, tooltip_y, WINDOW_WIDTH,
+                         WINDOW_HEIGHT);
         }
 
         SDL_RenderPresent(ren);
         SDL_Delay(16);
     }
 
-    if (font_sm) TTF_CloseFont(font_sm);
+    if (font_sm)
+        TTF_CloseFont(font_sm);
     TTF_CloseFont(font);
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);
@@ -1240,88 +1315,125 @@ int gui_render_barometer_2d(const char *title, const BarometerReport *report, in
 
 int gui_render_hot_cold_2d(const char *title, const HotColdReport *report, int dark_mode)
 {
-    if (!report) return -1;
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) return -1;
-    if (TTF_Init() != 0) { SDL_Quit(); return -1; }
+    if (!report)
+        return -1;
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
+        return -1;
+    if (TTF_Init() != 0)
+    {
+        SDL_Quit();
+        return -1;
+    }
 
-    SDL_Window *win = SDL_CreateWindow(
-        title ? title : "Hot / Cold Numbers", SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
-    if (!win) { TTF_Quit(); SDL_Quit(); return -1; }
+    SDL_Window *win =
+        SDL_CreateWindow(title ? title : "Hot / Cold Numbers", SDL_WINDOWPOS_CENTERED,
+                         SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    if (!win)
+    {
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
 
-    SDL_Renderer *ren = SDL_CreateRenderer(
-        win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!ren) { SDL_DestroyWindow(win); TTF_Quit(); SDL_Quit(); return -1; }
+    SDL_Renderer *ren =
+        SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!ren)
+    {
+        SDL_DestroyWindow(win);
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
 
     char font_path[512];
     snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
-    TTF_Font *font    = TTF_OpenFont(font_path, 16);
+    TTF_Font *font = TTF_OpenFont(font_path, 16);
     TTF_Font *font_sm = TTF_OpenFont(font_path, 13);
-    if (!font) { SDL_DestroyRenderer(ren); SDL_DestroyWindow(win); TTF_Quit(); SDL_Quit(); return -1; }
+    if (!font)
+    {
+        SDL_DestroyRenderer(ren);
+        SDL_DestroyWindow(win);
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
 
     int max_count = 1;
     for (int i = 0; i < report->top_n; i++)
     {
-        if (report->hot[i].count  > max_count) max_count = report->hot[i].count;
-        if (report->cold[i].count > max_count) max_count = report->cold[i].count;
+        if (report->hot[i].count > max_count)
+            max_count = report->hot[i].count;
+        if (report->cold[i].count > max_count)
+            max_count = report->cold[i].count;
     }
 
     const int left = 80, right = WINDOW_WIDTH - 40, top = 70, bottom = WINDOW_HEIGHT - 70;
     const int chart_w = right - left, chart_h = bottom - top;
-    const int groups  = report->top_n;
+    const int groups = report->top_n;
     const int group_w = groups > 0 ? chart_w / groups : 1;
 
-    Uint32 start   = SDL_GetTicks();
-    Uint32 timeout  = analytics_gui_timeout_ms();
-    float  anim     = 0.0f;
-    Uint32 last     = start;
-    int    running  = 1;
-    int    mouse_x  = -1, mouse_y = -1;
+    Uint32 start = SDL_GetTicks();
+    Uint32 timeout = analytics_gui_timeout_ms();
+    float anim = 0.0f;
+    Uint32 last = start;
+    int running = 1;
+    int mouse_x = -1, mouse_y = -1;
 
     while (running)
     {
         SDL_Event ev;
         while (SDL_PollEvent(&ev))
         {
-            if (ev.type == SDL_QUIT) running = 0;
-            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE) running = 0;
-            if (ev.type == SDL_MOUSEMOTION) { mouse_x = ev.motion.x; mouse_y = ev.motion.y; }
+            if (ev.type == SDL_QUIT)
+                running = 0;
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE)
+                running = 0;
+            if (ev.type == SDL_MOUSEMOTION)
+            {
+                mouse_x = ev.motion.x;
+                mouse_y = ev.motion.y;
+            }
         }
-        if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
+        if (timeout > 0 && SDL_GetTicks() - start >= timeout)
+            running = 0;
 
         Uint32 now = SDL_GetTicks();
         anim += (now - last) / 1000.0f / 0.45f;
         last = now;
-        if (anim > 1.0f) anim = 1.0f;
+        if (anim > 1.0f)
+            anim = 1.0f;
 
-        if (dark_mode == 1) SDL_SetRenderDrawColor(ren, 12, 14, 20, 255);
-        else                SDL_SetRenderDrawColor(ren, 242, 244, 250, 255);
+        if (dark_mode == 1)
+            SDL_SetRenderDrawColor(ren, 12, 14, 20, 255);
+        else
+            SDL_SetRenderDrawColor(ren, 242, 244, 250, 255);
         SDL_RenderClear(ren);
 
-        SDL_Color fg     = dark_mode==1 ? (SDL_Color){220,228,245,255} : (SDL_Color){15,20,35,255};
-        SDL_Color dim    = dark_mode==1 ? (SDL_Color){40,50,65,255}    : (SDL_Color){200,210,225,255};
-        SDL_Color hot_c  = (SDL_Color){230, 75,  60, 230};
-        SDL_Color cold_c = (SDL_Color){ 60,120, 235, 230};
+        SDL_Color fg =
+            dark_mode == 1 ? (SDL_Color){220, 228, 245, 255} : (SDL_Color){15, 20, 35, 255};
+        SDL_Color dim =
+            dark_mode == 1 ? (SDL_Color){40, 50, 65, 255} : (SDL_Color){200, 210, 225, 255};
+        SDL_Color hot_c = (SDL_Color){230, 75, 60, 230};
+        SDL_Color cold_c = (SDL_Color){60, 120, 235, 230};
 
         draw_grid(ren, left, right, top, chart_h, dim);
 
         SDL_SetRenderDrawColor(ren, fg.r, fg.g, fg.b, fg.a);
         SDL_RenderDrawLine(ren, left, bottom, right, bottom);
-        SDL_RenderDrawLine(ren, left, top,    left,  bottom);
+        SDL_RenderDrawLine(ren, left, top, left, bottom);
 
         char header[160];
-        snprintf(header, sizeof(header),
-                 "Hot / Cold  |  game: %s  |  draws: %d  |  top %d",
+        snprintf(header, sizeof(header), "Hot / Cold  |  game: %s  |  draws: %d  |  top %d",
                  title ? title : "", report->total_draws, report->top_n);
         draw_text(ren, font, header, left, 18, fg);
-        
+
         /* Date range */
         if (report->from_date[0] && report->to_date[0])
         {
             char date_str[128];
-            snprintf(date_str, sizeof(date_str), "Period: %s to %s",
-                     report->from_date, report->to_date);
-            draw_text(ren, font_sm ? font_sm : font, date_str, left, 38, 
+            snprintf(date_str, sizeof(date_str), "Period: %s to %s", report->from_date,
+                     report->to_date);
+            draw_text(ren, font_sm ? font_sm : font, date_str, left, 38,
                       (SDL_Color){fg.r, fg.g, fg.b, 200});
         }
 
@@ -1334,23 +1446,27 @@ int gui_render_hot_cold_2d(const char *title, const HotColdReport *report, int d
         if (mouse_x >= left && mouse_x < right && mouse_y >= top && mouse_y <= bottom)
         {
             int idx = (mouse_x - left) / (group_w > 0 ? group_w : 1);
-            if (idx >= 0 && idx < groups) hovered_group = idx;
+            if (idx >= 0 && idx < groups)
+                hovered_group = idx;
         }
 
         int tip_x = -1, tip_y = -1, tip_group = -1, tip_is_hot = -1;
         for (int i = 0; i < groups; i++)
         {
-            int x  = left + i * group_w;
+            int x = left + i * group_w;
             int hw = (group_w / 2) - 4;
-            if (hw < 2) hw = 2;
+            if (hw < 2)
+                hw = 2;
 
-            int h_hot  = (int)flerpf(0.0f, (float)(report->hot[i].count  * chart_h / max_count), anim);
-            int h_cold = (int)flerpf(0.0f, (float)(report->cold[i].count * chart_h / max_count), anim);
-            int is_h   = (i == hovered_group);
+            int h_hot =
+                (int)flerpf(0.0f, (float)(report->hot[i].count * chart_h / max_count), anim);
+            int h_cold =
+                (int)flerpf(0.0f, (float)(report->cold[i].count * chart_h / max_count), anim);
+            int is_h = (i == hovered_group);
 
             /* Detect whether cursor is on hot or cold half */
-            int on_hot  = is_h && mouse_x >= x + 2      && mouse_x < x + 2      + hw;
-            int on_cold = is_h && mouse_x >= x + hw + 6  && mouse_x < x + hw + 6 + hw;
+            int on_hot = is_h && mouse_x >= x + 2 && mouse_x < x + 2 + hw;
+            int on_cold = is_h && mouse_x >= x + hw + 6 && mouse_x < x + hw + 6 + hw;
 
             /* Hot bar with hover scaling */
             int hx = x + 2, hw_s = hw, hh_s = h_hot;
@@ -1365,7 +1481,7 @@ int gui_render_hot_cold_2d(const char *title, const HotColdReport *report, int d
                 SDL_Rect ghlow2 = {hx - 1, bottom - hh_s - 1, hw_s + 2, hh_s + 2};
                 SDL_RenderDrawRect(ren, &ghlow2);
             }
-            SDL_Color hc = on_hot ? (SDL_Color){255,200,80,255} : hot_c;
+            SDL_Color hc = on_hot ? (SDL_Color){255, 200, 80, 255} : hot_c;
             SDL_Rect hbar = {hx, bottom - hh_s, hw_s, hh_s};
             SDL_SetRenderDrawColor(ren, hc.r, hc.g, hc.b, hc.a);
             SDL_RenderFillRect(ren, &hbar);
@@ -1386,7 +1502,7 @@ int gui_render_hot_cold_2d(const char *title, const HotColdReport *report, int d
                 SDL_Rect cglow2 = {cx - 1, bottom - ch_s - 1, cw_s + 2, ch_s + 2};
                 SDL_RenderDrawRect(ren, &cglow2);
             }
-            SDL_Color cc = on_cold ? (SDL_Color){140,200,255,255} : cold_c;
+            SDL_Color cc = on_cold ? (SDL_Color){140, 200, 255, 255} : cold_c;
             SDL_Rect cbar = {cx, bottom - ch_s, cw_s, ch_s};
             SDL_SetRenderDrawColor(ren, cc.r, cc.g, cc.b, cc.a);
             SDL_RenderFillRect(ren, &cbar);
@@ -1394,46 +1510,56 @@ int gui_render_hot_cold_2d(const char *title, const HotColdReport *report, int d
             SDL_Rect ccap = {cx, bottom - ch_s, cw_s, 3};
             SDL_RenderFillRect(ren, &ccap);
 
-            if (on_hot)  { tip_x = hx + hw_s/2;  tip_y = bottom - hh_s;  tip_group = i; tip_is_hot = 1; }
-            if (on_cold) { tip_x = cx + cw_s/2;  tip_y = bottom - ch_s;  tip_group = i; tip_is_hot = 0; }
+            if (on_hot)
+            {
+                tip_x = hx + hw_s / 2;
+                tip_y = bottom - hh_s;
+                tip_group = i;
+                tip_is_hot = 1;
+            }
+            if (on_cold)
+            {
+                tip_x = cx + cw_s / 2;
+                tip_y = bottom - ch_s;
+                tip_group = i;
+                tip_is_hot = 0;
+            }
 
             /* Number labels */
             char hot_lbl[8], cold_lbl[8];
-            snprintf(hot_lbl,  sizeof(hot_lbl),  "%d", report->hot[i].number);
+            snprintf(hot_lbl, sizeof(hot_lbl), "%d", report->hot[i].number);
             snprintf(cold_lbl, sizeof(cold_lbl), "%d", report->cold[i].number);
-            draw_text(ren, font_sm ? font_sm : font, hot_lbl,  x + 2,      bottom + 5, hc);
+            draw_text(ren, font_sm ? font_sm : font, hot_lbl, x + 2, bottom + 5, hc);
             draw_text(ren, font_sm ? font_sm : font, cold_lbl, x + hw + 6, bottom + 5, cc);
         }
 
         if (tip_group >= 0 && font_sm && anim >= 1.0f)
         {
-            const HotColdEntry *e = tip_is_hot ? &report->hot[tip_group]
-                                               : &report->cold[tip_group];
+            const HotColdEntry *e = tip_is_hot ? &report->hot[tip_group] : &report->cold[tip_group];
             char line1[40], line2[48];
-            snprintf(line1, sizeof(line1), "Ball %d  (%s rank %d)",
-                     e->number, tip_is_hot ? "HOT" : "COLD", tip_group + 1);
-            snprintf(line2, sizeof(line2), "%d draws  (%.1f%%)",
-                     e->count, e->percentage);
-            draw_tooltip(ren, font_sm, line1, line2,
-                         tip_x, tip_y, WINDOW_WIDTH, WINDOW_HEIGHT);
+            snprintf(line1, sizeof(line1), "Ball %d  (%s rank %d)", e->number,
+                     tip_is_hot ? "HOT" : "COLD", tip_group + 1);
+            snprintf(line2, sizeof(line2), "%d draws  (%.1f%%)", e->count, e->percentage);
+            draw_tooltip(ren, font_sm, line1, line2, tip_x, tip_y, WINDOW_WIDTH, WINDOW_HEIGHT);
         }
 
         /* Legend box */
         int lx = right - 90, ly = top + 6;
         SDL_Rect box = {lx - 8, ly - 4, 88, 46};
-        SDL_SetRenderDrawColor(ren,
-            dark_mode==1 ? 30 : 210, dark_mode==1 ? 34 : 215, dark_mode==1 ? 46 : 228, 200);
+        SDL_SetRenderDrawColor(ren, dark_mode == 1 ? 30 : 210, dark_mode == 1 ? 34 : 215,
+                               dark_mode == 1 ? 46 : 228, 200);
         SDL_RenderFillRect(ren, &box);
         SDL_SetRenderDrawColor(ren, fg.r, fg.g, fg.b, 255);
         SDL_RenderDrawRect(ren, &box);
-        draw_text(ren, font_sm ? font_sm : font, "HOT",  lx, ly,      hot_c);
+        draw_text(ren, font_sm ? font_sm : font, "HOT", lx, ly, hot_c);
         draw_text(ren, font_sm ? font_sm : font, "COLD", lx, ly + 22, cold_c);
 
         SDL_RenderPresent(ren);
         SDL_Delay(16);
     }
 
-    if (font_sm) TTF_CloseFont(font_sm);
+    if (font_sm)
+        TTF_CloseFont(font_sm);
     TTF_CloseFont(font);
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);

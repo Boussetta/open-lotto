@@ -60,8 +60,8 @@ int analytics_load_historical_csv(const char *csv_path, HistoricalDraw *out_draw
                                   int *out_count, const LotteryInfo *rules);
 
 int analytics_load_historical_db_snapshot(const char *game_name, const char *db_root,
-                                          HistoricalDraw *out_draws, int max_draws,
-                                          int *out_count, const LotteryInfo *rules);
+                                          HistoricalDraw *out_draws, int max_draws, int *out_count,
+                                          const LotteryInfo *rules);
 
 int analytics_filter_period(const HistoricalDraw *draws, int draw_count, const char *from_date,
                             const char *to_date, HistoricalDraw *out_filtered,
