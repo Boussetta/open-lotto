@@ -176,6 +176,7 @@ set(OPEN_LOTTO_SOURCES
     src/analytics.c
     src/historical_db.c
     src/main.c
+    src/seed_calibration.c
     src/export.c
     src/combogen.c
     src/config.c
