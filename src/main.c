@@ -1363,9 +1363,9 @@ int main(int argc, char **argv)
                 return 1;
             }
 
-            strncpy(report.from_date, period_from, sizeof(report.from_date) - 1);
+            snprintf(report.from_date, sizeof(report.from_date), "%s", period_from);
             report.from_date[sizeof(report.from_date) - 1] = '\0';
-            strncpy(report.to_date, period_to, sizeof(report.to_date) - 1);
+            snprintf(report.to_date, sizeof(report.to_date), "%s", period_to);
             report.to_date[sizeof(report.to_date) - 1] = '\0';
 
             if (gui && strcmp(gui_mode, "3D") == 0)
@@ -1417,9 +1417,9 @@ int main(int argc, char **argv)
                 return 1;
             }
 
-            strncpy(report.from_date, period_from, sizeof(report.from_date) - 1);
+            snprintf(report.from_date, sizeof(report.from_date), "%s", period_from);
             report.from_date[sizeof(report.from_date) - 1] = '\0';
-            strncpy(report.to_date, period_to, sizeof(report.to_date) - 1);
+            snprintf(report.to_date, sizeof(report.to_date), "%s", period_to);
             report.to_date[sizeof(report.to_date) - 1] = '\0';
 
             if (gui && strcmp(gui_mode, "3D") == 0)
@@ -1471,9 +1471,9 @@ int main(int argc, char **argv)
                 return 1;
             }
 
-            strncpy(report.from_date, period_from, sizeof(report.from_date) - 1);
+            snprintf(report.from_date, sizeof(report.from_date), "%s", period_from);
             report.from_date[sizeof(report.from_date) - 1] = '\0';
-            strncpy(report.to_date, period_to, sizeof(report.to_date) - 1);
+            snprintf(report.to_date, sizeof(report.to_date), "%s", period_to);
             report.to_date[sizeof(report.to_date) - 1] = '\0';
 
             if (gui && strcmp(gui_mode, "3D") == 0)

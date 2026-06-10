@@ -522,10 +522,10 @@ int analytics_compute_frequency(const HistoricalDraw *draws, int draw_count, int
     /* Set date range from first and last draw */
     if (draw_count > 0)
     {
-        strncpy(out_report->from_date, draws[0].draw_date, sizeof(out_report->from_date) - 1);
+        snprintf(out_report->from_date, sizeof(out_report->from_date), "%s", draws[0].draw_date);
         out_report->from_date[sizeof(out_report->from_date) - 1] = '\0';
-        strncpy(out_report->to_date, draws[draw_count - 1].draw_date,
-                sizeof(out_report->to_date) - 1);
+        snprintf(out_report->to_date, sizeof(out_report->to_date), "%s",
+                 draws[draw_count - 1].draw_date);
         out_report->to_date[sizeof(out_report->to_date) - 1] = '\0';
     }
 
@@ -560,10 +560,10 @@ int analytics_compute_barometer(const HistoricalDraw *draws, int draw_count, int
     /* Set date range from first and last draw */
     if (draw_count > 0)
     {
-        strncpy(out_report->from_date, draws[0].draw_date, sizeof(out_report->from_date) - 1);
+        snprintf(out_report->from_date, sizeof(out_report->from_date), "%s", draws[0].draw_date);
         out_report->from_date[sizeof(out_report->from_date) - 1] = '\0';
-        strncpy(out_report->to_date, draws[draw_count - 1].draw_date,
-                sizeof(out_report->to_date) - 1);
+        snprintf(out_report->to_date, sizeof(out_report->to_date), "%s",
+                 draws[draw_count - 1].draw_date);
         out_report->to_date[sizeof(out_report->to_date) - 1] = '\0';
     }
 
@@ -653,10 +653,10 @@ int analytics_compute_hot_cold(const HistoricalDraw *draws, int draw_count, int 
     /* Set date range from first and last draw */
     if (draw_count > 0)
     {
-        strncpy(out_report->from_date, draws[0].draw_date, sizeof(out_report->from_date) - 1);
+        snprintf(out_report->from_date, sizeof(out_report->from_date), "%s", draws[0].draw_date);
         out_report->from_date[sizeof(out_report->from_date) - 1] = '\0';
-        strncpy(out_report->to_date, draws[draw_count - 1].draw_date,
-                sizeof(out_report->to_date) - 1);
+        snprintf(out_report->to_date, sizeof(out_report->to_date), "%s",
+                 draws[draw_count - 1].draw_date);
         out_report->to_date[sizeof(out_report->to_date) - 1] = '\0';
     }
 
