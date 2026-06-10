@@ -18,6 +18,7 @@ cppcheck \
   --suppress=constVariable \
   --suppress=unreadVariable \
   --suppress=normalCheckLevelMaxBranches \
+  --suppress=checkLevelNormal \
   --suppress=checkersReport \
   --suppress=staticFunction:src/config.c \
   --error-exitcode=1 \

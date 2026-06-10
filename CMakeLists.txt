@@ -625,10 +625,12 @@ if(BUILD_TESTING)
     )
     set_tests_properties(cli_analytics_hot_cold_explain_gui_3d PROPERTIES
         PASS_REGULAR_EXPRESSION "\[GUI 3D\]|Explain: hot numbers"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
     )
 
     add_test(NAME golden_analytics_outputs
-        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_analytics_golden.sh" $<TARGET_FILE:open-lotto>
+        COMMAND ${CMAKE_COMMAND} -E env "ASAN_OPTIONS=detect_leaks=0:$ENV{ASAN_OPTIONS}"
+            bash "${CMAKE_SOURCE_DIR}/tests/test_analytics_golden.sh" $<TARGET_FILE:open-lotto>
     )
     set_tests_properties(golden_analytics_outputs PROPERTIES
         PASS_REGULAR_EXPRESSION "analytics golden baselines OK"

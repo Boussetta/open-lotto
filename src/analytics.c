@@ -165,7 +165,6 @@ static int parse_draw_object(const char *obj, HistoricalDraw *out_draw, const Lo
 {
     const char *date_k = strstr(obj, "\"draw_date\"");
     const char *main_k = strstr(obj, "\"main_numbers\"");
-    const char *extra_k = strstr(obj, "\"extra_numbers\"");
 
     if (!date_k || !main_k)
         return -1;
@@ -205,6 +204,7 @@ static int parse_draw_object(const char *obj, HistoricalDraw *out_draw, const Lo
 
     if (rules && rules->extra_count > 0)
     {
+        const char *extra_k = strstr(obj, "\"extra_numbers\"");
         int extra_count = 0;
         if (!extra_k || parse_json_int_array(extra_k, out_draw->result.extra_numbers,
                                              MAX_EXTRA_NUMBERS, &extra_count) != 0)
