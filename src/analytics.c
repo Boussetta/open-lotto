@@ -634,7 +634,7 @@ int analytics_compute_hot_cold(const HistoricalDraw *draws, int draw_count, int 
         VALIDATE_OK)
         return VALIDATE_ERR_INVALID_FORMAT;
 
-    HotColdEntry all[128];
+    HotColdEntry all[128] = {{0}};
     int all_count = 0;
     int denominator = draw_count > 0 ? draw_count : 1;
 

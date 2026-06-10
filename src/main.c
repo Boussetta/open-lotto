@@ -1252,16 +1252,16 @@ int main(int argc, char **argv)
 
     if (analytics_mode_count > 0)
     {
-        HistoricalDraw *draws = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
+        HistoricalDraw *historical_draws = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
         HistoricalDraw *filtered = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
         AnalyticsDrawRecord *dq_records = calloc(ANALYTICS_MAX_DRAWS, sizeof(AnalyticsDrawRecord));
         int draw_count = 0;
         int filtered_count = 0;
 
-        if (!draws || !filtered || !dq_records)
+        if (!historical_draws || !filtered || !dq_records)
         {
             fprintf(stderr, "Error: Out of memory while preparing analytics buffers.\n");
-            free(draws);
+            free(historical_draws);
             free(filtered);
             free(dq_records);
             registry_destroy(registry);
@@ -1272,18 +1272,20 @@ int main(int argc, char **argv)
         int load_rc = VALIDATE_OK;
         if (historical_csv_from_cli)
         {
-            load_rc = analytics_load_historical_csv(historical_csv, draws, ANALYTICS_MAX_DRAWS,
-                                                    &draw_count, &selected->info);
+            load_rc =
+                analytics_load_historical_csv(historical_csv, historical_draws, ANALYTICS_MAX_DRAWS,
+                                              &draw_count, &selected->info);
         }
         else
         {
-            load_rc = analytics_load_historical_db_snapshot(
-                selected->name, NULL, draws, ANALYTICS_MAX_DRAWS, &draw_count, &selected->info);
+            load_rc = analytics_load_historical_db_snapshot(selected->name, NULL, historical_draws,
+                                                            ANALYTICS_MAX_DRAWS, &draw_count,
+                                                            &selected->info);
         }
 
         if (load_rc != VALIDATE_OK)
         {
-            free(draws);
+            free(historical_draws);
             free(filtered);
             free(dq_records);
             registry_destroy(registry);
@@ -1291,10 +1293,10 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        if (analytics_filter_period(draws, draw_count, period_from, period_to, filtered,
+        if (analytics_filter_period(historical_draws, draw_count, period_from, period_to, filtered,
                                     &filtered_count) != VALIDATE_OK)
         {
-            free(draws);
+            free(historical_draws);
             free(filtered);
             free(dq_records);
             registry_destroy(registry);
@@ -1324,7 +1326,7 @@ int main(int argc, char **argv)
                 selected->info.main_min, selected->info.main_max, selected->info.extra_count,
                 selected->info.extra_min, selected->info.extra_max, &dq_report) != VALIDATE_OK)
         {
-            free(draws);
+            free(historical_draws);
             free(filtered);
             free(dq_records);
             registry_destroy(registry);
@@ -1339,7 +1341,7 @@ int main(int argc, char **argv)
         if (analytics_data_quality_has_severe_issues(&dq_report))
         {
             fprintf(stderr, "Error: Severe data integrity issues detected in selected period.\n");
-            free(draws);
+            free(historical_draws);
             free(filtered);
             free(dq_records);
             registry_destroy(registry);
@@ -1353,7 +1355,7 @@ int main(int argc, char **argv)
             if (analytics_compute_frequency(filtered, filtered_count, selected->info.main_min,
                                             selected->info.main_max, &report) != VALIDATE_OK)
             {
-                free(draws);
+                free(historical_draws);
                 free(filtered);
                 free(dq_records);
                 registry_destroy(registry);
@@ -1407,7 +1409,7 @@ int main(int argc, char **argv)
                                             selected->info.main_max, selected->info.main_count,
                                             &report) != VALIDATE_OK)
             {
-                free(draws);
+                free(historical_draws);
                 free(filtered);
                 free(dq_records);
                 registry_destroy(registry);
@@ -1461,7 +1463,7 @@ int main(int argc, char **argv)
                                            selected->info.main_max, analytics_top,
                                            &report) != VALIDATE_OK)
             {
-                free(draws);
+                free(historical_draws);
                 free(filtered);
                 free(dq_records);
                 registry_destroy(registry);
@@ -1508,7 +1510,7 @@ int main(int argc, char **argv)
             }
         }
 
-        free(draws);
+        free(historical_draws);
         free(filtered);
         free(dq_records);
         registry_destroy(registry);
