@@ -2209,11 +2209,21 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
 #else
             int worker_idx = 0;
 #endif
-            log_debug("[historical_db] sync_latest: fetching draw %d/%d (date=%s)", i + 1,
-                      max_fetch, history_dates[i]);
+            /* Serialize the debug log so it never races with progress bar redraws. */
+#ifdef _OPENMP
+#pragma omp critical(historical_db_progress)
+#endif
+            {
+                log_debug("[historical_db] sync_latest: fetching draw %d/%d (date=%s)", i + 1,
+                          max_fetch, history_dates[i]);
+            }
 
             char cache_path[1024];
             char *draw_json = NULL;
+            /* Flag: set to 1 when a resume-cache write fails so we can emit the
+             * warning inside the progress critical section and avoid interleaving. */
+            int cache_write_failed = 0;
+
             if (build_checkpoint_entry_path(checkpoint_dir, history_dates[i], cache_path,
                                             sizeof(cache_path)) == 0)
             {
@@ -2259,11 +2269,7 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
                                                     sizeof(cache_path)) == 0)
                     {
                         if (write_text_file(cache_path, draw_json) != 0)
-                        {
-                            log_warn("[historical_db] sync_latest: failed to persist resume cache "
-                                     "for date=%s",
-                                     history_dates[i]);
-                        }
+                            cache_write_failed = 1;
                     }
                 }
                 else
@@ -2274,10 +2280,16 @@ int historical_db_sync_latest(const char *game_name, const char *db_root,
                 free(draw_json);
             }
 
+            /* All stderr writes (warnings + progress) share one critical section so
+             * they are never interleaved with ANSI cursor-movement sequences. */
 #ifdef _OPENMP
 #pragma omp critical(historical_db_progress)
 #endif
             {
+                if (cache_write_failed)
+                    log_warn("[historical_db] sync_latest: failed to persist resume cache "
+                             "for date=%s",
+                             history_dates[i]);
                 total_bytes += results[i].bytes;
                 completed++;
                 if (worker_idx < g_download_settings.workers)
