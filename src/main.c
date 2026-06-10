@@ -478,6 +478,8 @@ static void print_usage(const char *prog)
                 "  --seed-start VALUE      Start of seed search range (required)\n"
                 "  --seed-end VALUE        End of seed search range (required)\n"
                 "  --max-evals N           Max seed evaluations (default: 100000)\n"
+                    "  --threads N             Worker thread hint (reserved; default: 1)\n"
+                    "  --timeout-ms N          Soft time budget hint in milliseconds\n"
                 "\n"
                 "Closest-Seed Example:\n"
                 "  %s --game \"Lotto 6aus49\" --closest-seed --from 2026-01-01 --to 2026-06-30 --seed-start 0 --seed-end 100000 --format json\n",
@@ -885,6 +887,10 @@ int main(int argc, char **argv)
     int closest_seed_start_set = 0;
     int closest_seed_end_set = 0;
     int closest_seed_max_evals = 100000;
+    int closest_seed_threads = 1;
+    int closest_seed_threads_set = 0;
+    int closest_seed_timeout_ms = 0;
+    int closest_seed_timeout_set = 0;
     const char *sim_historical_csv_output = NULL;
     int analytics_top = 10;
     int analytics_explain = 0;
@@ -1208,6 +1214,46 @@ int main(int argc, char **argv)
                 return 1;
             }
             closest_seed_max_evals = (int)parsed;
+        }
+        else if (strcmp(argv[i], "--threads") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--threads requires a positive integer.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            char *end = NULL;
+            long parsed = strtol(argv[++i], &end, 10);
+            if (!end || *end != '\0' || parsed <= 0 || parsed > INT_MAX)
+            {
+                fprintf(stderr, "Error: --threads must be a positive integer.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            closest_seed_threads = (int)parsed;
+            closest_seed_threads_set = 1;
+        }
+        else if (strcmp(argv[i], "--timeout-ms") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--timeout-ms requires a positive integer.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            char *end = NULL;
+            long parsed = strtol(argv[++i], &end, 10);
+            if (!end || *end != '\0' || parsed <= 0 || parsed > INT_MAX)
+            {
+                fprintf(stderr, "Error: --timeout-ms must be a positive integer.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            closest_seed_timeout_ms = (int)parsed;
+            closest_seed_timeout_set = 1;
         }
         else if (strcmp(argv[i], "--format") == 0)
         {
@@ -1537,6 +1583,12 @@ int main(int argc, char **argv)
             return 1;
         }
     }
+    else if (closest_seed_threads_set || closest_seed_timeout_set)
+    {
+        fprintf(stderr, "Error: --threads and --timeout-ms are supported only with --closest-seed.\n");
+        config_free(&cfg);
+        return 1;
+    }
 
     /* Default GUI mode to 2D if not specified */
     if (!gui_mode)
@@ -1684,6 +1736,17 @@ int main(int argc, char **argv)
         request.weight_rank = 1.0;
         request.draw_for_seed = seed_calibration_draw_callback;
         request.draw_ctx = &draw_ctx;
+
+        if (closest_seed_threads != 1)
+        {
+            log_warn("--threads=%d is currently reserved; running deterministic single-thread search.",
+                     closest_seed_threads);
+        }
+        if (closest_seed_timeout_ms > 0)
+        {
+            log_warn("--timeout-ms=%d is currently reserved; using --max-evals to bound work.",
+                     closest_seed_timeout_ms);
+        }
 
         SeedCalibrationResult result;
         int rc = seed_calibration_find_closest(&request, &result);
