@@ -715,6 +715,13 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "analytics performance budgets OK"
     )
 
+    add_test(NAME perf_simulation_analytics_budget
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_simulation_analytics_perf_budget.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(perf_simulation_analytics_budget PROPERTIES
+        PASS_REGULAR_EXPRESSION "simulation analytics performance budgets OK"
+    )
+
     add_test(NAME schema_simulation_analytics_contract
         COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_simulation_analytics_schema.sh"
     )
