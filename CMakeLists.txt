@@ -185,6 +185,7 @@ set(OPEN_LOTTO_SOURCES
     src/random_seed.c
     src/simulation_analytics_advanced.c
     src/simulation_analytics_core.c
+    src/simulation_analytics_export.c
     src/simulation_analytics_metadata.c
     src/gui_sdl.c
     src/log.c
@@ -702,6 +703,13 @@ if(BUILD_TESTING)
     )
     set_tests_properties(schema_simulation_analytics_contract PROPERTIES
         PASS_REGULAR_EXPRESSION "simulation analytics schema contract OK"
+    )
+
+    add_test(NAME cli_simulation_analytics_export
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_simulation_analytics_export.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(cli_simulation_analytics_export PROPERTIES
+        PASS_REGULAR_EXPRESSION "simulation analytics export OK"
     )
 
     add_test(NAME cli_verbose_missing_value

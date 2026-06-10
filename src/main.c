@@ -17,6 +17,7 @@
 #include "random_seed.h"
 #include "simulation_analytics_advanced.h"
 #include "simulation_analytics_core.h"
+#include "simulation_analytics_export.h"
 #include "simulation_analytics_metadata.h"
 #include "theme.h"
 #include "validate.h"
@@ -1308,12 +1309,6 @@ int main(int argc, char **argv)
             config_free(&cfg);
             return 1;
         }
-        if (export_format)
-        {
-            fprintf(stderr, "Error: --simulation-analytics currently uses --format, not --export.\n");
-            config_free(&cfg);
-            return 1;
-        }
     }
 
     /* Default GUI mode to 2D if not specified */
@@ -1719,12 +1714,35 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        if (strcmp(analytics_format, "json") == 0)
-            print_simulation_analytics_json(&metadata, &core_report, &advanced_report);
-        else if (strcmp(analytics_format, "csv") == 0)
-            print_simulation_analytics_csv(&core_report, &advanced_report);
+        if (export_format)
+        {
+            int export_rc = -1;
+            if (strcmp(export_format, "json") == 0)
+                export_rc = simulation_analytics_export_json_file(export_filename, &metadata,
+                                                                  &core_report, &advanced_report);
+            else if (strcmp(export_format, "csv") == 0)
+                export_rc = simulation_analytics_export_csv_file(export_filename, &metadata,
+                                                                 &core_report, &advanced_report);
+
+            if (export_rc != 0)
+            {
+                free(results);
+                log_error("Simulation analytics export failed");
+                registry_destroy(registry);
+                config_free(&cfg);
+                return 1;
+            }
+            printf("Simulation analytics exported to %s (%s).\n", export_filename, export_format);
+        }
         else
-            print_simulation_analytics_table(&core_report, &advanced_report);
+        {
+            if (strcmp(analytics_format, "json") == 0)
+                print_simulation_analytics_json(&metadata, &core_report, &advanced_report);
+            else if (strcmp(analytics_format, "csv") == 0)
+                print_simulation_analytics_csv(&core_report, &advanced_report);
+            else
+                print_simulation_analytics_table(&core_report, &advanced_report);
+        }
 
         free(results);
         registry_destroy(registry);
