@@ -683,6 +683,13 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "analytics performance budgets OK"
     )
 
+    add_test(NAME schema_simulation_analytics_contract
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_simulation_analytics_schema.sh"
+    )
+    set_tests_properties(schema_simulation_analytics_contract PROPERTIES
+        PASS_REGULAR_EXPRESSION "simulation analytics schema contract OK"
+    )
+
     add_test(NAME cli_verbose_missing_value
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --verbose
     )
