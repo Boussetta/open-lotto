@@ -1,4 +1,6 @@
 build/
+build_sanitizer/
+build-sanitizer/
 .build-sanitizer-local/
 build-tidy/
 .build-coverage/
