@@ -630,6 +630,20 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "\"hot\"|\"cold\""
     )
 
+    add_test(NAME cli_simulation_analytics_table
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --draws 200 --seed 0x1234 --simulation-analytics --format table
+    )
+    set_tests_properties(cli_simulation_analytics_table PROPERTIES
+        PASS_REGULAR_EXPRESSION "Simulation analytics summary|Top Hot Numbers"
+    )
+
+    add_test(NAME cli_simulation_analytics_json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --draws 200 --seed 0x1234 --simulation-analytics --format json
+    )
+    set_tests_properties(cli_simulation_analytics_json PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"schema_version\": \"simulation-analytics/v1\"|\"advanced\""
+    )
+
     add_test(NAME cli_analytics_hot_cold_gui_2d
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-hot-cold --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --top 5 --gui 2D
     )

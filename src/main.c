@@ -15,6 +15,9 @@
 #include "plugin_loader.h"
 #include "plugin_registry.h"
 #include "random_seed.h"
+#include "simulation_analytics_advanced.h"
+#include "simulation_analytics_core.h"
+#include "simulation_analytics_metadata.h"
 #include "theme.h"
 #include "validate.h"
 #include <ctype.h>
@@ -209,6 +212,91 @@ static uint64_t derive_draw_seed(uint64_t base_seed, int draw_index)
     return splitmix64(base_seed ^ (uint64_t)draw_index);
 }
 
+static void print_simulation_analytics_table(const SimulationAnalyticsCoreReport *core,
+                                             const SimulationAnalyticsAdvancedReport *advanced)
+{
+    printf("Simulation analytics summary\n");
+    printf("draws,%d\n", core->draw_count);
+    printf("range,%d-%d\n", core->number_min, core->number_max);
+    printf("total_hits,%d\n", core->total_hits);
+    printf("mean_hits_per_number,%.6f\n", core->mean_hits_per_number);
+    printf("variance_hits_per_number,%.6f\n", core->variance_hits_per_number);
+    printf("entropy_normalized,%.6f\n", advanced->entropy_normalized);
+    printf("\nTop Hot Numbers\n");
+    printf("rank,number,count,percentage\n");
+    for (int i = 0; i < advanced->top_n; i++)
+    {
+        printf("%d,%d,%d,%.6f\n", i + 1, advanced->hot[i].number, advanced->hot[i].count,
+               advanced->hot[i].percentage);
+    }
+    printf("\nTop Cold Numbers\n");
+    printf("rank,number,count,percentage\n");
+    for (int i = 0; i < advanced->top_n; i++)
+    {
+        printf("%d,%d,%d,%.6f\n", i + 1, advanced->cold[i].number, advanced->cold[i].count,
+               advanced->cold[i].percentage);
+    }
+}
+
+static void print_simulation_analytics_json(const SimulationAnalyticsMetadata *metadata,
+                                            const SimulationAnalyticsCoreReport *core,
+                                            const SimulationAnalyticsAdvancedReport *advanced)
+{
+    char metadata_json[768];
+    if (simulation_analytics_metadata_to_json(metadata, metadata_json, sizeof(metadata_json)) != 0)
+    {
+        snprintf(metadata_json, sizeof(metadata_json),
+                 "{\"schema_version\":\"%s\",\"generated_at\":\"1970-01-01T00:00:00Z\","
+                 "\"game\":\"unknown\",\"source\":\"simulation\",\"run_count\":0}",
+                 SIM_ANALYTICS_SCHEMA_VERSION);
+    }
+
+    printf("{\n");
+    printf("  \"schema_version\": \"%s\",\n", SIM_ANALYTICS_SCHEMA_VERSION);
+    printf("  \"metadata\": %s,\n", metadata_json);
+    printf("  \"core\": {\"draw_count\": %d, \"number_min\": %d, \"number_max\": %d, "
+           "\"total_hits\": %d, \"mean_hits_per_number\": %.6f, "
+           "\"variance_hits_per_number\": %.6f},\n",
+           core->draw_count, core->number_min, core->number_max, core->total_hits,
+           core->mean_hits_per_number, core->variance_hits_per_number);
+    printf("  \"advanced\": {\"entropy_normalized\": %.6f, \"hot\": [", advanced->entropy_normalized);
+    for (int i = 0; i < advanced->top_n; i++)
+    {
+        printf("{\"number\":%d,\"count\":%d,\"percentage\":%.6f}%s", advanced->hot[i].number,
+               advanced->hot[i].count, advanced->hot[i].percentage,
+               (i + 1 == advanced->top_n) ? "" : ",");
+    }
+    printf("], \"cold\": [");
+    for (int i = 0; i < advanced->top_n; i++)
+    {
+        printf("{\"number\":%d,\"count\":%d,\"percentage\":%.6f}%s", advanced->cold[i].number,
+               advanced->cold[i].count, advanced->cold[i].percentage,
+               (i + 1 == advanced->top_n) ? "" : ",");
+    }
+    printf("]}\n");
+    printf("}\n");
+}
+
+static void print_simulation_analytics_csv(const SimulationAnalyticsCoreReport *core,
+                                           const SimulationAnalyticsAdvancedReport *advanced)
+{
+    printf("section,key,value,extra\n");
+    printf("core,draw_count,%d,\n", core->draw_count);
+    printf("core,number_min,%d,\n", core->number_min);
+    printf("core,number_max,%d,\n", core->number_max);
+    printf("core,total_hits,%d,\n", core->total_hits);
+    printf("core,mean_hits_per_number,%.6f,\n", core->mean_hits_per_number);
+    printf("core,variance_hits_per_number,%.6f,\n", core->variance_hits_per_number);
+    printf("advanced,entropy_normalized,%.6f,\n", advanced->entropy_normalized);
+    for (int i = 0; i < advanced->top_n; i++)
+    {
+        printf("hot,number,%d,%d|%.6f\n", advanced->hot[i].number, advanced->hot[i].count,
+               advanced->hot[i].percentage);
+        printf("cold,number,%d,%d|%.6f\n", advanced->cold[i].number, advanced->cold[i].count,
+               advanced->cold[i].percentage);
+    }
+}
+
 /* ---------------------------------------------------------
    Usage
    --------------------------------------------------------- */
@@ -240,6 +328,7 @@ static void print_usage(const char *prog)
             "                         Persist a download tuning value in download config\n"
             "  --reload-plugin        Reload the selected plugin from disk before running\n"
             "  --validate-only        Validate configuration without running\n"
+            "  --simulation-analytics  Compute analytics over simulated draws\n"
             "\n"
             "Output Options:\n"
             "  --output FILE     Destination file for --export (required with --export)\n"
@@ -288,6 +377,7 @@ static void print_usage(const char *prog)
             "  %s --game \"Eurojackpot\" --database-gewinnzahlen update\n"
             "  %s --game \"Lotto 6aus49\" --download-url set https://example/api\n"
             "  %s --download-config \"#sym:HISTORICAL_DB_DOWNLOAD_WORKERS_DEFAULT\" set 10\n"
+            "  %s --game \"Lotto 6aus49\" --draws 10000 --simulation-analytics --format json\n"
             "\n"
             "Environment Variables:\n"
             "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n"
@@ -296,7 +386,7 @@ static void print_usage(const char *prog)
             "  OPEN_LOTTO_SOURCES_CONFIG               Override sources config path\n"
             "  OPEN_LOTTO_DOWNLOAD_CONFIG              Override download config path\n",
             prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
-            prog, prog, prog, prog, prog, prog);
+            prog, prog, prog, prog, prog, prog, prog);
 }
 
 static void trim_whitespace(char *s)
@@ -693,6 +783,7 @@ int main(int argc, char **argv)
     int analytics_frequency = 0;
     int analytics_barometer = 0;
     int analytics_hot_cold = 0;
+    int simulation_analytics = 0;
     int analytics_top = 10;
     int analytics_explain = 0;
     const char *analytics_format = "table";
@@ -949,6 +1040,10 @@ int main(int argc, char **argv)
         {
             analytics_hot_cold = 1;
         }
+        else if (strcmp(argv[i], "--simulation-analytics") == 0)
+        {
+            simulation_analytics = 1;
+        }
         else if (strcmp(argv[i], "--format") == 0)
         {
             if (i + 1 >= argc)
@@ -1195,6 +1290,30 @@ int main(int argc, char **argv)
         fprintf(stderr, "Error: --seed is currently supported only in CLI mode.\n");
         config_free(&cfg);
         return 1;
+    }
+
+    if (simulation_analytics)
+    {
+        if (gui || animate)
+        {
+            fprintf(stderr, "Error: --simulation-analytics is CLI-only (no --gui/--animate).\n");
+            config_free(&cfg);
+            return 1;
+        }
+        if (analytics_mode_count > 0)
+        {
+            fprintf(stderr,
+                    "Error: --simulation-analytics cannot be combined with historical analytics "
+                    "modes.\n");
+            config_free(&cfg);
+            return 1;
+        }
+        if (export_format)
+        {
+            fprintf(stderr, "Error: --simulation-analytics currently uses --format, not --export.\n");
+            config_free(&cfg);
+            return 1;
+        }
     }
 
     /* Default GUI mode to 2D if not specified */
@@ -1537,6 +1656,77 @@ int main(int argc, char **argv)
         free(historical_draws);
         free(filtered);
         free(dq_records);
+        registry_destroy(registry);
+        config_free(&cfg);
+        return 0;
+    }
+
+    if (simulation_analytics)
+    {
+        LotteryResult *results = (LotteryResult *)calloc((size_t)draws, sizeof(LotteryResult));
+        SimulationAnalyticsCoreReport core_report;
+        SimulationAnalyticsAdvancedReport advanced_report;
+        SimulationAnalyticsMetadata metadata;
+
+        if (!results)
+        {
+            log_error("Failed to allocate memory for simulation draws");
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        for (int i = 0; i < draws; i++)
+        {
+            if (use_seed)
+                combogen_set_forced_seed(derive_draw_seed(seed_value, i));
+            else
+                combogen_clear_forced_seed();
+
+            selected->draw(&results[i], silent_callback);
+        }
+        combogen_clear_forced_seed();
+
+        if (simulation_analytics_core_aggregate(results, draws, selected->info.main_min,
+                                                selected->info.main_max, selected->info.main_count,
+                                                &core_report) != 0)
+        {
+            free(results);
+            log_error("Failed to compute core simulation analytics");
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (simulation_analytics_advanced_compute(results, draws, selected->info.main_min,
+                                                  selected->info.main_max, analytics_top,
+                                                  &advanced_report) != 0)
+        {
+            free(results);
+            log_error("Failed to compute advanced simulation analytics");
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (simulation_analytics_metadata_init(&metadata, selected->name, draws, use_seed,
+                                               seed_value, "simulation") != 0)
+        {
+            free(results);
+            log_error("Failed to initialize simulation metadata");
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (strcmp(analytics_format, "json") == 0)
+            print_simulation_analytics_json(&metadata, &core_report, &advanced_report);
+        else if (strcmp(analytics_format, "csv") == 0)
+            print_simulation_analytics_csv(&core_report, &advanced_report);
+        else
+            print_simulation_analytics_table(&core_report, &advanced_report);
+
+        free(results);
         registry_destroy(registry);
         config_free(&cfg);
         return 0;
