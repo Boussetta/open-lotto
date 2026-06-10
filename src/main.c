@@ -1166,6 +1166,30 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    /* Validate --from / --to period: both must be present if either is given */
+    if (period_from && !period_to)
+    {
+        fprintf(stderr, "Error: --from requires --to.\n");
+        fprintf(stderr, "Hint: Example: --from 2025-01-01 --to 2025-12-31\n");
+        config_free(&cfg);
+        return 1;
+    }
+    if (period_to && !period_from)
+    {
+        fprintf(stderr, "Error: --to requires --from.\n");
+        fprintf(stderr, "Hint: Example: --from 2025-01-01 --to 2025-12-31\n");
+        config_free(&cfg);
+        return 1;
+    }
+    if (period_from && period_to)
+    {
+        if (validate_analytics_period(period_from, period_to, NULL, NULL) != VALIDATE_OK)
+        {
+            config_free(&cfg);
+            return 1;
+        }
+    }
+
     if (gui && use_seed)
     {
         fprintf(stderr, "Error: --seed is currently supported only in CLI mode.\n");
