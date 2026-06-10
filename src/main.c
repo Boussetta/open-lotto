@@ -2,14 +2,14 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "analytics.h"
+#include "analytics_data_quality.h"
 #include "combogen.h"
 #include "config.h"
 #include "export.h"
-#include "analytics.h"
-#include "analytics_data_quality.h"
-#include "historical_db.h"
 #include "gui_opengl.h"
 #include "gui_sdl.h"
+#include "historical_db.h"
 #include "localization.h"
 #include "log.h"
 #include "plugin_loader.h"
@@ -1230,7 +1230,8 @@ int main(int argc, char **argv)
         if (db_rc < 0)
         {
             fprintf(stderr,
-                    "Error: database sync failed for '%s' (code %d). Check source config and network.\n",
+                    "Error: database sync failed for '%s' (code %d). Check source config and "
+                    "network.\n",
                     selected->name, db_rc);
             registry_destroy(registry);
             config_free(&cfg);
@@ -1253,8 +1254,7 @@ int main(int argc, char **argv)
     {
         HistoricalDraw *draws = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
         HistoricalDraw *filtered = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
-        AnalyticsDrawRecord *dq_records =
-            calloc(ANALYTICS_MAX_DRAWS, sizeof(AnalyticsDrawRecord));
+        AnalyticsDrawRecord *dq_records = calloc(ANALYTICS_MAX_DRAWS, sizeof(AnalyticsDrawRecord));
         int draw_count = 0;
         int filtered_count = 0;
 
@@ -1277,9 +1277,8 @@ int main(int argc, char **argv)
         }
         else
         {
-            load_rc = analytics_load_historical_db_snapshot(selected->name, NULL, draws,
-                                                            ANALYTICS_MAX_DRAWS, &draw_count,
-                                                            &selected->info);
+            load_rc = analytics_load_historical_db_snapshot(
+                selected->name, NULL, draws, ANALYTICS_MAX_DRAWS, &draw_count, &selected->info);
         }
 
         if (load_rc != VALIDATE_OK)
@@ -1320,11 +1319,10 @@ int main(int argc, char **argv)
         }
 
         AnalyticsDataQualityReport dq_report;
-        if (analytics_data_quality_evaluate(dq_records, filtered_count, period_from, period_to,
-                                            selected->info.main_count, selected->info.main_min,
-                                            selected->info.main_max, selected->info.extra_count,
-                                            selected->info.extra_min, selected->info.extra_max,
-                                            &dq_report) != VALIDATE_OK)
+        if (analytics_data_quality_evaluate(
+                dq_records, filtered_count, period_from, period_to, selected->info.main_count,
+                selected->info.main_min, selected->info.main_max, selected->info.extra_count,
+                selected->info.extra_min, selected->info.extra_max, &dq_report) != VALIDATE_OK)
         {
             free(draws);
             free(filtered);
@@ -1391,11 +1389,13 @@ int main(int argc, char **argv)
             {
                 if (strcmp(analytics_format, "json") == 0)
                 {
-                    printf("{\"explain\":{\"mode\":\"frequency\",\"formula\":\"count(number)/draws\",\"period\":\"inclusive\"}}\n");
+                    printf("{\"explain\":{\"mode\":\"frequency\",\"formula\":\"count(number)/"
+                           "draws\",\"period\":\"inclusive\"}}\n");
                 }
                 else
                 {
-                    printf("Explain: frequency percentage = count(number) / draws in inclusive period [%s, %s].\n",
+                    printf("Explain: frequency percentage = count(number) / draws in inclusive "
+                           "period [%s, %s].\n",
                            period_from, period_to);
                 }
             }
@@ -1443,11 +1443,14 @@ int main(int argc, char **argv)
             {
                 if (strcmp(analytics_format, "json") == 0)
                 {
-                    printf("{\"explain\":{\"mode\":\"barometer\",\"formula\":\"observed_gap/expected_interval\",\"expected_interval\":\"population/picks_per_draw\"}}\n");
+                    printf("{\"explain\":{\"mode\":\"barometer\",\"formula\":\"observed_gap/"
+                           "expected_interval\",\"expected_interval\":\"population/"
+                           "picks_per_draw\"}}\n");
                 }
                 else
                 {
-                    printf("Explain: barometer factor = observed_gap / expected_interval, where expected_interval = population / picks_per_draw.\n");
+                    printf("Explain: barometer factor = observed_gap / expected_interval, where "
+                           "expected_interval = population / picks_per_draw.\n");
                 }
             }
         }
@@ -1494,11 +1497,13 @@ int main(int argc, char **argv)
             {
                 if (strcmp(analytics_format, "json") == 0)
                 {
-                    printf("{\"explain\":{\"mode\":\"hot-cold\",\"rule\":\"hot=highest frequency, cold=lowest frequency\",\"tie_break\":\"ascending number\"}}\n");
+                    printf("{\"explain\":{\"mode\":\"hot-cold\",\"rule\":\"hot=highest frequency, "
+                           "cold=lowest frequency\",\"tie_break\":\"ascending number\"}}\n");
                 }
                 else
                 {
-                    printf("Explain: hot numbers are ranked by descending frequency; cold numbers by ascending frequency; ties use ascending number.\n");
+                    printf("Explain: hot numbers are ranked by descending frequency; cold numbers "
+                           "by ascending frequency; ties use ascending number.\n");
                 }
             }
         }

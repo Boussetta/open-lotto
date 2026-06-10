@@ -48,8 +48,8 @@ static int parse_iso_date_parts(const char *date_str, DateParts *out)
             return 0;
     }
 
-    out->year = (date_str[0] - '0') * 1000 + (date_str[1] - '0') * 100 +
-                (date_str[2] - '0') * 10 + (date_str[3] - '0');
+    out->year = (date_str[0] - '0') * 1000 + (date_str[1] - '0') * 100 + (date_str[2] - '0') * 10 +
+                (date_str[3] - '0');
     out->month = (date_str[5] - '0') * 10 + (date_str[6] - '0');
     out->day = (date_str[8] - '0') * 10 + (date_str[9] - '0');
 

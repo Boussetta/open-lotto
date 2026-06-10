@@ -279,8 +279,7 @@ int analytics_load_historical_csv(const char *csv_path, HistoricalDraw *out_draw
         if (count >= max_draws)
         {
             fclose(f);
-            fprintf(stderr, "Error: Historical CSV exceeds max supported draws (%d).\n",
-                    max_draws);
+            fprintf(stderr, "Error: Historical CSV exceeds max supported draws (%d).\n", max_draws);
             return VALIDATE_ERR_OUT_OF_RANGE;
         }
 
@@ -317,7 +316,8 @@ int analytics_load_historical_csv(const char *csv_path, HistoricalDraw *out_draw
         if (d->result.main_count != rules->main_count)
         {
             fclose(f);
-            fprintf(stderr, "Error: Main number count mismatch in historical CSV row '%s'.\n", date);
+            fprintf(stderr, "Error: Main number count mismatch in historical CSV row '%s'.\n",
+                    date);
             return VALIDATE_ERR_INVALID_FORMAT;
         }
 
@@ -328,8 +328,7 @@ int analytics_load_historical_csv(const char *csv_path, HistoricalDraw *out_draw
             if (d->result.extra_count != rules->extra_count)
             {
                 fclose(f);
-                fprintf(stderr,
-                        "Error: Extra number count mismatch in historical CSV row '%s'.\n",
+                fprintf(stderr, "Error: Extra number count mismatch in historical CSV row '%s'.\n",
                         date);
                 return VALIDATE_ERR_INVALID_FORMAT;
             }
@@ -348,8 +347,8 @@ int analytics_load_historical_csv(const char *csv_path, HistoricalDraw *out_draw
 }
 
 int analytics_load_historical_db_snapshot(const char *game_name, const char *db_root,
-                                          HistoricalDraw *out_draws, int max_draws,
-                                          int *out_count, const LotteryInfo *rules)
+                                          HistoricalDraw *out_draws, int max_draws, int *out_count,
+                                          const LotteryInfo *rules)
 {
     if (!game_name || !out_draws || !out_count || !rules || max_draws <= 0)
         return VALIDATE_ERR_EMPTY;
@@ -525,7 +524,8 @@ int analytics_compute_frequency(const HistoricalDraw *draws, int draw_count, int
     {
         strncpy(out_report->from_date, draws[0].draw_date, sizeof(out_report->from_date) - 1);
         out_report->from_date[sizeof(out_report->from_date) - 1] = '\0';
-        strncpy(out_report->to_date, draws[draw_count - 1].draw_date, sizeof(out_report->to_date) - 1);
+        strncpy(out_report->to_date, draws[draw_count - 1].draw_date,
+                sizeof(out_report->to_date) - 1);
         out_report->to_date[sizeof(out_report->to_date) - 1] = '\0';
     }
 
@@ -562,7 +562,8 @@ int analytics_compute_barometer(const HistoricalDraw *draws, int draw_count, int
     {
         strncpy(out_report->from_date, draws[0].draw_date, sizeof(out_report->from_date) - 1);
         out_report->from_date[sizeof(out_report->from_date) - 1] = '\0';
-        strncpy(out_report->to_date, draws[draw_count - 1].draw_date, sizeof(out_report->to_date) - 1);
+        strncpy(out_report->to_date, draws[draw_count - 1].draw_date,
+                sizeof(out_report->to_date) - 1);
         out_report->to_date[sizeof(out_report->to_date) - 1] = '\0';
     }
 
@@ -629,7 +630,8 @@ int analytics_compute_hot_cold(const HistoricalDraw *draws, int draw_count, int 
     }
 
     FrequencyReport freq;
-    if (analytics_compute_frequency(draws, draw_count, number_min, number_max, &freq) != VALIDATE_OK)
+    if (analytics_compute_frequency(draws, draw_count, number_min, number_max, &freq) !=
+        VALIDATE_OK)
         return VALIDATE_ERR_INVALID_FORMAT;
 
     HotColdEntry all[128];
@@ -653,7 +655,8 @@ int analytics_compute_hot_cold(const HistoricalDraw *draws, int draw_count, int 
     {
         strncpy(out_report->from_date, draws[0].draw_date, sizeof(out_report->from_date) - 1);
         out_report->from_date[sizeof(out_report->from_date) - 1] = '\0';
-        strncpy(out_report->to_date, draws[draw_count - 1].draw_date, sizeof(out_report->to_date) - 1);
+        strncpy(out_report->to_date, draws[draw_count - 1].draw_date,
+                sizeof(out_report->to_date) - 1);
         out_report->to_date[sizeof(out_report->to_date) - 1] = '\0';
     }
 
@@ -783,8 +786,8 @@ void analytics_print_barometer_json(const BarometerReport *report)
 
     for (int n = report->number_min; n <= report->number_max; n++)
     {
-        printf("    {\"number\": %d, \"hits\": %d, \"observed_gap\": %d, \"factor\": %.6f}%s\n",
-               n, report->hit_counts[n], report->observed_gaps[n], report->factors[n],
+        printf("    {\"number\": %d, \"hits\": %d, \"observed_gap\": %d, \"factor\": %.6f}%s\n", n,
+               report->hit_counts[n], report->observed_gaps[n], report->factors[n],
                (n == report->number_max) ? "" : ",");
     }
 
@@ -869,8 +872,8 @@ void analytics_print_hot_cold_json(const HotColdReport *report)
     printf("  \"hot\": [\n");
     for (int i = 0; i < report->top_n; i++)
     {
-        printf("    {\"rank\": %d, \"number\": %d, \"count\": %d, \"percentage\": %.4f}%s\n",
-               i + 1, report->hot[i].number, report->hot[i].count, report->hot[i].percentage,
+        printf("    {\"rank\": %d, \"number\": %d, \"count\": %d, \"percentage\": %.4f}%s\n", i + 1,
+               report->hot[i].number, report->hot[i].count, report->hot[i].percentage,
                (i + 1 == report->top_n) ? "" : ",");
     }
     printf("  ],\n");
@@ -878,8 +881,8 @@ void analytics_print_hot_cold_json(const HotColdReport *report)
     printf("  \"cold\": [\n");
     for (int i = 0; i < report->top_n; i++)
     {
-        printf("    {\"rank\": %d, \"number\": %d, \"count\": %d, \"percentage\": %.4f}%s\n",
-               i + 1, report->cold[i].number, report->cold[i].count, report->cold[i].percentage,
+        printf("    {\"rank\": %d, \"number\": %d, \"count\": %d, \"percentage\": %.4f}%s\n", i + 1,
+               report->cold[i].number, report->cold[i].count, report->cold[i].percentage,
                (i + 1 == report->top_n) ? "" : ",");
     }
     printf("  ]\n");

@@ -16,9 +16,9 @@ static int numbers_equal(const int *a, const int *b, int count)
     return 1;
 }
 
-static int record_numbers_in_range(const AnalyticsDrawRecord *r, int expected_main_count, int main_min,
-                                   int main_max, int expected_extra_count, int extra_min,
-                                   int extra_max)
+static int record_numbers_in_range(const AnalyticsDrawRecord *r, int expected_main_count,
+                                   int main_min, int main_max, int expected_extra_count,
+                                   int extra_min, int extra_max)
 {
     if (r->main_count != expected_main_count)
         return 0;
@@ -40,7 +40,8 @@ static int record_numbers_in_range(const AnalyticsDrawRecord *r, int expected_ma
     return 1;
 }
 
-static int record_in_period(const AnalyticsDrawRecord *r, const char *period_from, const char *period_to)
+static int record_in_period(const AnalyticsDrawRecord *r, const char *period_from,
+                            const char *period_to)
 {
     if (!period_from || !period_to)
         return 1;
