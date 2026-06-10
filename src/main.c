@@ -15,6 +15,7 @@
 #include "plugin_loader.h"
 #include "plugin_registry.h"
 #include "random_seed.h"
+#include "seed_calibration.h"
 #include "simulation_analytics_advanced.h"
 #include "simulation_analytics_core.h"
 #include "simulation_analytics_export.h"
@@ -213,6 +214,83 @@ static uint64_t derive_draw_seed(uint64_t base_seed, int draw_index)
     return splitmix64(base_seed ^ (uint64_t)draw_index);
 }
 
+typedef struct
+{
+    LoadedPlugin *plugin;
+} SeedCalibrationDrawContext;
+
+static int seed_calibration_draw_callback(void *ctx, uint64_t seed, int draw_index,
+                                          LotteryResult *out_result)
+{
+    if (!ctx || !out_result)
+        return -1;
+
+    SeedCalibrationDrawContext *draw_ctx = (SeedCalibrationDrawContext *)ctx;
+    combogen_set_forced_seed(derive_draw_seed(seed, draw_index));
+    draw_ctx->plugin->draw(out_result, silent_callback);
+    combogen_clear_forced_seed();
+    return 0;
+}
+
+static void print_closest_seed_table(const SeedCalibrationResult *result)
+{
+    printf("Closest seed calibration\n");
+    printf("best_seed,%llu\n", (unsigned long long)result->best.seed);
+    printf("best_score,%.9f\n", result->best.total_score);
+    printf("evaluated_seeds,%d\n", result->evaluated_seeds);
+    printf("score_gap,%.9f\n", result->score_gap);
+    printf("\nTop Candidates\n");
+    printf("rank,seed,total,frequency,gap,rank_score\n");
+    for (int i = 0; i < result->top_candidate_count; i++)
+    {
+        const SeedCalibrationCandidate *c = &result->top_candidates[i];
+        printf("%d,%llu,%.9f,%.9f,%.9f,%.9f\n", i + 1, (unsigned long long)c->seed,
+               c->total_score, c->frequency_score, c->gap_score, c->rank_score);
+    }
+}
+
+static void print_closest_seed_csv(const SeedCalibrationResult *result)
+{
+    printf("section,key,value,extra\n");
+    printf("summary,best_seed,%llu,\n", (unsigned long long)result->best.seed);
+    printf("summary,best_score,%.9f,\n", result->best.total_score);
+    printf("summary,evaluated_seeds,%d,\n", result->evaluated_seeds);
+    printf("diagnostics,score_gap,%.9f,\n", result->score_gap);
+    for (int i = 0; i < result->top_candidate_count; i++)
+    {
+        const SeedCalibrationCandidate *c = &result->top_candidates[i];
+        printf("top_candidates,%d,%llu,%.9f|%.9f|%.9f|%.9f\n", i + 1,
+               (unsigned long long)c->seed, c->total_score, c->frequency_score, c->gap_score,
+               c->rank_score);
+    }
+}
+
+static void print_closest_seed_json(const SeedCalibrationResult *result, const char *from_date,
+                                    const char *to_date)
+{
+    printf("{\n");
+    printf("  \"mode\": \"closest-seed\",\n");
+    printf("  \"schema_version\": \"seed-calibration/v1\",\n");
+    printf("  \"period\": {\"from\": \"%s\", \"to\": \"%s\"},\n", from_date,
+           to_date);
+    printf("  \"summary\": {\"best_seed\": %llu, \"best_score\": %.9f, \"evaluated_seeds\": %d},\n",
+           (unsigned long long)result->best.seed, result->best.total_score, result->evaluated_seeds);
+    printf("  \"diagnostics\": {\"score_gap\": %.9f, \"score_components\": {\"frequency\": %.9f, \"gap\": %.9f, \"rank\": %.9f}},\n",
+           result->score_gap, result->best.frequency_score, result->best.gap_score,
+           result->best.rank_score);
+    printf("  \"top_candidates\": [\n");
+    for (int i = 0; i < result->top_candidate_count; i++)
+    {
+        const SeedCalibrationCandidate *c = &result->top_candidates[i];
+        printf("    {\"rank\": %d, \"seed\": %llu, \"score\": %.9f, \"frequency\": %.9f, \"gap\": %.9f, \"rank_score\": %.9f}%s\n",
+               i + 1, (unsigned long long)c->seed, c->total_score, c->frequency_score,
+               c->gap_score, c->rank_score,
+               (i + 1 == result->top_candidate_count) ? "" : ",");
+    }
+    printf("  ]\n");
+    printf("}\n");
+}
+
 static void print_simulation_analytics_table(const SimulationAnalyticsCoreReport *core,
                                              const SimulationAnalyticsAdvancedReport *advanced)
 {
@@ -392,7 +470,18 @@ static void print_usage(const char *prog)
             "  OPEN_LOTTO_SOURCES_CONFIG               Override sources config path\n"
             "  OPEN_LOTTO_DOWNLOAD_CONFIG              Override download config path\n",
             prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
-            prog, prog, prog, prog, prog, prog, prog);
+                prog, prog, prog, prog, prog, prog, prog);
+
+            fprintf(stderr,
+                "\nClosest-Seed Mode:\n"
+                "  --closest-seed          Find best-fit simulator seed for one fixed period\n"
+                "  --seed-start VALUE      Start of seed search range (required)\n"
+                "  --seed-end VALUE        End of seed search range (required)\n"
+                "  --max-evals N           Max seed evaluations (default: 100000)\n"
+                "\n"
+                "Closest-Seed Example:\n"
+                "  %s --game \"Lotto 6aus49\" --closest-seed --from 2026-01-01 --to 2026-06-30 --seed-start 0 --seed-end 100000 --format json\n",
+                prog);
 }
 
 static void trim_whitespace(char *s)
@@ -790,6 +879,12 @@ int main(int argc, char **argv)
     int analytics_barometer = 0;
     int analytics_hot_cold = 0;
     int simulation_analytics = 0;
+    int closest_seed_mode = 0;
+    uint64_t closest_seed_start = 0;
+    uint64_t closest_seed_end = 0;
+    int closest_seed_start_set = 0;
+    int closest_seed_end_set = 0;
+    int closest_seed_max_evals = 100000;
     const char *sim_historical_csv_output = NULL;
     int analytics_top = 10;
     int analytics_explain = 0;
@@ -1050,6 +1145,69 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--simulation-analytics") == 0)
         {
             simulation_analytics = 1;
+        }
+        else if (strcmp(argv[i], "--closest-seed") == 0)
+        {
+            closest_seed_mode = 1;
+        }
+        else if (strcmp(argv[i], "--seed-start") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr,
+                        "--seed-start requires a numeric value (decimal or 0x-prefixed hex).\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            if (!parse_seed_value(argv[++i], &closest_seed_start))
+            {
+                fprintf(stderr,
+                        "Invalid --seed-start value '%s' (expected decimal or 0x-prefixed hex).\n",
+                        argv[i]);
+                config_free(&cfg);
+                return 1;
+            }
+            closest_seed_start_set = 1;
+        }
+        else if (strcmp(argv[i], "--seed-end") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr,
+                        "--seed-end requires a numeric value (decimal or 0x-prefixed hex).\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            if (!parse_seed_value(argv[++i], &closest_seed_end))
+            {
+                fprintf(stderr,
+                        "Invalid --seed-end value '%s' (expected decimal or 0x-prefixed hex).\n",
+                        argv[i]);
+                config_free(&cfg);
+                return 1;
+            }
+            closest_seed_end_set = 1;
+        }
+        else if (strcmp(argv[i], "--max-evals") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--max-evals requires a positive integer.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            char *end = NULL;
+            long parsed = strtol(argv[++i], &end, 10);
+            if (!end || *end != '\0' || parsed <= 0 || parsed > INT_MAX)
+            {
+                fprintf(stderr, "Error: --max-evals must be a positive integer.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            closest_seed_max_evals = (int)parsed;
         }
         else if (strcmp(argv[i], "--format") == 0)
         {
@@ -1343,6 +1501,43 @@ int main(int argc, char **argv)
         }
     }
 
+    if (closest_seed_mode)
+    {
+        if (gui || animate || export_format || simulation_analytics || analytics_mode_count > 0 ||
+            sim_historical_csv_output)
+        {
+            fprintf(stderr,
+                    "Error: --closest-seed cannot be combined with GUI/animate/export or other analytics modes.\n");
+            config_free(&cfg);
+            return 1;
+        }
+        if (!period_from || !period_to)
+        {
+            fprintf(stderr, "Error: --closest-seed requires --from and --to for one fixed period.\n");
+            config_free(&cfg);
+            return 1;
+        }
+        if (!closest_seed_start_set || !closest_seed_end_set)
+        {
+            fprintf(stderr, "Error: --closest-seed requires both --seed-start and --seed-end.\n");
+            config_free(&cfg);
+            return 1;
+        }
+        if (closest_seed_start > closest_seed_end)
+        {
+            fprintf(stderr, "Error: --seed-start must be <= --seed-end.\n");
+            config_free(&cfg);
+            return 1;
+        }
+        if (analytics_top > SEED_CALIBRATION_MAX_TOP_K)
+        {
+            fprintf(stderr, "Error: --top must be <= %d for --closest-seed.\n",
+                    SEED_CALIBRATION_MAX_TOP_K);
+            config_free(&cfg);
+            return 1;
+        }
+    }
+
     /* Default GUI mode to 2D if not specified */
     if (!gui_mode)
     {
@@ -1415,6 +1610,102 @@ int main(int argc, char **argv)
             printf("Historical database updated for '%s' (latest draw_date=%s).\n", selected->name,
                    snapshot.draw_date);
 
+        registry_destroy(registry);
+        config_free(&cfg);
+        return 0;
+    }
+
+    if (closest_seed_mode)
+    {
+        HistoricalDraw *historical_draws = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
+        HistoricalDraw *filtered = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
+        int draw_count = 0;
+        int filtered_count = 0;
+
+        if (!historical_draws || !filtered)
+        {
+            fprintf(stderr, "Error: Out of memory while preparing closest-seed buffers.\n");
+            free(historical_draws);
+            free(filtered);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        int load_rc = VALIDATE_OK;
+        if (historical_csv_from_cli)
+        {
+            load_rc = analytics_load_historical_csv(historical_csv, historical_draws,
+                                                    ANALYTICS_MAX_DRAWS, &draw_count,
+                                                    &selected->info);
+        }
+        else
+        {
+            load_rc = analytics_load_historical_db_snapshot(selected->name, NULL, historical_draws,
+                                                            ANALYTICS_MAX_DRAWS, &draw_count,
+                                                            &selected->info);
+        }
+
+        if (load_rc != VALIDATE_OK)
+        {
+            free(historical_draws);
+            free(filtered);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (analytics_filter_period(historical_draws, draw_count, period_from, period_to, filtered,
+                                    &filtered_count) != VALIDATE_OK)
+        {
+            free(historical_draws);
+            free(filtered);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        SeedCalibrationDrawContext draw_ctx;
+        draw_ctx.plugin = selected;
+
+        SeedCalibrationRequest request;
+        memset(&request, 0, sizeof(request));
+        request.historical_draws = filtered;
+        request.historical_draw_count = filtered_count;
+        request.number_min = selected->info.main_min;
+        request.number_max = selected->info.main_max;
+        request.expected_main_count = selected->info.main_count;
+        request.seed_start = closest_seed_start;
+        request.seed_end = closest_seed_end;
+        request.max_evals = closest_seed_max_evals;
+        request.top_k = analytics_top;
+        request.weight_frequency = 1.0;
+        request.weight_gap = 1.0;
+        request.weight_rank = 1.0;
+        request.draw_for_seed = seed_calibration_draw_callback;
+        request.draw_ctx = &draw_ctx;
+
+        SeedCalibrationResult result;
+        int rc = seed_calibration_find_closest(&request, &result);
+        if (rc != SEED_CALIBRATION_OK)
+        {
+            fprintf(stderr, "Error: closest-seed search failed (code %d).\n", rc);
+            free(historical_draws);
+            free(filtered);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (strcmp(analytics_format, "json") == 0)
+            print_closest_seed_json(&result, period_from, period_to);
+        else if (strcmp(analytics_format, "csv") == 0)
+            print_closest_seed_csv(&result);
+        else
+            print_closest_seed_table(&result);
+
+        free(historical_draws);
+        free(filtered);
         registry_destroy(registry);
         config_free(&cfg);
         return 0;
