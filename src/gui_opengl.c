@@ -2614,3 +2614,877 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_ov
     TTF_Quit();
     SDL_Quit();
 }
+
+static void draw_box_prism(float w, float h, float d)
+{
+    float x = w * 0.5f;
+    float y = h;
+    float z = d * 0.5f;
+
+    glBegin(GL_QUADS);
+    /* front */
+    glVertex3f(-x, 0.0f, z);
+    glVertex3f(x, 0.0f, z);
+    glVertex3f(x, y, z);
+    glVertex3f(-x, y, z);
+    /* back */
+    glVertex3f(-x, 0.0f, -z);
+    glVertex3f(-x, y, -z);
+    glVertex3f(x, y, -z);
+    glVertex3f(x, 0.0f, -z);
+    /* left */
+    glVertex3f(-x, 0.0f, -z);
+    glVertex3f(-x, 0.0f, z);
+    glVertex3f(-x, y, z);
+    glVertex3f(-x, y, -z);
+    /* right */
+    glVertex3f(x, 0.0f, -z);
+    glVertex3f(x, y, -z);
+    glVertex3f(x, y, z);
+    glVertex3f(x, 0.0f, z);
+    /* top */
+    glVertex3f(-x, y, -z);
+    glVertex3f(-x, y, z);
+    glVertex3f(x, y, z);
+    glVertex3f(x, y, -z);
+    /* bottom */
+    glVertex3f(-x, 0.0f, -z);
+    glVertex3f(x, 0.0f, -z);
+    glVertex3f(x, 0.0f, z);
+    glVertex3f(-x, 0.0f, z);
+    glEnd();
+}
+
+/* -----------------------------------------------------------------------
+ * Shared OpenGL analytics camera helpers  (mirrors drum camera style)
+ * ----------------------------------------------------------------------- */
+
+typedef struct
+{
+    float pitch;          /* X-axis rotation  (matches drum camera_pitch) */
+    float yaw;            /* Y-axis rotation  (matches drum camera_yaw) */
+    float cam_z;          /* Z translate (zoom) */
+    int   mouse_dragging;
+    int   last_mx, last_my;
+} AnalyticsCamera;
+
+#define ACAM_PITCH_DEFAULT  24.0f
+#define ACAM_YAW_DEFAULT     0.0f
+#define ACAM_Z_DEFAULT     -28.0f
+#define ACAM_Z_MIN         -80.0f
+#define ACAM_Z_MAX          -6.0f
+#define ACAM_ORBIT_SENS    MOUSE_ORBIT_SENSITIVITY   /* 0.25 */
+#define ACAM_ZOOM_STEP     (MOUSE_ZOOM_STEP * 0.08f) /* 1.6 units */
+
+static void acam_init(AnalyticsCamera *c)
+{
+    c->pitch          = ACAM_PITCH_DEFAULT;
+    c->yaw            = ACAM_YAW_DEFAULT;
+    c->cam_z          = ACAM_Z_DEFAULT;
+    c->mouse_dragging = 0;
+}
+
+static int acam_handle_event(AnalyticsCamera *c, SDL_Event *ev, int *quit)
+{
+    switch (ev->type)
+    {
+    case SDL_QUIT:
+        *quit = 1;
+        break;
+    case SDL_KEYDOWN:
+        if (ev->key.keysym.sym == SDLK_ESCAPE) { *quit = 1; break; }
+        if (ev->key.keysym.sym == SDLK_r || ev->key.keysym.sym == SDLK_i)
+            { c->pitch = ACAM_PITCH_DEFAULT; c->yaw = ACAM_YAW_DEFAULT; }
+        else if (ev->key.keysym.sym == SDLK_t)
+            { c->pitch = -89.9f; c->yaw = 0.0f; }
+        else if (ev->key.keysym.sym == SDLK_f)
+            { c->pitch = 0.0f;  c->yaw = 0.0f; }
+        else if (ev->key.keysym.sym == SDLK_s)
+            { c->pitch = 0.0f;  c->yaw = 90.0f; }
+        break;
+    case SDL_MOUSEBUTTONDOWN:
+        if (ev->button.button == SDL_BUTTON_LEFT)
+        { c->mouse_dragging = 1; c->last_mx = ev->button.x; c->last_my = ev->button.y; }
+        break;
+    case SDL_MOUSEBUTTONUP:
+        if (ev->button.button == SDL_BUTTON_LEFT) c->mouse_dragging = 0;
+        break;
+    case SDL_MOUSEMOTION:
+        if (c->mouse_dragging)
+        {
+            c->yaw   += (float)(ev->motion.x - c->last_mx) * ACAM_ORBIT_SENS;
+            c->pitch += (float)(ev->motion.y - c->last_my) * ACAM_ORBIT_SENS;
+            if (c->pitch < -85.0f) c->pitch = -85.0f;
+            if (c->pitch >  85.0f) c->pitch =  85.0f;
+            c->last_mx = ev->motion.x;
+            c->last_my = ev->motion.y;
+        }
+        break;
+    case SDL_MOUSEWHEEL:
+        c->cam_z += ev->wheel.y * ACAM_ZOOM_STEP;
+        if (c->cam_z < ACAM_Z_MIN) c->cam_z = ACAM_Z_MIN;
+        if (c->cam_z > ACAM_Z_MAX) c->cam_z = ACAM_Z_MAX;
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+
+/* Apply the camera transform for a 1000x700 analytics window */
+static void acam_apply(const AnalyticsCamera *c)
+{
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    float aspect = 1000.0f / 700.0f;
+    glFrustum(-aspect, aspect, -1.0, 1.0, 1.5, 200.0);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glTranslatef(0.0f, -4.0f, c->cam_z);
+    glRotatef(c->pitch, 1.0f, 0.0f, 0.0f);
+    glRotatef(c->yaw,   0.0f, 1.0f, 0.0f);
+}
+
+static int project_analytics_point(float x, float y, float z, int viewport_w, int viewport_h,
+                                   float *out_x, float *out_y)
+{
+    GLdouble model[16];
+    GLdouble proj[16];
+    GLdouble in[4] = {x, y, z, 1.0};
+    GLdouble eye[4] = {0.0, 0.0, 0.0, 0.0};
+    GLdouble clip[4] = {0.0, 0.0, 0.0, 0.0};
+
+    glGetDoublev(GL_MODELVIEW_MATRIX, model);
+    glGetDoublev(GL_PROJECTION_MATRIX, proj);
+
+    for (int row = 0; row < 4; row++)
+    {
+        eye[row] = model[row] * in[0] + model[4 + row] * in[1] + model[8 + row] * in[2] +
+                   model[12 + row] * in[3];
+    }
+
+    for (int row = 0; row < 4; row++)
+    {
+        clip[row] = proj[row] * eye[0] + proj[4 + row] * eye[1] + proj[8 + row] * eye[2] +
+                    proj[12 + row] * eye[3];
+    }
+
+    if (fabs(clip[3]) < 1e-6)
+        return 0;
+
+    {
+        double ndc_x = clip[0] / clip[3];
+        double ndc_y = clip[1] / clip[3];
+        double ndc_z = clip[2] / clip[3];
+
+        if (ndc_z < -1.0 || ndc_z > 1.0)
+            return 0;
+
+        *out_x = (float)((ndc_x * 0.5 + 0.5) * (double)viewport_w);
+        *out_y = (float)((1.0 - (ndc_y * 0.5 + 0.5)) * (double)viewport_h);
+    }
+
+    return 1;
+}
+
+/* Draw floor grid (XZ plane) */
+static void draw_floor_grid(float half, float step)
+{
+    glLineWidth(1.0f);
+    glBegin(GL_LINES);
+    for (float v = -half; v <= half + 0.001f; v += step)
+    {
+        glVertex3f(v, 0.0f, -half);
+        glVertex3f(v, 0.0f,  half);
+        glVertex3f(-half, 0.0f, v);
+        glVertex3f( half, 0.0f, v);
+    }
+    glEnd();
+    glLineWidth(1.0f);
+}
+
+/* Draw Y-axis spine + tick marks */
+static void draw_y_axis(float height)
+{
+    glLineWidth(2.0f);
+    glBegin(GL_LINES);
+    glVertex3f(0.0f, 0.0f, 0.0f);
+    glVertex3f(0.0f, height, 0.0f);
+    glEnd();
+    glLineWidth(1.0f);
+}
+
+/* Ortho HUD overlay — same technique as drum debug overlay */
+static void draw_analytics_hud_3d(const char *subtitle, int dark_mode)
+{
+    (void)subtitle;
+    (void)dark_mode;
+    /* Future: render TTF text via SDL_Renderer overlay or glBitmap.
+     * Current: noop placeholder so the architecture is wired. */
+}
+
+/* Render analytics stats bar at top showing ball ranges and total draws
+ * Displays format: "Ball #N: count draws (percentage) | Ball #M: ..." etc */
+static void draw_analytics_info_overlay(TTF_Font *font, int number_min, int number_max,
+                                        const int *counts, int total_draws, 
+                                        const char *from_date, const char *to_date,
+                                        int hovered_bar, int dark_mode)
+{
+    (void)dark_mode;
+    if (!font || !counts)
+        return;
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0.0, 1000.0, 700.0, 0.0, -1000.0, 1000.0);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    glDisable(GL_LIGHTING);
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    /* Semi-transparent background bar at top */
+    glColor4f(0.1f, 0.1f, 0.15f, 0.85f);
+    glBegin(GL_QUADS);
+    glVertex2f(0.0f, 0.0f);
+    glVertex2f(1000.0f, 0.0f);
+    glVertex2f(1000.0f, 55.0f);
+    glVertex2f(0.0f, 55.0f);
+    glEnd();
+
+    /* Date range display */
+    char date_str[128];
+    if (from_date && to_date && from_date[0] && to_date[0])
+        snprintf(date_str, sizeof(date_str), "Period: %s to %s", from_date, to_date);
+    else
+        snprintf(date_str, sizeof(date_str), "Period: N/A");
+    render_text_2d_at(font, date_str, 12.0f, 8.0f, 0.80f, 0.85f, 0.95f);
+
+    /* Render stats for first 6 balls as sample */
+    float x = 12.0f, y = 28.0f;
+    char buf[256];
+    int samples = (number_max - number_min + 1 > 6) ? 6 : (number_max - number_min + 1);
+    for (int i = 0; i < samples; i++)
+    {
+        int num = number_min + i;
+        int cnt = counts[num];
+        double pct = (100.0 * cnt) / (double)total_draws;
+        snprintf(buf, sizeof(buf), "#%d:%d (%.1f%%)", num, cnt, pct);
+        
+        /* Highlight hovered bar */
+        float color_r = 0.85f, color_g = 0.90f, color_b = 0.95f;
+        if (hovered_bar == i) {
+            color_r = 1.0f;
+            color_g = 1.0f;
+            color_b = 0.3f;
+        }
+        render_text_2d_at(font, buf, x, y, color_r, color_g, color_b);
+        x += 155.0f;
+    }
+
+    /* Show tooltip for hovered bar if applicable */
+    if (hovered_bar >= 0 && hovered_bar < samples)
+    {
+        int num = number_min + hovered_bar;
+        int cnt = counts[num];
+        double pct = (100.0 * cnt) / (double)total_draws;
+        snprintf(buf, sizeof(buf), "Ball %d: %d draws (%.1f%%)", num, cnt, pct);
+        render_text_2d_at(font, buf, 12.0f, 700.0f - 20.0f, 1.0f, 1.0f, 0.3f);
+    }
+
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
+}
+
+/* Read optional timeout (same logic as SDL helper) */
+static Uint32 analytics_gl_timeout_ms(void)
+{
+    const char *env = getenv("OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS");
+    if (!env || env[0] == '\0') return 0;
+    long v = atol(env);
+    return (v > 0) ? (Uint32)v : 0;
+}
+
+/* Calculate grid dimensions for matrix layout */
+static void calc_grid_layout(int total_balls, int *out_cols, int *out_rows)
+{
+    /* 49 balls -> 7x7, 50 balls -> 5x10 */
+    if (total_balls == 49)      { *out_cols = 7; *out_rows = 7; }
+    else if (total_balls == 50) { *out_cols = 5; *out_rows = 10; }
+    else if (total_balls <= 36) { *out_cols = 6; *out_rows = 6; }
+    else                         { *out_cols = 8; *out_rows = (total_balls + 7) / 8; }
+}
+
+int gui_render_frequency_3d(const char *title, const FrequencyReport *report, int dark_mode)
+{
+    (void)dark_mode;
+    if (!report) return -1;
+
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) return -1;
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+
+    SDL_Window *window = SDL_CreateWindow(
+        title ? title : "Frequency Distribution (3D)",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        1000, 700, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+    if (!window) { SDL_Quit(); return -1; }
+
+    SDL_GLContext gl = SDL_GL_CreateContext(window);
+    if (!gl) { SDL_DestroyWindow(window); SDL_Quit(); return -1; }
+
+#ifdef _WIN32
+    glewInit();
+#endif
+
+    if (TTF_Init() < 0) { SDL_GL_DeleteContext(gl); SDL_DestroyWindow(window); SDL_Quit(); return -1; }
+    char font_path[512];
+    snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
+    TTF_Font *font = TTF_OpenFont(font_path, 16);
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    int max_count = 1;
+    for (int n = report->number_min; n <= report->number_max; n++)
+        if (report->counts[n] > max_count) max_count = report->counts[n];
+
+    const int   balls  = report->number_max - report->number_min + 1;
+    int grid_cols, grid_rows;
+    calc_grid_layout(balls, &grid_cols, &grid_rows);
+    
+    const float bar_w = 0.32f;
+    const float bar_gap = 0.08f;
+    const float depth  = 0.30f;
+    const float grid_w = grid_cols * (bar_w + bar_gap);
+    const float grid_h = grid_rows * (bar_w + bar_gap);
+
+    AnalyticsCamera cam;
+    acam_init(&cam);
+    cam.cam_z = -35.0f; /* Adjusted for matrix view */
+
+    Uint32 start   = SDL_GetTicks();
+    Uint32 timeout = analytics_gl_timeout_ms();
+    float  anim    = 0.0f;
+    Uint32 last_t  = start;
+    int    running = 1;
+    int    mouse_x = -1, mouse_y = -1;
+    int    hovered_bar = -1;
+
+    while (running)
+    {
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev))
+        {
+            if (ev.type == SDL_QUIT || (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE))
+                running = 0;
+            
+            /* Track mouse for hover detection */
+            if (ev.type == SDL_MOUSEMOTION)
+            {
+                mouse_x = ev.motion.x;
+                mouse_y = ev.motion.y;
+                
+                /* Simple hover detection for first 6 balls in overlay */
+                /* Each bar spans ~155 pixels, starting at x=12 */
+                if (mouse_y >= 28 && mouse_y <= 50)
+                {
+                    if (mouse_x >= 12 && mouse_x < 12 + 155*6)
+                    {
+                        int col = (mouse_x - 12) / 155;
+                        int samples = (report->number_max - report->number_min + 1 > 6) 
+                                    ? 6 : (report->number_max - report->number_min + 1);
+                        if (col < samples) hovered_bar = col;
+                        else hovered_bar = -1;
+                    }
+                    else
+                        hovered_bar = -1;
+                }
+                else
+                    hovered_bar = -1;
+            }
+            
+            /* Always pass events to camera handler (for mouse orbit, keys, etc.) */
+            acam_handle_event(&cam, &ev, &running);
+        }
+        if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
+
+        Uint32 now = SDL_GetTicks();
+        float dt = (now - last_t) / 1000.0f;
+        last_t = now;
+        anim += dt / 0.5f;
+        if (anim > 1.0f) anim = 1.0f;
+
+        if (dark_mode == 1) glClearColor(0.06f, 0.07f, 0.11f, 1.0f);
+        else                glClearColor(0.93f, 0.94f, 0.97f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        acam_apply(&cam);
+
+        /* Floor grid */
+        glColor4f(0.35f, 0.40f, 0.50f, 0.5f);
+        draw_floor_grid(fmaxf(grid_w, grid_h) * 0.65f, (bar_w + bar_gap));
+
+        /* Y-axis */
+        glColor4f(0.55f, 0.60f, 0.70f, 0.8f);
+        draw_y_axis(11.5f);
+
+        /* Bars in matrix layout */
+        float x0 = -grid_w * 0.5f;
+        float z0 = -grid_h * 0.5f;
+        
+        for (int i = 0; i < balls; i++)
+        {
+            int row = i / grid_cols;
+            int col = i % grid_cols;
+            int number = report->number_min + i;
+            
+            float full_h = 0.15f + (10.5f * (float)report->counts[number]) / (float)max_count;
+            float h = full_h * (anim < 1.0f ? anim : 1.0f);
+            float x = x0 + col * (bar_w + bar_gap) + bar_w * 0.5f;
+            float z = z0 + row * (bar_w + bar_gap) + bar_w * 0.5f;
+            float t = (float)i / (float)(balls > 1 ? balls - 1 : 1);
+
+            if (mouse_x >= 0 && mouse_y >= 0)
+            {
+                float min_sx = 1e9f, min_sy = 1e9f;
+                float max_sx = -1e9f, max_sy = -1e9f;
+                int projected = 0;
+                const float half_w = bar_w * 0.5f;
+                const float half_d = depth * 0.5f;
+                const float corners[8][3] = {
+                    {x - half_w, 0.0f, z - half_d},
+                    {x + half_w, 0.0f, z - half_d},
+                    {x - half_w, 0.0f, z + half_d},
+                    {x + half_w, 0.0f, z + half_d},
+                    {x - half_w, h,    z - half_d},
+                    {x + half_w, h,    z - half_d},
+                    {x - half_w, h,    z + half_d},
+                    {x + half_w, h,    z + half_d},
+                };
+
+                for (int cidx = 0; cidx < 8; cidx++)
+                {
+                    float sx, sy;
+                    if (!project_analytics_point(corners[cidx][0], corners[cidx][1], corners[cidx][2],
+                                                 1000, 700, &sx, &sy))
+                        continue;
+                    if (sx < min_sx) min_sx = sx;
+                    if (sy < min_sy) min_sy = sy;
+                    if (sx > max_sx) max_sx = sx;
+                    if (sy > max_sy) max_sy = sy;
+                    projected = 1;
+                }
+
+                if (projected && mouse_x >= (int)(min_sx - 6.0f) && mouse_x <= (int)(max_sx + 6.0f) &&
+                    mouse_y >= (int)(min_sy - 6.0f) && mouse_y <= (int)(max_sy + 6.0f))
+                {
+                    hovered_bar = i;
+                }
+            }
+
+            glPushMatrix();
+            glTranslatef(x, 0.0f, z);
+            /* Gradient blue→gold matching main ball palette */
+            if (hovered_bar == i)
+            {
+                glColor3f(1.0f, 0.92f, 0.30f);
+                draw_box_prism(bar_w * 1.08f, h * 1.05f, depth * 1.08f);
+            }
+            else
+            {
+                glColor3f(0.18f + 0.65f * t, 0.55f + 0.30f * (1.0f - t),
+                          0.82f - 0.60f * t);
+                draw_box_prism(bar_w, h, depth);
+            }
+            /* Bright top cap */
+            glColor4f(1.0f, 1.0f, 1.0f, hovered_bar == i ? 0.65f : 0.35f);
+            draw_box_prism(hovered_bar == i ? bar_w * 1.08f : bar_w,
+                           0.06f,
+                           hovered_bar == i ? depth + 0.06f : depth + 0.02f);
+            glPopMatrix();
+        }
+
+        draw_analytics_hud_3d(title, dark_mode);
+        if (font) draw_analytics_info_overlay(font, report->number_min, report->number_max,
+                                             report->counts, report->total_draws,
+                                             report->from_date, report->to_date,
+                                             hovered_bar, dark_mode);
+        SDL_GL_SwapWindow(window);
+        SDL_Delay(16);
+    }
+
+    if (font) TTF_CloseFont(font);
+    TTF_Quit();
+    SDL_GL_DeleteContext(gl);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    return 0;
+}
+
+int gui_render_barometer_3d(const char *title, const BarometerReport *report, int dark_mode)
+{
+    if (!report) return -1;
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) return -1;
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+
+    SDL_Window *window = SDL_CreateWindow(
+        title ? title : "Barometer \u2014 Overdue Factor (3D)",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        1000, 700, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+    if (!window) { SDL_Quit(); return -1; }
+
+    SDL_GLContext gl = SDL_GL_CreateContext(window);
+    if (!gl) { SDL_DestroyWindow(window); SDL_Quit(); return -1; }
+#ifdef _WIN32
+    glewInit();
+#endif
+    if (TTF_Init() < 0) { SDL_GL_DeleteContext(gl); SDL_DestroyWindow(window); SDL_Quit(); return -1; }
+    char font_path[512];
+    snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
+    TTF_Font *font = TTF_OpenFont(font_path, 16);
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    double max_factor = 0.01;
+    for (int n = report->number_min; n <= report->number_max; n++)
+        if (report->factors[n] > max_factor) max_factor = report->factors[n];
+
+    const int   balls  = report->number_max - report->number_min + 1;
+    int grid_cols, grid_rows;
+    calc_grid_layout(balls, &grid_cols, &grid_rows);
+    
+    const float bar_w   = 0.32f;
+    const float bar_gap = 0.08f;
+    const float depth   = 0.30f;
+    const float grid_w  = grid_cols * (bar_w + bar_gap);
+    const float grid_h  = grid_rows * (bar_w + bar_gap);
+
+    AnalyticsCamera cam;
+    acam_init(&cam);
+    cam.cam_z = -35.0f;
+
+    Uint32 start   = SDL_GetTicks();
+    Uint32 timeout = analytics_gl_timeout_ms();
+    float  anim    = 0.0f;
+    Uint32 last_t  = start;
+    int    running = 1;
+    int    mouse_x = -1, mouse_y = -1;
+    int    hovered_bar = -1;
+
+    while (running)
+    {
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev))
+        {
+            if (ev.type == SDL_QUIT || (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE))
+                running = 0;
+            
+            /* Track mouse for hover detection */
+            if (ev.type == SDL_MOUSEMOTION)
+            {
+                mouse_x = ev.motion.x;
+                mouse_y = ev.motion.y;
+                
+                /* Simple hover detection for first 6 balls in overlay */
+                /* Each bar spans ~155 pixels, starting at x=12 */
+                if (mouse_y >= 28 && mouse_y <= 50)
+                {
+                    if (mouse_x >= 12 && mouse_x < 12 + 155*6)
+                    {
+                        int col = (mouse_x - 12) / 155;
+                        int samples = (report->number_max - report->number_min + 1 > 6) 
+                                    ? 6 : (report->number_max - report->number_min + 1);
+                        if (col < samples) hovered_bar = col;
+                        else hovered_bar = -1;
+                    }
+                    else
+                        hovered_bar = -1;
+                }
+                else
+                    hovered_bar = -1;
+            }
+            
+            /* Always pass events to camera handler (for mouse orbit, keys, etc.) */
+            acam_handle_event(&cam, &ev, &running);
+        }
+        if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
+
+        Uint32 now = SDL_GetTicks();
+        anim += (now - last_t) / 1000.0f / 0.5f;
+        last_t = now;
+        if (anim > 1.0f) anim = 1.0f;
+
+        if (dark_mode == 1) glClearColor(0.06f, 0.07f, 0.11f, 1.0f);
+        else                glClearColor(0.93f, 0.94f, 0.97f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        acam_apply(&cam);
+
+        /* Floor grid */
+        glColor4f(0.35f, 0.40f, 0.50f, 0.5f);
+        draw_floor_grid(fmaxf(grid_w, grid_h) * 0.65f, bar_w + bar_gap);
+
+        /* Reference line at factor = 1.0 (expected interval) */
+        float ref_h = (float)(1.0 / max_factor) * 10.5f;
+        glColor4f(0.25f, 0.85f, 0.30f, 0.75f);
+        glLineWidth(2.0f);
+        glBegin(GL_LINES);
+        glVertex3f(-grid_w * 0.5f, ref_h, -grid_h * 0.5f);
+        glVertex3f( grid_w * 0.5f, ref_h, -grid_h * 0.5f);
+        glVertex3f(-grid_w * 0.5f, ref_h,  grid_h * 0.5f);
+        glVertex3f( grid_w * 0.5f, ref_h,  grid_h * 0.5f);
+        glVertex3f(-grid_w * 0.5f, ref_h, -grid_h * 0.5f);
+        glVertex3f(-grid_w * 0.5f, ref_h,  grid_h * 0.5f);
+        glVertex3f( grid_w * 0.5f, ref_h, -grid_h * 0.5f);
+        glVertex3f( grid_w * 0.5f, ref_h,  grid_h * 0.5f);
+        glEnd();
+        glLineWidth(1.0f);
+
+        draw_y_axis(11.5f);
+
+        float x0 = -grid_w * 0.5f;
+        float z0 = -grid_h * 0.5f;
+        
+        for (int i = 0; i < balls; i++)
+        {
+            int row = i / grid_cols;
+            int col = i % grid_cols;
+            int number = report->number_min + i;
+            
+            float full_h = 0.15f + (float)(report->factors[number] / max_factor) * 10.5f;
+            float h = full_h * (anim < 1.0f ? anim : 1.0f);
+            float x = x0 + col * (bar_w + bar_gap) + bar_w * 0.5f;
+            float z = z0 + row * (bar_w + bar_gap) + bar_w * 0.5f;
+            float t = (float)i / (float)(balls > 1 ? balls - 1 : 1);
+
+            glPushMatrix();
+            glTranslatef(x, 0.0f, z);
+            glColor3f(0.95f, 0.55f - 0.30f * t, 0.15f + 0.10f * t);
+            draw_box_prism(bar_w, h, depth);
+            glColor4f(1.0f, 1.0f, 1.0f, 0.35f);
+            draw_box_prism(bar_w, 0.06f, depth + 0.02f);
+            glPopMatrix();
+        }
+
+        draw_analytics_hud_3d(title, dark_mode);
+        if (font)
+        {
+            /* Show sample factors: first 6 balls */
+            int *factor_int = (int *)malloc((size_t)(report->number_max - report->number_min + 1) * sizeof(int));
+            if (factor_int)
+            {
+                for (int i = report->number_min; i <= report->number_max; i++)
+                    factor_int[i - report->number_min] = (int)(report->factors[i] * 10.0 + 0.5);
+                draw_analytics_info_overlay(font, report->number_min, report->number_max,
+                                           factor_int, 1000, report->from_date, report->to_date,
+                                           hovered_bar, dark_mode);
+                free(factor_int);
+            }
+        }
+        SDL_GL_SwapWindow(window);
+        SDL_Delay(16);
+    }
+
+    if (font) TTF_CloseFont(font);
+    TTF_Quit();
+    SDL_GL_DeleteContext(gl);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    return 0;
+}
+
+int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int dark_mode)
+{
+    if (!report) return -1;
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) return -1;
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+
+    SDL_Window *window = SDL_CreateWindow(
+        title ? title : "Hot / Cold Numbers (3D)",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        1000, 700, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+    if (!window) { SDL_Quit(); return -1; }
+
+    SDL_GLContext gl = SDL_GL_CreateContext(window);
+    if (!gl) { SDL_DestroyWindow(window); SDL_Quit(); return -1; }
+#ifdef _WIN32
+    glewInit();
+#endif
+
+    if (TTF_Init() < 0) { SDL_GL_DeleteContext(gl); SDL_DestroyWindow(window); SDL_Quit(); return -1; }
+    char font_path[512];
+    snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
+    TTF_Font *font = TTF_OpenFont(font_path, 16);
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    int max_count = 1;
+    for (int i = 0; i < report->top_n; i++)
+    {
+        if (report->hot[i].count  > max_count) max_count = report->hot[i].count;
+        if (report->cold[i].count > max_count) max_count = report->cold[i].count;
+    }
+
+    const int   entries = report->top_n;
+    int grid_cols, grid_rows;
+    calc_grid_layout(entries, &grid_cols, &grid_rows);
+    
+    const float bar_w   = 0.32f;
+    const float bar_gap = 0.08f;
+    const float depth   = 0.28f;
+    const float row_sep = depth * 1.5f;
+    const float grid_w  = grid_cols * (bar_w + bar_gap);
+    const float grid_h  = grid_rows * (bar_w + bar_gap);
+
+    AnalyticsCamera cam;
+    acam_init(&cam);
+    cam.pitch = 20.0f;
+    cam.yaw   = 15.0f;
+    cam.cam_z = -38.0f;
+
+    Uint32 start   = SDL_GetTicks();
+    Uint32 timeout = analytics_gl_timeout_ms();
+    float  anim    = 0.0f;
+    Uint32 last_t  = start;
+    int    running = 1;
+    int    mouse_x = -1, mouse_y = -1;
+    int    hovered_bar = -1;
+
+    while (running)
+    {
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev))
+        {
+            if (ev.type == SDL_QUIT || (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE))
+                running = 0;
+            
+            /* Track mouse for hover detection */
+            if (ev.type == SDL_MOUSEMOTION)
+            {
+                mouse_x = ev.motion.x;
+                mouse_y = ev.motion.y;
+                
+                /* Simple hover detection for first 6 balls in overlay */
+                /* Each bar spans ~155 pixels, starting at x=12 */
+                if (mouse_y >= 28 && mouse_y <= 50)
+                {
+                    if (mouse_x >= 12 && mouse_x < 12 + 155*6)
+                    {
+                        int col = (mouse_x - 12) / 155;
+                        int samples = (report->top_n > 6) ? 6 : report->top_n;
+                        if (col < samples) hovered_bar = col;
+                        else hovered_bar = -1;
+                    }
+                    else
+                        hovered_bar = -1;
+                }
+                else
+                    hovered_bar = -1;
+            }
+            
+            /* Always pass events to camera handler (for mouse orbit, keys, etc.) */
+            acam_handle_event(&cam, &ev, &running);
+        }
+        if (timeout > 0 && SDL_GetTicks() - start >= timeout) running = 0;
+
+        Uint32 now = SDL_GetTicks();
+        anim += (now - last_t) / 1000.0f / 0.5f;
+        last_t = now;
+        if (anim > 1.0f) anim = 1.0f;
+
+        if (dark_mode == 1) glClearColor(0.06f, 0.07f, 0.11f, 1.0f);
+        else                glClearColor(0.93f, 0.94f, 0.97f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        acam_apply(&cam);
+
+        /* Floor grid */
+        glColor4f(0.35f, 0.40f, 0.50f, 0.4f);
+        draw_floor_grid(fmaxf(grid_w, grid_h) * 0.7f, bar_w + bar_gap);
+        draw_y_axis(11.5f);
+
+        float x0 = -grid_w * 0.5f;
+        float z0 = -grid_h * 0.5f;
+        
+        for (int i = 0; i < entries; i++)
+        {
+            int row = i / grid_cols;
+            int col = i % grid_cols;
+            float x = x0 + col * (bar_w + bar_gap) + bar_w * 0.5f;
+            float z = z0 + row * (bar_w + bar_gap) + bar_w * 0.5f;
+
+            float h_hot  = (0.15f + (10.5f * (float)report->hot[i].count)  / (float)max_count)
+                           * (anim < 1.0f ? anim : 1.0f);
+            float h_cold = (0.15f + (10.5f * (float)report->cold[i].count) / (float)max_count)
+                           * (anim < 1.0f ? anim : 1.0f);
+
+            /* Hot bar — front (positive Z), red */
+            glPushMatrix();
+            glTranslatef(x, 0.0f, z + row_sep);
+            glColor3f(0.92f, 0.22f, 0.20f);
+            draw_box_prism(bar_w, h_hot, depth);
+            glColor4f(1.0f, 0.6f, 0.3f, 0.50f);
+            draw_box_prism(bar_w, 0.06f, depth + 0.02f);
+            glPopMatrix();
+
+            /* Cold bar — back (negative Z), blue */
+            glPushMatrix();
+            glTranslatef(x, 0.0f, z - row_sep);
+            glColor3f(0.18f, 0.45f, 0.92f);
+            draw_box_prism(bar_w, h_cold, depth);
+            glColor4f(0.5f, 0.8f, 1.0f, 0.50f);
+            draw_box_prism(bar_w, 0.06f, depth + 0.02f);
+            glPopMatrix();
+        }
+
+        draw_analytics_hud_3d(title, dark_mode);
+        if (font)
+        {
+            /* For hot/cold, use red count as frequency for display */
+            int *counts = (int *)malloc((size_t)(report->top_n) * sizeof(int));
+            if (counts)
+            {
+                for (int i = 0; i < report->top_n; i++)
+                    counts[i] = report->hot[i].count;
+                /* Use first and last hot number as range for display */
+                int num_min = report->top_n > 0 ? report->hot[0].number : 1;
+                int num_max = report->top_n > 0 ? report->hot[report->top_n-1].number : 1;
+                draw_analytics_info_overlay(font, num_min, num_max, counts, 1000,
+                                           report->from_date, report->to_date,
+                                           hovered_bar, dark_mode);
+                free(counts);
+            }
+        }
+        SDL_GL_SwapWindow(window);
+        SDL_Delay(16);
+    }
+
+    if (font) TTF_CloseFont(font);
+    TTF_Quit();
+    SDL_GL_DeleteContext(gl);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    return 0;
+}

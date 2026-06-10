@@ -188,49 +188,33 @@ Deterministic replay (reproducible draws)
 
 ./open-lotto --game "Lotto 6aus49" --draws 10 --seed 0x1234abcd
 
-Sync latest official draw to local historical database (latest snapshot only)
+Sync / update local historical database
 
-./open-lotto --game "Eurojackpot" --database-gewinnzahlen update
+./open-lotto --game "Lotto 6aus49" --database-gewinnzahlen update
 
-Override Eurojackpot upstream endpoint (useful for tests/self-hosted mirrors)
+Override upstream endpoint (useful for tests/self-hosted mirrors)
 
 OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT="https://..." ./open-lotto --game "Eurojackpot" --database-gewinnzahlen update
+
+Frequency analytics over an inclusive date range
+
+./open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --frequency-distribution
+
+Barometer analytics in JSON format
+
+./open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --analytics-barometer --format json
+
+Hot/cold analytics (top N) with formulas
+
+./open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --analytics-hot-cold --top 15 --explain
+
+Use custom historical CSV for analytics
+
+./open-lotto --game "Lotto 6aus49" --historical-csv data.csv --from 2024-01-01 --to 2024-12-31 --frequency-distribution
 
 Tune historical download behavior (parallelism + retry/timeout)
 
 OPEN_LOTTO_HIST_DOWNLOAD_WORKERS=4 OPEN_LOTTO_HIST_MAX_FETCH_DRAWS=300 ./open-lotto --game "Lotto 6aus49" --database-gewinnzahlen update
-
-Available tuning env vars
-
-- OPEN_LOTTO_HIST_DOWNLOAD_WORKERS
-- OPEN_LOTTO_HIST_FETCH_TIMEOUT_SEC
-- OPEN_LOTTO_HIST_DRAW_TIMEOUT_SEC
-- OPEN_LOTTO_HIST_MAX_RETRY_ATTEMPTS
-- OPEN_LOTTO_HIST_RETRY_BASE_DELAY_MS
-- OPEN_LOTTO_HIST_RETRY_MAX_DELAY_MS
-- OPEN_LOTTO_HIST_MAX_FETCH_DRAWS
-
-Persist download tuning defaults in config file
-
-cp config/download.conf.example ~/.config/open-lotto/download.conf
-
-Update source URL for a game via CLI
-
-./open-lotto --game "Lotto 6aus49" --download-url set "https://www.lotto.de/bin/6aus49?gbn=1&jahr=2026"
-
-Update download tuning values via CLI
-
-./open-lotto --download-config workers set 6
-./open-lotto --download-config "#sym:HISTORICAL_DB_DOWNLOAD_WORKERS_DEFAULT" set 10
-
-Config file locations
-
-- ~/.config/open-lotto/sources.conf
-- ~/.config/open-lotto/download.conf
-
-Benchmark single vs parallel workers and auto-pick best worker count
-
-./scripts/benchmark_download_workers.sh "Lotto 6aus49" 200 "1,2,4,6,8" 2
 
 🧩 Plugin Architecture
 
@@ -267,6 +251,7 @@ plugins/
 
 Comprehensive documentation is available in the `docs/` directory:
 
+- **[CLI_REFERENCE.md](docs/CLI_REFERENCE.md)** — Complete command-line interface reference with examples (modes, analytics, output formats, environment variables)
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — System design, plugin system internals, physics simulation, data flow, and design principles
 - **[API_REFERENCE.md](docs/API_REFERENCE.md)** — Complete function reference for all public APIs (RNG, combogen, plugins, export, validation, configuration, logging)
 - **[DEVELOPER_API.md](docs/DEVELOPER_API.md)** — Embeddable C API for validated and deterministic seeded draw generation

@@ -172,6 +172,9 @@ if(OPEN_LOTTO_ENABLE_OPENGL)
 endif()
 
 set(OPEN_LOTTO_SOURCES
+    src/analytics_data_quality.c
+    src/analytics.c
+    src/historical_db.c
     src/main.c
     src/export.c
     src/combogen.c
@@ -485,6 +488,158 @@ if(BUILD_TESTING)
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --seed not_a_number
     )
     set_tests_properties(cli_seed_invalid_value PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_period_from_without_to
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --from 2025-01-01
+    )
+    set_tests_properties(cli_period_from_without_to PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_period_to_without_from
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --to 2025-12-31
+    )
+    set_tests_properties(cli_period_to_without_from PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_period_invalid_date
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --from 2025-13-01 --to 2025-12-31
+    )
+    set_tests_properties(cli_period_invalid_date PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_period_inverted
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --from 2025-12-31 --to 2025-01-01
+    )
+    set_tests_properties(cli_period_inverted PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_period_valid_pair
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --from 2025-01-01 --to 2025-12-31 --draws 1
+    )
+    set_tests_properties(cli_period_valid_pair PROPERTIES
+        PASS_REGULAR_EXPRESSION "Main:"
+    )
+
+    add_test(NAME cli_analytics_frequency_table
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv
+    )
+    set_tests_properties(cli_analytics_frequency_table PROPERTIES
+        PASS_REGULAR_EXPRESSION "Frequency distribution|number,count,percentage"
+    )
+
+    add_test(NAME cli_analytics_frequency_json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --format json
+    )
+    set_tests_properties(cli_analytics_frequency_json PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"frequency\"|\"draws\""
+    )
+
+    add_test(NAME cli_analytics_frequency_gui_2d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --gui 2D
+    )
+    set_tests_properties(cli_analytics_frequency_gui_2d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 2D\]"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
+    )
+
+    add_test(NAME cli_analytics_frequency_gui_3d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --gui 3D
+    )
+    set_tests_properties(cli_analytics_frequency_gui_3d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
+    )
+
+    add_test(NAME cli_analytics_barometer_table
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-barometer --from 2025-03-01 --to 2025-03-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_barometer.csv
+    )
+    set_tests_properties(cli_analytics_barometer_table PROPERTIES
+        PASS_REGULAR_EXPRESSION "Barometer|number,hits,observed_gap,factor"
+    )
+
+    add_test(NAME cli_analytics_barometer_json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-barometer --from 2025-03-01 --to 2025-03-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_barometer.csv --format json
+    )
+    set_tests_properties(cli_analytics_barometer_json PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"barometer\"|\"expected_interval\""
+    )
+
+    add_test(NAME cli_analytics_barometer_gui_2d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-barometer --from 2025-03-01 --to 2025-03-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_barometer.csv --gui 2D
+    )
+    set_tests_properties(cli_analytics_barometer_gui_2d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 2D\]"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
+    )
+
+    add_test(NAME cli_analytics_barometer_gui_3d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-barometer --from 2025-03-01 --to 2025-03-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_barometer.csv --gui 3D
+    )
+    set_tests_properties(cli_analytics_barometer_gui_3d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
+    )
+
+    add_test(NAME cli_analytics_hot_cold_table
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-hot-cold --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --top 5
+    )
+    set_tests_properties(cli_analytics_hot_cold_table PROPERTIES
+        PASS_REGULAR_EXPRESSION "Hot and Cold numbers|HOT|COLD"
+    )
+
+    add_test(NAME cli_analytics_hot_cold_json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-hot-cold --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --top 5 --format json
+    )
+    set_tests_properties(cli_analytics_hot_cold_json PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"hot\"|\"cold\""
+    )
+
+    add_test(NAME cli_analytics_hot_cold_gui_2d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-hot-cold --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --top 5 --gui 2D
+    )
+    set_tests_properties(cli_analytics_hot_cold_gui_2d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 2D\]|HOT:|COLD:"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
+    )
+
+    add_test(NAME cli_analytics_hot_cold_gui_3d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-hot-cold --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --top 5 --gui 3D
+    )
+    set_tests_properties(cli_analytics_hot_cold_gui_3d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 3D\]|bar3"
+        ENVIRONMENT "OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS=200"
+    )
+
+    add_test(NAME cli_analytics_frequency_explain
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --explain
+    )
+    set_tests_properties(cli_analytics_frequency_explain PROPERTIES
+        PASS_REGULAR_EXPRESSION "Explain: frequency percentage"
+    )
+
+    add_test(NAME cli_analytics_barometer_explain_json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-barometer --from 2025-03-01 --to 2025-03-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_barometer.csv --format json --explain
+    )
+    set_tests_properties(cli_analytics_barometer_explain_json PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"explain\"|\"mode\":\"barometer\""
+    )
+
+    add_test(NAME cli_analytics_hot_cold_explain_gui_3d
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --analytics-hot-cold --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --top 5 --gui 3D --explain
+    )
+    set_tests_properties(cli_analytics_hot_cold_explain_gui_3d PROPERTIES
+        PASS_REGULAR_EXPRESSION "\[GUI 3D\]|Explain: hot numbers"
+    )
+
+    add_test(NAME golden_analytics_outputs
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_analytics_golden.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(golden_analytics_outputs PROPERTIES
+        PASS_REGULAR_EXPRESSION "analytics golden baselines OK"
+    )
+
+    add_test(NAME perf_analytics_budget
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_analytics_perf_budget.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(perf_analytics_budget PROPERTIES
+        PASS_REGULAR_EXPRESSION "analytics performance budgets OK"
+    )
 
     add_test(NAME cli_verbose_missing_value
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --verbose

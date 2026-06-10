@@ -5,6 +5,9 @@
 #include "combogen.h"
 #include "config.h"
 #include "export.h"
+#include "analytics.h"
+#include "analytics_data_quality.h"
+#include "historical_db.h"
 #include "gui_opengl.h"
 #include "gui_sdl.h"
 #include "localization.h"
@@ -217,8 +220,8 @@ static void print_usage(const char *prog)
             "LEVEL]\n"
             "  %s --game NAME [--draws N] [--export csv|json] [--output FILE] [--reload-plugin] "
             "[--verbose LEVEL]\n"
-            "  %s --game NAME --validate-only\n"
             "  %s --game NAME --database-gewinnzahlen update\n"
+            "  %s --game NAME --validate-only\n"
             "  %s --game NAME --download-url set URL\n"
             "  %s --download-config NAME set VALUE\n"
             "  %s --list-games\n"
@@ -244,6 +247,18 @@ static void print_usage(const char *prog)
             "  --seed VALUE      Deterministic seed (decimal or 0x-prefixed hex)\n"
             "  --verbose LEVEL   Log level: ERROR, WARN, INFO, DEBUG (default: INFO)\n"
             "\n"
+            "Analytics Period Options:\n"
+            "  --from YYYY-MM-DD Inclusive period start date for analytics APIs\n"
+            "  --to YYYY-MM-DD   Inclusive period end date for analytics APIs\n"
+            "  --frequency-distribution Print frequency distribution over historical data\n"
+            "  --analytics-barometer   Print overdue barometer over historical data\n"
+            "  --analytics-hot-cold    Print hot/cold number rankings over historical data\n"
+            "  --top N                 Number of hot/cold entries (default: 10)\n"
+            "  --explain               Show formulas/assumptions for analytics outputs\n"
+            "  --format FORMAT         Analytics output format: table, json, csv\n"
+            "  --historical-csv FILE   Historical draw CSV override (simulation/dev datasets)\n"
+            "                         By default analytics read local real-data DB snapshot\n"
+            "\n"
             "Log Levels:\n"
             "  ERROR, WARN, INFO (default), DEBUG\n"
             "\n"
@@ -261,6 +276,7 @@ static void print_usage(const char *prog)
             "\n"
             "Examples:\n"
             "  %s --list-games\n"
+            "  %s --game \"Lotto 6aus49\" --database-gewinnzahlen update\n"
             "  %s --game \"Lotto 6aus49\"\n"
             "  %s --game \"Lotto 6aus49\" --draws 10\n"
             "  %s --game \"Lotto 6aus49\" --draws 10 --seed 0x1234abcd\n"
@@ -280,7 +296,7 @@ static void print_usage(const char *prog)
             "  OPEN_LOTTO_SOURCES_CONFIG               Override sources config path\n"
             "  OPEN_LOTTO_DOWNLOAD_CONFIG              Override download config path\n",
             prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
-            prog, prog, prog, prog, prog);
+            prog, prog, prog, prog, prog, prog);
 }
 
 static void trim_whitespace(char *s)
@@ -622,6 +638,14 @@ int main(int argc, char **argv)
     config_load_lottorc(&cfg);
     g_cli_locale = localization_detect_locale();
 
+    /* Handle help command */
+    if (argc >= 2 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0))
+    {
+        print_usage(argv[0]);
+        config_free(&cfg);
+        return 0;
+    }
+
     /* Handle --list-games command */
     if (argc >= 2 && strcmp(argv[1], "--list-games") == 0)
     {
@@ -664,6 +688,16 @@ int main(int argc, char **argv)
     const char *download_config_value = NULL;
     int use_seed = 0;
     uint64_t seed_value = 0;
+    const char *period_from = NULL;
+    const char *period_to = NULL;
+    int analytics_frequency = 0;
+    int analytics_barometer = 0;
+    int analytics_hot_cold = 0;
+    int analytics_top = 10;
+    int analytics_explain = 0;
+    const char *analytics_format = "table";
+    const char *historical_csv = NULL;
+    int historical_csv_from_cli = 0;
 
     /* ---------------------------------------------------------
        Parse arguments (all options, --game may appear anywhere)
@@ -882,6 +916,92 @@ int main(int argc, char **argv)
             }
             use_seed = 1;
         }
+        else if (strcmp(argv[i], "--from") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--from requires a date value in YYYY-MM-DD format.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            period_from = argv[++i];
+        }
+        else if (strcmp(argv[i], "--to") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--to requires a date value in YYYY-MM-DD format.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            period_to = argv[++i];
+        }
+        else if (strcmp(argv[i], "--frequency-distribution") == 0 ||
+                 strcmp(argv[i], "--analytics-frequency") == 0)
+        {
+            analytics_frequency = 1;
+        }
+        else if (strcmp(argv[i], "--analytics-barometer") == 0)
+        {
+            analytics_barometer = 1;
+        }
+        else if (strcmp(argv[i], "--analytics-hot-cold") == 0)
+        {
+            analytics_hot_cold = 1;
+        }
+        else if (strcmp(argv[i], "--format") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--format requires one of: table, json, csv.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            analytics_format = argv[++i];
+            if (strcmp(analytics_format, "table") != 0 && strcmp(analytics_format, "json") != 0 &&
+                strcmp(analytics_format, "csv") != 0)
+            {
+                fprintf(stderr, "Error: Unsupported --format '%s'. Use table, json, or csv.\n",
+                        analytics_format);
+                config_free(&cfg);
+                return 1;
+            }
+        }
+        else if (strcmp(argv[i], "--historical-csv") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--historical-csv requires a file path.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            historical_csv = argv[++i];
+            historical_csv_from_cli = 1;
+        }
+        else if (strcmp(argv[i], "--top") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--top requires a positive integer.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            char *end = NULL;
+            long parsed = strtol(argv[++i], &end, 10);
+            if (!end || *end != '\0' || parsed <= 0 || parsed > 128)
+            {
+                fprintf(stderr, "Error: --top must be an integer between 1 and 128.\n");
+                config_free(&cfg);
+                return 1;
+            }
+            analytics_top = (int)parsed;
+        }
+        else if (strcmp(argv[i], "--explain") == 0)
+        {
+            analytics_explain = 1;
+        }
         else
         {
             fprintf(stderr, "Error: Unknown option '%s'\n", argv[i]);
@@ -890,6 +1010,8 @@ int main(int argc, char **argv)
             return 1;
         }
     }
+
+    int analytics_mode_count = analytics_frequency + analytics_barometer + analytics_hot_cold;
 
     /* ---------------------------------------------------------
        Apply config file defaults for options not set by CLI
@@ -1099,6 +1221,294 @@ int main(int argc, char **argv)
         registry_destroy(registry);
         config_free(&cfg);
         return 1;
+    }
+
+    if (database_gewinnzahlen_cmd)
+    {
+        HistoricalDrawSnapshot snapshot;
+        int db_rc = historical_db_sync_latest(selected->name, NULL, &snapshot);
+        if (db_rc < 0)
+        {
+            fprintf(stderr,
+                    "Error: database sync failed for '%s' (code %d). Check source config and network.\n",
+                    selected->name, db_rc);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (db_rc == HISTORICAL_DB_SYNC_UNCHANGED)
+            printf("Local historical database already up to date for '%s' (draw_date=%s).\n",
+                   selected->name, snapshot.draw_date);
+        else
+            printf("Historical database updated for '%s' (latest draw_date=%s).\n", selected->name,
+                   snapshot.draw_date);
+
+        registry_destroy(registry);
+        config_free(&cfg);
+        return 0;
+    }
+
+    if (analytics_mode_count > 0)
+    {
+        HistoricalDraw *draws = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
+        HistoricalDraw *filtered = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
+        AnalyticsDrawRecord *dq_records =
+            calloc(ANALYTICS_MAX_DRAWS, sizeof(AnalyticsDrawRecord));
+        int draw_count = 0;
+        int filtered_count = 0;
+
+        if (!draws || !filtered || !dq_records)
+        {
+            fprintf(stderr, "Error: Out of memory while preparing analytics buffers.\n");
+            free(draws);
+            free(filtered);
+            free(dq_records);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        int load_rc = VALIDATE_OK;
+        if (historical_csv_from_cli)
+        {
+            load_rc = analytics_load_historical_csv(historical_csv, draws, ANALYTICS_MAX_DRAWS,
+                                                    &draw_count, &selected->info);
+        }
+        else
+        {
+            load_rc = analytics_load_historical_db_snapshot(selected->name, NULL, draws,
+                                                            ANALYTICS_MAX_DRAWS, &draw_count,
+                                                            &selected->info);
+        }
+
+        if (load_rc != VALIDATE_OK)
+        {
+            free(draws);
+            free(filtered);
+            free(dq_records);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (analytics_filter_period(draws, draw_count, period_from, period_to, filtered,
+                                    &filtered_count) != VALIDATE_OK)
+        {
+            free(draws);
+            free(filtered);
+            free(dq_records);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        for (int i = 0; i < filtered_count; i++)
+        {
+            dq_records[i].draw_date = filtered[i].draw_date;
+            dq_records[i].main_count = filtered[i].result.main_count;
+            dq_records[i].extra_count = filtered[i].result.extra_count;
+            memset(dq_records[i].main_numbers, 0, sizeof(dq_records[i].main_numbers));
+            memset(dq_records[i].extra_numbers, 0, sizeof(dq_records[i].extra_numbers));
+
+            for (int j = 0; j < filtered[i].result.main_count && j < ANALYTICS_MAX_MAIN_NUMBERS;
+                 j++)
+                dq_records[i].main_numbers[j] = filtered[i].result.main_numbers[j];
+            for (int j = 0; j < filtered[i].result.extra_count && j < ANALYTICS_MAX_EXTRA_NUMBERS;
+                 j++)
+                dq_records[i].extra_numbers[j] = filtered[i].result.extra_numbers[j];
+        }
+
+        AnalyticsDataQualityReport dq_report;
+        if (analytics_data_quality_evaluate(dq_records, filtered_count, period_from, period_to,
+                                            selected->info.main_count, selected->info.main_min,
+                                            selected->info.main_max, selected->info.extra_count,
+                                            selected->info.extra_min, selected->info.extra_max,
+                                            &dq_report) != VALIDATE_OK)
+        {
+            free(draws);
+            free(filtered);
+            free(dq_records);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        char dq_cli[256];
+        analytics_data_quality_format_cli(&dq_report, dq_cli, sizeof(dq_cli));
+        printf("%s\n", dq_cli);
+
+        if (analytics_data_quality_has_severe_issues(&dq_report))
+        {
+            fprintf(stderr, "Error: Severe data integrity issues detected in selected period.\n");
+            free(draws);
+            free(filtered);
+            free(dq_records);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (analytics_frequency)
+        {
+            FrequencyReport report;
+            if (analytics_compute_frequency(filtered, filtered_count, selected->info.main_min,
+                                            selected->info.main_max, &report) != VALIDATE_OK)
+            {
+                free(draws);
+                free(filtered);
+                free(dq_records);
+                registry_destroy(registry);
+                config_free(&cfg);
+                return 1;
+            }
+
+            strncpy(report.from_date, period_from, sizeof(report.from_date) - 1);
+            report.from_date[sizeof(report.from_date) - 1] = '\0';
+            strncpy(report.to_date, period_to, sizeof(report.to_date) - 1);
+            report.to_date[sizeof(report.to_date) - 1] = '\0';
+
+            if (gui && strcmp(gui_mode, "3D") == 0)
+            {
+                printf("[GUI 3D] OpenGL frequency visualization\n");
+                if (gui_render_frequency_3d(selected->name, &report, dark_mode) != 0)
+                    analytics_print_frequency_gui_3d_matlab(&report);
+            }
+            else if (gui)
+            {
+                printf("[GUI 2D] SDL frequency visualization\n");
+                if (gui_render_frequency_2d(selected->name, &report, dark_mode) != 0)
+                    analytics_print_frequency_gui_2d(&report);
+            }
+            else if (strcmp(analytics_format, "json") == 0)
+                analytics_print_frequency_json(&report);
+            else if (strcmp(analytics_format, "csv") == 0)
+                analytics_print_frequency_csv(&report);
+            else
+                analytics_print_frequency_table(&report);
+
+            if (analytics_explain)
+            {
+                if (strcmp(analytics_format, "json") == 0)
+                {
+                    printf("{\"explain\":{\"mode\":\"frequency\",\"formula\":\"count(number)/draws\",\"period\":\"inclusive\"}}\n");
+                }
+                else
+                {
+                    printf("Explain: frequency percentage = count(number) / draws in inclusive period [%s, %s].\n",
+                           period_from, period_to);
+                }
+            }
+        }
+        else if (analytics_barometer)
+        {
+            BarometerReport report;
+            if (analytics_compute_barometer(filtered, filtered_count, selected->info.main_min,
+                                            selected->info.main_max, selected->info.main_count,
+                                            &report) != VALIDATE_OK)
+            {
+                free(draws);
+                free(filtered);
+                free(dq_records);
+                registry_destroy(registry);
+                config_free(&cfg);
+                return 1;
+            }
+
+            strncpy(report.from_date, period_from, sizeof(report.from_date) - 1);
+            report.from_date[sizeof(report.from_date) - 1] = '\0';
+            strncpy(report.to_date, period_to, sizeof(report.to_date) - 1);
+            report.to_date[sizeof(report.to_date) - 1] = '\0';
+
+            if (gui && strcmp(gui_mode, "3D") == 0)
+            {
+                printf("[GUI 3D] OpenGL barometer visualization\n");
+                if (gui_render_barometer_3d(selected->name, &report, dark_mode) != 0)
+                    analytics_print_barometer_gui_3d_matlab(&report);
+            }
+            else if (gui)
+            {
+                printf("[GUI 2D] SDL barometer visualization\n");
+                if (gui_render_barometer_2d(selected->name, &report, dark_mode) != 0)
+                    analytics_print_barometer_gui_2d(&report);
+            }
+            else if (strcmp(analytics_format, "json") == 0)
+                analytics_print_barometer_json(&report);
+            else if (strcmp(analytics_format, "csv") == 0)
+                analytics_print_barometer_csv(&report);
+            else
+                analytics_print_barometer_table(&report);
+
+            if (analytics_explain)
+            {
+                if (strcmp(analytics_format, "json") == 0)
+                {
+                    printf("{\"explain\":{\"mode\":\"barometer\",\"formula\":\"observed_gap/expected_interval\",\"expected_interval\":\"population/picks_per_draw\"}}\n");
+                }
+                else
+                {
+                    printf("Explain: barometer factor = observed_gap / expected_interval, where expected_interval = population / picks_per_draw.\n");
+                }
+            }
+        }
+        else if (analytics_hot_cold)
+        {
+            HotColdReport report;
+            if (analytics_compute_hot_cold(filtered, filtered_count, selected->info.main_min,
+                                           selected->info.main_max, analytics_top,
+                                           &report) != VALIDATE_OK)
+            {
+                free(draws);
+                free(filtered);
+                free(dq_records);
+                registry_destroy(registry);
+                config_free(&cfg);
+                return 1;
+            }
+
+            strncpy(report.from_date, period_from, sizeof(report.from_date) - 1);
+            report.from_date[sizeof(report.from_date) - 1] = '\0';
+            strncpy(report.to_date, period_to, sizeof(report.to_date) - 1);
+            report.to_date[sizeof(report.to_date) - 1] = '\0';
+
+            if (gui && strcmp(gui_mode, "3D") == 0)
+            {
+                printf("[GUI 3D] OpenGL hot/cold visualization\n");
+                if (gui_render_hot_cold_3d(selected->name, &report, dark_mode) != 0)
+                    analytics_print_hot_cold_gui_3d_matlab(&report);
+            }
+            else if (gui)
+            {
+                printf("[GUI 2D] SDL hot/cold visualization\n");
+                if (gui_render_hot_cold_2d(selected->name, &report, dark_mode) != 0)
+                    analytics_print_hot_cold_gui_2d(&report);
+            }
+            else if (strcmp(analytics_format, "json") == 0)
+                analytics_print_hot_cold_json(&report);
+            else if (strcmp(analytics_format, "csv") == 0)
+                analytics_print_hot_cold_csv(&report);
+            else
+                analytics_print_hot_cold_table(&report);
+
+            if (analytics_explain)
+            {
+                if (strcmp(analytics_format, "json") == 0)
+                {
+                    printf("{\"explain\":{\"mode\":\"hot-cold\",\"rule\":\"hot=highest frequency, cold=lowest frequency\",\"tie_break\":\"ascending number\"}}\n");
+                }
+                else
+                {
+                    printf("Explain: hot numbers are ranked by descending frequency; cold numbers by ascending frequency; ties use ascending number.\n");
+                }
+            }
+        }
+
+        free(draws);
+        free(filtered);
+        free(dq_records);
+        registry_destroy(registry);
+        config_free(&cfg);
+        return 0;
     }
 
     /* If --validate-only flag is set, exit after successful validation */
