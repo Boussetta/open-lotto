@@ -214,61 +214,6 @@ static uint64_t derive_draw_seed(uint64_t base_seed, int draw_index)
     return splitmix64(base_seed ^ (uint64_t)draw_index);
 }
 
-static uint64_t sample_seed_in_domain(uint64_t *state, uint64_t seed_start, uint64_t seed_end)
-{
-    *state = splitmix64(*state);
-    if (seed_start == 0 && seed_end == UINT64_MAX)
-        return *state;
-
-    uint64_t domain_size = seed_end - seed_start + 1ULL;
-    uint64_t limit = UINT64_MAX - (UINT64_MAX % domain_size);
-    while (*state > limit)
-        *state = splitmix64(*state);
-    return seed_start + (*state % domain_size);
-}
-
-static int build_unique_seed_sample(uint64_t seed_start, uint64_t seed_end, int seed_count,
-                                    uint64_t sampling_seed, uint64_t *out_seeds)
-{
-    if (!out_seeds || seed_count <= 0)
-        return 0;
-
-    size_t table_capacity = 1;
-    while (table_capacity < (size_t)(seed_count * 2))
-        table_capacity <<= 1;
-
-    uint64_t *table = calloc(table_capacity, sizeof(uint64_t));
-    unsigned char *used = calloc(table_capacity, sizeof(unsigned char));
-    if (!table || !used)
-    {
-        free(table);
-        free(used);
-        return 0;
-    }
-
-    uint64_t state = sampling_seed;
-    int written = 0;
-    while (written < seed_count)
-    {
-        uint64_t candidate = sample_seed_in_domain(&state, seed_start, seed_end);
-        size_t idx = (size_t)(candidate & (table_capacity - 1));
-
-        while (used[idx] && table[idx] != candidate)
-            idx = (idx + 1) & (table_capacity - 1);
-
-        if (used[idx])
-            continue;
-
-        used[idx] = 1;
-        table[idx] = candidate;
-        out_seeds[written++] = candidate;
-    }
-
-    free(table);
-    free(used);
-    return 1;
-}
-
 typedef struct
 {
     LotteryInfo info;
@@ -533,8 +478,6 @@ static void print_usage(const char *prog)
             "  --closest-seed          Find best-fit simulator seed for one fixed period\n"
             "  --seed-start VALUE      Start of seed search range (required)\n"
             "  --seed-end VALUE        End of seed search range (required)\n"
-            "  --seed-count N          Evaluate N unique sampled seeds (alternative mode)\n"
-            "  --sample-seed VALUE     RNG seed for reproducible unique sampling\n"
             "  --max-evals N           Max seed evaluations (default: 100000)\n"
             "  --threads N             Worker threads for closest-seed search (default: 1)\n"
             "  --timeout-ms N          Soft time budget hint in milliseconds (reserved)\n"
@@ -542,11 +485,6 @@ static void print_usage(const char *prog)
             "Closest-Seed Example:\n"
             "  %s --game \"Lotto 6aus49\" --closest-seed --from 2026-01-01 --to 2026-06-30 "
             "--seed-start 0 --seed-end 100000 --format json\n",
-            prog);
-
-    fprintf(stderr,
-            "  %s --game \"Lotto 6aus49\" --closest-seed --from 2026-01-01 --to 2026-06-30 "
-            "--seed-count 100000 --sample-seed 0x1234 --format json\n",
             prog);
 }
 
@@ -950,12 +888,7 @@ int main(int argc, char **argv)
     uint64_t closest_seed_end = 0;
     int closest_seed_start_set = 0;
     int closest_seed_end_set = 0;
-    int closest_seed_count = 0;
-    int closest_seed_count_set = 0;
-    uint64_t closest_seed_sampling_seed = 0x7a5d9e3779b97f4aULL;
-    int closest_seed_sampling_seed_set = 0;
     int closest_seed_max_evals = 100000;
-    int closest_seed_max_evals_set = 0;
     int closest_seed_threads = 1;
     int closest_seed_threads_set = 0;
     int closest_seed_timeout_ms = 0;
@@ -1265,45 +1198,6 @@ int main(int argc, char **argv)
             }
             closest_seed_end_set = 1;
         }
-        else if (strcmp(argv[i], "--seed-count") == 0)
-        {
-            if (i + 1 >= argc)
-            {
-                fprintf(stderr, "--seed-count requires a positive integer.\n");
-                config_free(&cfg);
-                return 1;
-            }
-
-            char *end = NULL;
-            long parsed = strtol(argv[++i], &end, 10);
-            if (!end || *end != '\0' || parsed <= 0 || parsed > INT_MAX)
-            {
-                fprintf(stderr, "Error: --seed-count must be a positive integer.\n");
-                config_free(&cfg);
-                return 1;
-            }
-            closest_seed_count = (int)parsed;
-            closest_seed_count_set = 1;
-        }
-        else if (strcmp(argv[i], "--sample-seed") == 0)
-        {
-            if (i + 1 >= argc)
-            {
-                fprintf(stderr,
-                        "--sample-seed requires a numeric value (decimal or 0x-prefixed hex).\n");
-                config_free(&cfg);
-                return 1;
-            }
-            if (!parse_seed_value(argv[++i], &closest_seed_sampling_seed))
-            {
-                fprintf(stderr,
-                        "Invalid --sample-seed value '%s' (expected decimal or 0x-prefixed hex).\n",
-                        argv[i]);
-                config_free(&cfg);
-                return 1;
-            }
-            closest_seed_sampling_seed_set = 1;
-        }
         else if (strcmp(argv[i], "--max-evals") == 0)
         {
             if (i + 1 >= argc)
@@ -1322,7 +1216,6 @@ int main(int argc, char **argv)
                 return 1;
             }
             closest_seed_max_evals = (int)parsed;
-            closest_seed_max_evals_set = 1;
         }
         else if (strcmp(argv[i], "--threads") == 0)
         {
@@ -1673,59 +1566,13 @@ int main(int argc, char **argv)
             config_free(&cfg);
             return 1;
         }
-
-        if (closest_seed_sampling_seed_set && !closest_seed_count_set)
+        if (!closest_seed_start_set || !closest_seed_end_set)
         {
-            fprintf(stderr, "Error: --sample-seed requires --seed-count.\n");
+            fprintf(stderr, "Error: --closest-seed requires both --seed-start and --seed-end.\n");
             config_free(&cfg);
             return 1;
         }
-
-        if (closest_seed_count_set)
-        {
-            if (closest_seed_max_evals_set)
-            {
-                fprintf(stderr, "Error: --max-evals cannot be combined with --seed-count mode.\n");
-                config_free(&cfg);
-                return 1;
-            }
-            if (closest_seed_start_set != closest_seed_end_set)
-            {
-                fprintf(
-                    stderr,
-                    "Error: sampled mode with bounds requires both --seed-start and --seed-end.\n");
-                config_free(&cfg);
-                return 1;
-            }
-
-            if (closest_seed_start_set)
-            {
-                if (closest_seed_start > closest_seed_end)
-                {
-                    fprintf(stderr, "Error: --seed-start must be <= --seed-end.\n");
-                    config_free(&cfg);
-                    return 1;
-                }
-
-                uint64_t domain_size = closest_seed_end - closest_seed_start + 1ULL;
-                if ((uint64_t)closest_seed_count > domain_size)
-                {
-                    fprintf(stderr, "Error: --seed-count exceeds bounded domain size (%llu).\n",
-                            (unsigned long long)domain_size);
-                    config_free(&cfg);
-                    return 1;
-                }
-            }
-        }
-        else if (!closest_seed_start_set || !closest_seed_end_set)
-        {
-            fprintf(stderr, "Error: --closest-seed requires --seed-count OR both --seed-start and "
-                            "--seed-end.\n");
-            config_free(&cfg);
-            return 1;
-        }
-
-        if (!closest_seed_count_set && closest_seed_start > closest_seed_end)
+        if (closest_seed_start > closest_seed_end)
         {
             fprintf(stderr, "Error: --seed-start must be <= --seed-end.\n");
             config_free(&cfg);
@@ -1739,11 +1586,10 @@ int main(int argc, char **argv)
             return 1;
         }
     }
-    else if (closest_seed_threads_set || closest_seed_timeout_set || closest_seed_count_set ||
-             closest_seed_sampling_seed_set)
+    else if (closest_seed_threads_set || closest_seed_timeout_set)
     {
-        fprintf(stderr, "Error: --threads/--timeout-ms/--seed-count/--sample-seed are supported "
-                        "only with --closest-seed.\n");
+        fprintf(stderr,
+                "Error: --threads and --timeout-ms are supported only with --closest-seed.\n");
         config_free(&cfg);
         return 1;
     }
@@ -1878,35 +1724,6 @@ int main(int argc, char **argv)
         SeedCalibrationDrawContext draw_ctx;
         draw_ctx.info = selected->info;
 
-        uint64_t *sampled_seeds = NULL;
-        uint64_t sampled_seed_start = closest_seed_start_set ? closest_seed_start : 0ULL;
-        uint64_t sampled_seed_end = closest_seed_end_set ? closest_seed_end : UINT64_MAX;
-        if (closest_seed_count_set)
-        {
-            sampled_seeds = calloc((size_t)closest_seed_count, sizeof(uint64_t));
-            if (!sampled_seeds)
-            {
-                fprintf(stderr, "Error: Out of memory while preparing sampled seed set.\n");
-                free(historical_draws);
-                free(filtered);
-                registry_destroy(registry);
-                config_free(&cfg);
-                return 1;
-            }
-
-            if (!build_unique_seed_sample(sampled_seed_start, sampled_seed_end, closest_seed_count,
-                                          closest_seed_sampling_seed, sampled_seeds))
-            {
-                fprintf(stderr, "Error: Failed to build unique sampled seed set.\n");
-                free(sampled_seeds);
-                free(historical_draws);
-                free(filtered);
-                registry_destroy(registry);
-                config_free(&cfg);
-                return 1;
-            }
-        }
-
         SeedCalibrationRequest request;
         memset(&request, 0, sizeof(request));
         request.historical_draws = filtered;
@@ -1914,10 +1731,8 @@ int main(int argc, char **argv)
         request.number_min = selected->info.main_min;
         request.number_max = selected->info.main_max;
         request.expected_main_count = selected->info.main_count;
-        request.seed_list = sampled_seeds;
-        request.seed_list_count = closest_seed_count_set ? closest_seed_count : 0;
-        request.seed_start = closest_seed_count_set ? sampled_seed_start : closest_seed_start;
-        request.seed_end = closest_seed_count_set ? sampled_seed_end : closest_seed_end;
+        request.seed_start = closest_seed_start;
+        request.seed_end = closest_seed_end;
         request.max_evals = closest_seed_max_evals;
         request.threads = closest_seed_threads;
         request.top_k = analytics_top;
@@ -1938,7 +1753,6 @@ int main(int argc, char **argv)
         if (rc != SEED_CALIBRATION_OK)
         {
             fprintf(stderr, "Error: closest-seed search failed (code %d).\n", rc);
-            free(sampled_seeds);
             free(historical_draws);
             free(filtered);
             registry_destroy(registry);
@@ -1953,7 +1767,6 @@ int main(int argc, char **argv)
         else
             print_closest_seed_table(&result);
 
-        free(sampled_seeds);
         free(historical_draws);
         free(filtered);
         registry_destroy(registry);
