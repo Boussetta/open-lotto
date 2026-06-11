@@ -216,7 +216,7 @@ static uint64_t derive_draw_seed(uint64_t base_seed, int draw_index)
 
 typedef struct
 {
-    LoadedPlugin *plugin;
+    LotteryInfo info;
 } SeedCalibrationDrawContext;
 
 static int seed_calibration_draw_callback(void *ctx, uint64_t seed, int draw_index,
@@ -226,9 +226,10 @@ static int seed_calibration_draw_callback(void *ctx, uint64_t seed, int draw_ind
         return -1;
 
     SeedCalibrationDrawContext *draw_ctx = (SeedCalibrationDrawContext *)ctx;
-    combogen_set_forced_seed(derive_draw_seed(seed, draw_index));
-    draw_ctx->plugin->draw(out_result, silent_callback);
-    combogen_clear_forced_seed();
+    generate_draw_seeded(draw_ctx->info.main_count, draw_ctx->info.main_min,
+                         draw_ctx->info.main_max, draw_ctx->info.extra_count,
+                         draw_ctx->info.extra_min, draw_ctx->info.extra_max,
+                         derive_draw_seed(seed, draw_index), out_result, silent_callback);
     return 0;
 }
 
@@ -478,8 +479,8 @@ static void print_usage(const char *prog)
             "  --seed-start VALUE      Start of seed search range (required)\n"
             "  --seed-end VALUE        End of seed search range (required)\n"
             "  --max-evals N           Max seed evaluations (default: 100000)\n"
-            "  --threads N             Worker thread hint (reserved; default: 1)\n"
-            "  --timeout-ms N          Soft time budget hint in milliseconds\n"
+            "  --threads N             Worker threads for closest-seed search (default: 1)\n"
+            "  --timeout-ms N          Soft time budget hint in milliseconds (reserved)\n"
             "\n"
             "Closest-Seed Example:\n"
             "  %s --game \"Lotto 6aus49\" --closest-seed --from 2026-01-01 --to 2026-06-30 "
@@ -1721,7 +1722,7 @@ int main(int argc, char **argv)
         }
 
         SeedCalibrationDrawContext draw_ctx;
-        draw_ctx.plugin = selected;
+        draw_ctx.info = selected->info;
 
         SeedCalibrationRequest request;
         memset(&request, 0, sizeof(request));
@@ -1733,6 +1734,7 @@ int main(int argc, char **argv)
         request.seed_start = closest_seed_start;
         request.seed_end = closest_seed_end;
         request.max_evals = closest_seed_max_evals;
+        request.threads = closest_seed_threads;
         request.top_k = analytics_top;
         request.weight_frequency = 1.0;
         request.weight_gap = 1.0;
@@ -1740,12 +1742,6 @@ int main(int argc, char **argv)
         request.draw_for_seed = seed_calibration_draw_callback;
         request.draw_ctx = &draw_ctx;
 
-        if (closest_seed_threads != 1)
-        {
-            log_warn(
-                "--threads=%d is currently reserved; running deterministic single-thread search.",
-                closest_seed_threads);
-        }
         if (closest_seed_timeout_ms > 0)
         {
             log_warn("--timeout-ms=%d is currently reserved; using --max-evals to bound work.",
