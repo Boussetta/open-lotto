@@ -449,7 +449,7 @@ if(BUILD_TESTING)
         tests/test_seed_calibration.c
         src/seed_calibration.c
     )
-    target_link_libraries(test_seed_calibration PRIVATE m)
+    target_link_libraries(test_seed_calibration PRIVATE m OpenMP::OpenMP_C)
 
     add_test(NAME unit_seed_calibration
         COMMAND $<TARGET_FILE:test_seed_calibration>
