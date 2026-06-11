@@ -620,11 +620,40 @@ if(BUILD_TESTING)
     )
     set_tests_properties(cli_closest_seed_threads_without_mode PROPERTIES WILL_FAIL TRUE)
 
+    add_test(NAME cli_closest_seed_sampled_json
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --closest-seed --from 2025-01-01 --to 2025-02-28 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv --seed-count 100 --sample-seed 0x1234 --threads 4 --format json --verbose ERROR
+    )
+    set_tests_properties(cli_closest_seed_sampled_json PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"mode\": \"closest-seed\"|\"evaluated_seeds\": 100"
+    )
+
+    add_test(NAME cli_closest_seed_sample_seed_without_count
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --closest-seed --from 2025-01-01 --to 2025-02-28 --sample-seed 0x1234 --seed-start 0 --seed-end 100 --verbose ERROR
+    )
+    set_tests_properties(cli_closest_seed_sample_seed_without_count PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_closest_seed_sample_count_exceeds_domain
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --closest-seed --from 2025-01-01 --to 2025-02-28 --seed-start 0 --seed-end 9 --seed-count 20 --sample-seed 1 --verbose ERROR
+    )
+    set_tests_properties(cli_closest_seed_sample_count_exceeds_domain PROPERTIES WILL_FAIL TRUE)
+
+    add_test(NAME cli_closest_seed_sample_count_with_max_evals
+        COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --closest-seed --from 2025-01-01 --to 2025-02-28 --seed-count 100 --sample-seed 1 --max-evals 10 --verbose ERROR
+    )
+    set_tests_properties(cli_closest_seed_sample_count_with_max_evals PROPERTIES WILL_FAIL TRUE)
+
     add_test(NAME cli_closest_seed_determinism
         COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_closest_seed_determinism.sh" $<TARGET_FILE:open-lotto>
     )
     set_tests_properties(cli_closest_seed_determinism PROPERTIES
         PASS_REGULAR_EXPRESSION "closest-seed deterministic output OK"
+    )
+
+    add_test(NAME cli_closest_seed_sampled_determinism
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_closest_seed_sampling_determinism.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(cli_closest_seed_sampled_determinism PROPERTIES
+        PASS_REGULAR_EXPRESSION "closest-seed sampled determinism OK"
     )
 
     add_test(NAME cli_analytics_frequency_table
