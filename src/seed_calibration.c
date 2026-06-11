@@ -82,7 +82,11 @@ static int validate_request(const SeedCalibrationRequest *req)
         return 0;
     if (req->expected_main_count <= 0 || req->expected_main_count > MAX_MAIN_NUMBERS)
         return 0;
-    if (req->seed_start > req->seed_end)
+    if (req->seed_list_count < 0)
+        return 0;
+    if (req->seed_list_count > 0 && !req->seed_list)
+        return 0;
+    if (req->seed_list_count == 0 && req->seed_start > req->seed_end)
         return 0;
     if (req->threads <= 0)
         return 0;
@@ -274,10 +278,18 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
         return out->status;
     }
 
-    uint64_t domain_size_u64 = req->seed_end - req->seed_start + 1ULL;
-    uint64_t eval_target_u64 = domain_size_u64;
-    if (req->max_evals > 0 && (uint64_t)req->max_evals < eval_target_u64)
-        eval_target_u64 = (uint64_t)req->max_evals;
+    uint64_t eval_target_u64 = 0;
+    if (req->seed_list_count > 0)
+    {
+        eval_target_u64 = (uint64_t)req->seed_list_count;
+    }
+    else
+    {
+        uint64_t domain_size_u64 = req->seed_end - req->seed_start + 1ULL;
+        eval_target_u64 = domain_size_u64;
+        if (req->max_evals > 0 && (uint64_t)req->max_evals < eval_target_u64)
+            eval_target_u64 = (uint64_t)req->max_evals;
+    }
 
     if (eval_target_u64 == 0)
     {
@@ -316,7 +328,8 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
             if (callback_failed)
                 continue;
 
-            uint64_t seed = req->seed_start + (uint64_t)i;
+            uint64_t seed =
+                (req->seed_list_count > 0) ? req->seed_list[i] : (req->seed_start + (uint64_t)i);
             SeedCalibrationStats simulated_stats;
             if (!build_stats_from_seed(req, seed, &simulated_stats))
             {
