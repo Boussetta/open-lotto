@@ -43,6 +43,8 @@ extern "C"
         int number_min;
         int number_max;
         int expected_main_count;
+        const uint64_t *seed_list;
+        int seed_list_count;
         uint64_t seed_start;
         uint64_t seed_end;
         int max_evals;
