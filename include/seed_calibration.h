@@ -46,6 +46,7 @@ extern "C"
         uint64_t seed_start;
         uint64_t seed_end;
         int max_evals;
+        int threads;
         int top_k;
         double weight_frequency;
         double weight_gap;
@@ -62,6 +63,8 @@ extern "C"
         SeedCalibrationCandidate top_candidates[SEED_CALIBRATION_MAX_TOP_K];
         int top_candidate_count;
         double score_gap;
+        double elapsed_ms;
+        double seeds_per_second;
     } SeedCalibrationResult;
 
     int seed_calibration_find_closest(const SeedCalibrationRequest *req,

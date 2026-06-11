@@ -49,14 +49,14 @@ typedef struct
 } pcg32_t;
 
 /** @brief Global PCG32 generator state */
-static pcg32_t rng_state = {0};
+static _Thread_local pcg32_t rng_state = {0};
 
 /** @brief Last seed used (for logging/debugging purposes) */
-static uint64_t last_seed = 0;
+static _Thread_local uint64_t last_seed = 0;
 
 /** @brief Optional forced seed set by host application for plugin compatibility. */
-static int forced_seed_enabled = 0;
-static uint64_t forced_seed_value = 0;
+static _Thread_local int forced_seed_enabled = 0;
+static _Thread_local uint64_t forced_seed_value = 0;
 
 static uint64_t rng_init_seeded(uint64_t seed);
 

@@ -3,7 +3,9 @@
  */
 
 #include "seed_calibration.h"
+#include <limits.h>
 #include <math.h>
+#include <omp.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -81,6 +83,8 @@ static int validate_request(const SeedCalibrationRequest *req)
     if (req->expected_main_count <= 0 || req->expected_main_count > MAX_MAIN_NUMBERS)
         return 0;
     if (req->seed_start > req->seed_end)
+        return 0;
+    if (req->threads <= 0)
         return 0;
     if (req->top_k <= 0 || req->top_k > SEED_CALIBRATION_MAX_TOP_K)
         return 0;
@@ -270,41 +274,106 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
         return out->status;
     }
 
-    uint64_t seed = req->seed_start;
-    int kept = 0;
-    int evals = 0;
+    uint64_t domain_size_u64 = req->seed_end - req->seed_start + 1ULL;
+    uint64_t eval_target_u64 = domain_size_u64;
+    if (req->max_evals > 0 && (uint64_t)req->max_evals < eval_target_u64)
+        eval_target_u64 = (uint64_t)req->max_evals;
 
-    while (seed <= req->seed_end)
+    if (eval_target_u64 == 0)
     {
-        if (req->max_evals > 0 && evals >= req->max_evals)
-            break;
-
-        SeedCalibrationStats simulated_stats;
-        if (!build_stats_from_seed(req, seed, &simulated_stats))
-        {
-            out->status = SEED_CALIBRATION_ERR_CALLBACK_FAILED;
-            return out->status;
-        }
-
-        SeedCalibrationCandidate candidate =
-            score_seed(req, &historical_stats, &simulated_stats, seed);
-
-        if (kept < req->top_k)
-        {
-            out->top_candidates[kept++] = candidate;
-            sort_candidates(out->top_candidates, kept);
-        }
-        else if (candidate_better(&candidate, &out->top_candidates[kept - 1]))
-        {
-            out->top_candidates[kept - 1] = candidate;
-            sort_candidates(out->top_candidates, kept);
-        }
-
-        evals++;
-        if (seed == UINT64_MAX)
-            break;
-        seed++;
+        out->status = SEED_CALIBRATION_ERR_EMPTY_PERIOD;
+        return out->status;
     }
+
+    int eval_target = (eval_target_u64 > (uint64_t)INT_MAX) ? INT_MAX : (int)eval_target_u64;
+    int thread_count = req->threads;
+    if (thread_count > eval_target)
+        thread_count = eval_target;
+
+    SeedCalibrationCandidate *thread_candidates = (SeedCalibrationCandidate *)calloc(
+        (size_t)thread_count * (size_t)req->top_k, sizeof(SeedCalibrationCandidate));
+    int *thread_kept = (int *)calloc((size_t)thread_count, sizeof(int));
+    if (!thread_candidates || !thread_kept)
+    {
+        free(thread_candidates);
+        free(thread_kept);
+        out->status = SEED_CALIBRATION_ERR_INVALID_ARGUMENT;
+        return out->status;
+    }
+
+    int callback_failed = 0;
+    double t0 = omp_get_wtime();
+
+#pragma omp parallel num_threads(thread_count)
+    {
+        int tid = omp_get_thread_num();
+        SeedCalibrationCandidate *local = &thread_candidates[(size_t)tid * (size_t)req->top_k];
+        int local_kept = 0;
+
+#pragma omp for schedule(static)
+        for (int i = 0; i < eval_target; i++)
+        {
+            if (callback_failed)
+                continue;
+
+            uint64_t seed = req->seed_start + (uint64_t)i;
+            SeedCalibrationStats simulated_stats;
+            if (!build_stats_from_seed(req, seed, &simulated_stats))
+            {
+#pragma omp atomic write
+                callback_failed = 1;
+                continue;
+            }
+
+            SeedCalibrationCandidate candidate =
+                score_seed(req, &historical_stats, &simulated_stats, seed);
+
+            if (local_kept < req->top_k)
+            {
+                local[local_kept++] = candidate;
+                sort_candidates(local, local_kept);
+            }
+            else if (candidate_better(&candidate, &local[local_kept - 1]))
+            {
+                local[local_kept - 1] = candidate;
+                sort_candidates(local, local_kept);
+            }
+        }
+
+        thread_kept[tid] = local_kept;
+    }
+
+    double t1 = omp_get_wtime();
+    if (callback_failed)
+    {
+        free(thread_candidates);
+        free(thread_kept);
+        out->status = SEED_CALIBRATION_ERR_CALLBACK_FAILED;
+        return out->status;
+    }
+
+    int kept = 0;
+    for (int t = 0; t < thread_count; t++)
+    {
+        SeedCalibrationCandidate *local = &thread_candidates[(size_t)t * (size_t)req->top_k];
+        for (int i = 0; i < thread_kept[t]; i++)
+        {
+            SeedCalibrationCandidate candidate = local[i];
+            if (kept < req->top_k)
+            {
+                out->top_candidates[kept++] = candidate;
+                sort_candidates(out->top_candidates, kept);
+            }
+            else if (candidate_better(&candidate, &out->top_candidates[kept - 1]))
+            {
+                out->top_candidates[kept - 1] = candidate;
+                sort_candidates(out->top_candidates, kept);
+            }
+        }
+    }
+
+    free(thread_candidates);
+    free(thread_kept);
 
     if (kept == 0)
     {
@@ -313,10 +382,13 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
     }
 
     out->top_candidate_count = kept;
-    out->evaluated_seeds = evals;
+    out->evaluated_seeds = eval_target;
     out->best = out->top_candidates[0];
     out->score_gap =
         (kept >= 2) ? (out->top_candidates[1].total_score - out->best.total_score) : 0.0;
+    out->elapsed_ms = (t1 - t0) * 1000.0;
+    out->seeds_per_second =
+        (out->elapsed_ms > 0.0) ? ((double)out->evaluated_seeds / (out->elapsed_ms / 1000.0)) : 0.0;
     out->status = SEED_CALIBRATION_OK;
     return out->status;
 }
