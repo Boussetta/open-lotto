@@ -162,59 +162,93 @@ plugins/
 
 List available games
 
+```bash
 ./open-lotto --list-games
+```
 
 Run a game
 
+```bash
 ./open-lotto --game lotto
+```
 
 Reload a plugin from disk before running
 
+```bash
 ./open-lotto --game "Lotto 6aus49" --reload-plugin --validate-only
+```
 
 Animated draw
 
+```bash
 ./open-lotto --game eurojackpot --animate
+```
 
 Multiple draws
 
+```bash
 ./open-lotto --game lotto --draws 7
+```
 
 Combine options
 
+```bash
 ./open-lotto --game lotto --animate --draws 5
+```
 
 Deterministic replay (reproducible draws)
 
+```bash
 ./open-lotto --game "Lotto 6aus49" --draws 10 --seed 0x1234abcd
+```
 
 Sync / update local historical database
 
+```bash
 ./open-lotto --game "Lotto 6aus49" --database-gewinnzahlen update
+```
+
+Default real-data workflow (after update)
+
+```bash
+./open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --frequency-distribution
+```
 
 Override upstream endpoint (useful for tests/self-hosted mirrors)
 
+```bash
 OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT="https://..." ./open-lotto --game "Eurojackpot" --database-gewinnzahlen update
+```
 
 Frequency analytics over an inclusive date range
 
+```bash
 ./open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --frequency-distribution
+```
 
 Barometer analytics in JSON format
 
+```bash
 ./open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --analytics-barometer --format json
+```
 
 Hot/cold analytics (top N) with formulas
 
+```bash
 ./open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --analytics-hot-cold --top 15 --explain
+```
 
-Use custom historical CSV for analytics
+Use custom historical CSV override for analytics (fixtures/experiments)
 
+```bash
 ./open-lotto --game "Lotto 6aus49" --historical-csv data.csv --from 2024-01-01 --to 2024-12-31 --frequency-distribution
+```
 
 Tune historical download behavior (parallelism + retry/timeout)
 
+```bash
 OPEN_LOTTO_HIST_DOWNLOAD_WORKERS=4 OPEN_LOTTO_HIST_MAX_FETCH_DRAWS=300 ./open-lotto --game "Lotto 6aus49" --database-gewinnzahlen update
+```
 
 🧩 Plugin Architecture
 

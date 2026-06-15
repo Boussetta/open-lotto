@@ -353,7 +353,9 @@ Analyze draws within an inclusive date range.
 
 ### Custom Historical CSV
 
-Use a custom CSV file as the historical source (for testing/simulation).
+Use a custom CSV file as a historical source override (for fixtures/testing/simulation).
+
+Default production workflow: run `--database-gewinnzahlen update` and omit `--historical-csv`.
 
 **Syntax:**
 ```bash
@@ -370,6 +372,10 @@ draw_date,main1,main2,main3,main4,main5,main6[,extra]
 
 **Example:**
 ```bash
+./open-lotto --game lotto --database-gewinnzahlen update
+./open-lotto --game lotto --from 2024-01-01 --to 2024-12-31 --frequency-distribution
+
+# Override with custom historical CSV only when needed
 ./open-lotto --game lotto --historical-csv data.csv --from 2024-01-01 --to 2024-12-31 --frequency-distribution
 ```
 
@@ -553,7 +559,7 @@ number,count,percentage,rank
 # As JSON
 ./open-lotto --game lotto --frequency-distribution --format json
 
-# Custom CSV source
+# Custom CSV source override (optional)
 ./open-lotto --game lotto --historical-csv mydata.csv --frequency-distribution
 ```
 
@@ -591,7 +597,7 @@ number,count,percentage,rank
 # With formulas (JSON)
 ./open-lotto --game lotto --analytics-hot-cold --format json --explain
 
-# Custom data, top 15
+# Custom data override, top 15
 ./open-lotto --game lotto --historical-csv data.csv --analytics-hot-cold --top 15
 ```
 
@@ -751,7 +757,8 @@ export OPEN_LOTTO_PLUGIN_PATH=/path/to/plugins
 
 ### Analytics Show No Data
 
-Ensure historical data is available via `--database-gewinnzahlen update` or provide `--historical-csv`.
+Ensure historical data is available via `--database-gewinnzahlen update`.
+Use `--historical-csv` only when intentionally overriding the DB snapshot.
 
 ```bash
 ./open-lotto --game lotto --database-gewinnzahlen update

@@ -12,7 +12,7 @@ SPDX-License-Identifier: MIT
 ## Shared Options
 - `--from YYYY-MM-DD` (required)
 - `--to YYYY-MM-DD` (required)
-- `--historical-csv FILE` (optional override)
+- `--historical-csv FILE` (optional override for fixtures/simulation; default uses local real-data DB snapshot)
 - `--format table|json|csv` (default: `table`)
 - `--top N` (default: `10`, min: `1`)
 - `--score-profile balanced|frequency-heavy|streak-heavy` (default: `balanced`)
@@ -23,14 +23,14 @@ SPDX-License-Identifier: MIT
 - `--seed-start VALUE` (required)
 - `--seed-end VALUE` (required)
 - `--max-evals-per-window N` (default: `50000`)
-- `--threads N` (default: `1`)
+- `--threads N` (default: max available CPUs)
 - `--timeout-ms N` (optional)
 
 ## Closest-Seed Options
 - `--seed-start VALUE` (required)
 - `--seed-end VALUE` (required)
 - `--max-evals N` (default: `100000`)
-- `--threads N` (default: `1`)
+- `--threads N` (default: max available CPUs)
 - `--timeout-ms N` (optional)
 
 ## Determinism Rules
@@ -68,23 +68,40 @@ int seed_calibration_compute_trajectory(const SeedTrajectoryRequest *req,
 ```
 
 ## CLI Examples
-1. Closest seed on historical DB snapshot:
-`./open-lotto --game "Lotto 6aus49" --closest-seed --from 2026-01-01 --to 2026-06-10 --seed-start 0 --seed-end 500000 --max-evals 100000 --format json`
+1. Sync real-data DB snapshot:
+```bash
+./open-lotto --game "Lotto 6aus49" --database-gewinnzahlen update
+```
 
-2. Closest seed using CSV override:
-`./open-lotto --game "Lotto 6aus49" --closest-seed --historical-csv tests/fixtures/historical_lotto_small.csv --from 2025-01-01 --to 2025-01-31 --seed-start 0 --seed-end 100000 --format table`
+2. Closest seed on historical DB snapshot:
+```bash
+./open-lotto --game "Lotto 6aus49" --closest-seed --from 2026-01-01 --to 2026-06-10 --seed-start 0 --seed-end 500000 --max-evals 100000 --format json
+```
 
-3. Trajectory with fixed 3-month windows:
-`./open-lotto --game "Lotto 6aus49" --seed-trajectory --from 2026-01-01 --to 2026-12-31 --window-months 3 --step-months 3 --seed-start 0 --seed-end 1000000 --max-evals-per-window 50000 --format csv`
+3. Closest seed using CSV override:
+```bash
+./open-lotto --game "Lotto 6aus49" --closest-seed --historical-csv tests/fixtures/historical_lotto_small.csv --from 2025-01-01 --to 2025-01-31 --seed-start 0 --seed-end 100000 --format table
+```
 
-4. Rolling trajectory (3-month window, 1-month step):
-`./open-lotto --game "Lotto 6aus49" --seed-trajectory --from 2026-01-01 --to 2026-12-31 --window-months 3 --step-months 1 --seed-start 0 --seed-end 250000 --format json`
+4. Trajectory with fixed 3-month windows:
+```bash
+./open-lotto --game "Lotto 6aus49" --seed-trajectory --from 2026-01-01 --to 2026-12-31 --window-months 3 --step-months 3 --seed-start 0 --seed-end 1000000 --max-evals-per-window 50000 --format csv
+```
 
-5. Closest seed with thread cap:
-`./open-lotto --game "Eurojackpot" --closest-seed --from 2026-01-01 --to 2026-06-10 --seed-start 0 --seed-end 500000 --threads 4 --format json`
+5. Rolling trajectory (3-month window, 1-month step):
+```bash
+./open-lotto --game "Lotto 6aus49" --seed-trajectory --from 2026-01-01 --to 2026-12-31 --window-months 3 --step-months 1 --seed-start 0 --seed-end 250000 --format json
+```
 
-6. Closest seed with timeout:
-`./open-lotto --game "Lotto 6aus49" --closest-seed --from 2026-01-01 --to 2026-06-10 --seed-start 0 --seed-end 1000000 --timeout-ms 120000 --format json`
+6. Closest seed with thread cap:
+```bash
+./open-lotto --game "Eurojackpot" --closest-seed --from 2026-01-01 --to 2026-06-10 --seed-start 0 --seed-end 500000 --threads 4 --format json
+```
+
+7. Closest seed with timeout:
+```bash
+./open-lotto --game "Lotto 6aus49" --closest-seed --from 2026-01-01 --to 2026-06-10 --seed-start 0 --seed-end 1000000 --timeout-ms 120000 --format json
+```
 
 ## Error Handling
 - invalid date format or `from > to`.

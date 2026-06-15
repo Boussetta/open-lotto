@@ -20,7 +20,13 @@ Important: these are best-fit simulator seeds, not recovered real-world lottery 
 ## README Snippet
 Try closest seed on a selected period:
 
-`./open-lotto --game "Lotto 6aus49" --closest-seed --from 2026-01-01 --to 2026-06-10 --seed-start 0 --seed-end 500000 --format json`
+```bash
+./open-lotto --game "Lotto 6aus49" --database-gewinnzahlen update
+```
+
+```bash
+./open-lotto --game "Lotto 6aus49" --closest-seed --from 2026-01-01 --to 2026-06-10 --seed-start 0 --seed-end 500000 --format json
+```
 
 ## Social Post Draft
 New in open-lotto v0.5.0: seed calibration.
