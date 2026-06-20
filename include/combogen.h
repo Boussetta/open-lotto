@@ -8,6 +8,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/**
+ * @file combogen.h
+ * @brief Core lottery draw generation API.
+ */
+
 typedef enum
 {
     EVENT_RNG_INITIALIZED = 0,
@@ -41,14 +46,22 @@ typedef struct
 
 typedef void (*draw_event_callback)(DrawEvent event, const LotteryResult *result);
 
+/**
+ * @brief Generate one draw using runtime entropy.
+ */
 void generate_draw(int main_count, int main_min, int main_max, int extra_count, int extra_min,
                    int extra_max, LotteryResult *out, draw_event_callback cb);
 
+/**
+ * @brief Generate one deterministic draw from an explicit seed.
+ */
 void generate_draw_seeded(int main_count, int main_min, int main_max, int extra_count,
                           int extra_min, int extra_max, uint64_t seed, LotteryResult *out,
                           draw_event_callback cb);
 
+/** @brief Force a global deterministic seed for subsequent draws. */
 void combogen_set_forced_seed(uint64_t seed);
+/** @brief Clear previously forced deterministic seed behavior. */
 void combogen_clear_forced_seed(void);
 
 #endif /* COMBOGEN_H */

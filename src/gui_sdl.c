@@ -2,6 +2,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file gui_sdl.c
+ * @brief SDL2 2D visualization for live draws and analytics charts.
+ */
+
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <math.h>
@@ -103,6 +108,9 @@ static float frand_range(float a, float b)
 }
 
 /* --------------------------------------------------------- */
+/**
+ * @brief Initialize one 2D drum and distribute its balls in the interior.
+ */
 /* Drum / ball setup                                         */
 /* --------------------------------------------------------- */
 
@@ -141,6 +149,9 @@ static void init_drum(Drum *d, int count, float cx, float cy, float radius, int 
     }
 }
 
+/**
+ * @brief Find a ball by its printed number within a drum.
+ */
 static Ball *find_ball_by_number(Drum *d, int number)
 {
     for (int i = 0; i < d->count; i++)
@@ -155,6 +166,12 @@ static Ball *find_ball_by_number(Drum *d, int number)
 /* Physics                                                   */
 /* --------------------------------------------------------- */
 
+/**
+ * @brief Advance 2D ball physics inside one rotating drum.
+ *
+ * The model combines gravity, wall response, weak tangential drag from drum
+ * rotation, and pairwise collision impulses.
+ */
 static void update_ball_physics(Drum *d, float dt)
 {
     /* Rotate drum */
@@ -292,7 +309,9 @@ static void update_ball_physics(Drum *d, float dt)
     }
 }
 
-/* smooth glide from drum to result slot */
+/**
+ * @brief Smoothly move picked balls from drum space to result-row slots.
+ */
 static void update_glide_to_result(Drum *d, float dt)
 {
     for (int i = 0; i < d->count; i++)
@@ -325,6 +344,7 @@ static void update_glide_to_result(Drum *d, float dt)
 /* Rendering helpers                                         */
 /* --------------------------------------------------------- */
 
+/** @brief Rasterize a filled circle using horizontal scanlines. */
 static void draw_filled_circle(SDL_Renderer *r, int cx, int cy, int radius)
 {
     for (int dy = -radius; dy <= radius; dy++)
@@ -337,6 +357,9 @@ static void draw_filled_circle(SDL_Renderer *r, int cx, int cy, int radius)
     }
 }
 
+/**
+ * @brief Render one numbered ball at a world position.
+ */
 static void render_ball_at(SDL_Renderer *r, TTF_Font *font, float x, float y, int number,
                            int is_main)
 {
@@ -363,7 +386,9 @@ static void render_ball_at(SDL_Renderer *r, TTF_Font *font, float x, float y, in
     SDL_DestroyTexture(tex);
 }
 
-/* Render a rotating drum with visual markers to show rotation */
+/**
+ * @brief Render drum outline plus rotating markers to communicate motion.
+ */
 static void render_drum_outline(SDL_Renderer *r, float cx, float cy, float radius,
                                 float rotation_angle)
 {
@@ -398,6 +423,9 @@ static void render_drum_outline(SDL_Renderer *r, float cx, float cy, float radiu
     }
 }
 
+/**
+ * @brief Render one result-row ball at fixed overlay coordinates.
+ */
 static void render_number_in_result_row(SDL_Renderer *r, TTF_Font *font, int number, float x,
                                         float y, int is_main)
 {
@@ -423,6 +451,9 @@ static void render_number_in_result_row(SDL_Renderer *r, TTF_Font *font, int num
     SDL_DestroyTexture(tex);
 }
 
+/**
+ * @brief Render all fully revealed balls in the result row.
+ */
 static void render_result_row(SDL_Renderer *r, TTF_Font *font, GuiState *gs)
 {
     float start_x = WINDOW_WIDTH * 0.10f;
@@ -452,6 +483,9 @@ static void render_result_row(SDL_Renderer *r, TTF_Font *font, GuiState *gs)
 
 static GuiState *g_state = NULL;
 
+/**
+ * @brief Capture final generated result from draw callback.
+ */
 static void gui_draw_callback(DrawEvent event, const LotteryResult *res)
 {
     if (!g_state || !res)
@@ -467,6 +501,9 @@ static void gui_draw_callback(DrawEvent event, const LotteryResult *res)
 /* Progressive reveal logic with explicit state transitions */
 /* --------------------------------------------------------- */
 
+/**
+ * @brief Start the next scheduled ball reveal based on the animation state machine.
+ */
 static void maybe_start_next_pick(GuiState *st)
 {
     int total = st->info.main_count + st->info.extra_count;
@@ -528,6 +565,9 @@ static void maybe_start_next_pick(GuiState *st)
 }
 
 /* recompute how many balls are fully in the result row */
+/**
+ * @brief Recompute how many main/extra balls have fully reached result slots.
+ */
 static void update_revealed_counts(GuiState *st)
 {
     int max_main = -1;
@@ -560,6 +600,9 @@ static void update_revealed_counts(GuiState *st)
 /* Public entry                                              */
 /* --------------------------------------------------------- */
 
+/**
+ * @brief Run the interactive SDL2 draw visualization.
+ */
 void gui_run(const char *game_name, const LotteryInfo *info, int dark_mode)
 {
     (void)dark_mode; /* Parameter for future theming; currently unused */
@@ -761,6 +804,7 @@ void gui_run(const char *game_name, const LotteryInfo *info, int dark_mode)
     g_state = NULL;
 }
 
+/** @brief Render one text label using SDL_ttf. */
 static void draw_text(SDL_Renderer *ren, TTF_Font *font, const char *text, int x, int y,
                       SDL_Color color)
 {
@@ -785,6 +829,7 @@ static void draw_text(SDL_Renderer *ren, TTF_Font *font, const char *text, int x
 /* Read optional timeout from OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS env var.
  * 0 means no auto-close (interactive mode).
  * Tests set a small value (e.g. 200) so they don't hang. */
+/** @brief Read optional auto-close timeout for analytics windows. */
 static Uint32 analytics_gui_timeout_ms(void)
 {
     const char *env = getenv("OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS");
@@ -795,6 +840,7 @@ static Uint32 analytics_gui_timeout_ms(void)
 }
 
 /* Draw horizontal grid lines at 25 / 50 / 75 / 100 % of chart height */
+/** @brief Draw evenly spaced horizontal grid lines in an analytics plot. */
 static void draw_grid(SDL_Renderer *ren, int left, int right, int top, int chart_h, SDL_Color dim)
 {
     SDL_SetRenderDrawColor(ren, dim.r, dim.g, dim.b, dim.a);
@@ -806,6 +852,7 @@ static void draw_grid(SDL_Renderer *ren, int left, int right, int top, int chart
 }
 
 /* Lerp float */
+/** @brief Clamp-aware linear interpolation helper. */
 static float flerpf(float a, float b, float t)
 {
     return a + (b - a) * (t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t);
@@ -813,6 +860,9 @@ static float flerpf(float a, float b, float t)
 
 /* Draw a tooltip box near (tx, ty) with two lines of text.
  * Clamps to window boundaries so it never goes off-screen. */
+/**
+ * @brief Draw a two-line tooltip near the cursor, clamped to the window bounds.
+ */
 static void draw_tooltip(SDL_Renderer *ren, TTF_Font *font, const char *line1, const char *line2,
                          int tx, int ty, int win_w, int win_h)
 {
@@ -864,6 +914,7 @@ static void draw_tooltip(SDL_Renderer *ren, TTF_Font *font, const char *line1, c
         draw_text(ren, font, line2, bx + pad, by + pad + h1 + 4, white);
 }
 
+/** @brief Render the 2D frequency analytics chart. */
 int gui_render_frequency_2d(const char *title, const FrequencyReport *report, int dark_mode)
 {
     if (!report)
@@ -1090,6 +1141,384 @@ int gui_render_frequency_2d(const char *title, const FrequencyReport *report, in
     return 0;
 }
 
+/**
+ * @brief Render a stacked 2D comparison between real and simulated frequency profiles.
+ */
+int gui_render_frequency_overlay_stacked_2d(const char *title, const FrequencyReport *real_report,
+                                            const FrequencyReport *sim_report,
+                                            const FrequencyReport *rank10_report, int dark_mode)
+{
+    if (!real_report || !sim_report)
+        return -1;
+    if (real_report->number_min != sim_report->number_min ||
+        real_report->number_max != sim_report->number_max)
+        return -1;
+    if (rank10_report && (real_report->number_min != rank10_report->number_min ||
+                          real_report->number_max != rank10_report->number_max))
+        return -1;
+
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
+        return -1;
+    if (TTF_Init() != 0)
+    {
+        SDL_Quit();
+        return -1;
+    }
+
+    SDL_Window *win = SDL_CreateWindow(
+        title ? title : "Closest Seed: Real + Sim Frequency (Stacked)", SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    if (!win)
+    {
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
+
+    SDL_Renderer *ren =
+        SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!ren)
+    {
+        SDL_DestroyWindow(win);
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
+
+    char font_path[512];
+    snprintf(font_path, sizeof(font_path), "%s/fonts/Roboto-Bold.ttf", PROJECT_ROOT_DIR);
+    TTF_Font *font = TTF_OpenFont(font_path, 16);
+    TTF_Font *font_sm = TTF_OpenFont(font_path, 13);
+    if (!font)
+    {
+        SDL_DestroyRenderer(ren);
+        SDL_DestroyWindow(win);
+        TTF_Quit();
+        SDL_Quit();
+        return -1;
+    }
+
+    const int left = 70, right = WINDOW_WIDTH - 30, top = 60, bottom = WINDOW_HEIGHT - 80;
+    const int chart_w = right - left, chart_h = bottom - top;
+    const int points = real_report->number_max - real_report->number_min + 1;
+    const int bar_w = points > 0 ? (chart_w / points) : 1;
+
+    int max_stack = 1;
+    for (int n = real_report->number_min; n <= real_report->number_max; n++)
+    {
+        int real_count = real_report->counts[n];
+        int best_delta = sim_report->counts[n] - real_count;
+        int rank10_delta = rank10_report ? (rank10_report->counts[n] - real_count) : 0;
+        int combo_delta = 0;
+        if (rank10_report && best_delta == rank10_delta && best_delta != 0)
+        {
+            combo_delta = best_delta;
+            best_delta = 0;
+            rank10_delta = 0;
+        }
+
+        int best_pos = best_delta > 0 ? best_delta : 0;
+        int best_neg = best_delta < 0 ? -best_delta : 0;
+        int rank10_pos = rank10_delta > 0 ? rank10_delta : 0;
+        int rank10_neg = rank10_delta < 0 ? -rank10_delta : 0;
+        int combo_pos = combo_delta > 0 ? combo_delta : 0;
+        int combo_neg = combo_delta < 0 ? -combo_delta : 0;
+        int stacked =
+            best_neg + rank10_neg + combo_neg + real_count + best_pos + rank10_pos + combo_pos;
+        if (stacked > max_stack)
+            max_stack = stacked;
+    }
+
+    Uint32 start = SDL_GetTicks();
+    Uint32 timeout = analytics_gui_timeout_ms();
+    float anim = 0.0f;
+    Uint32 last = start;
+    int running = 1;
+    int mouse_x = -1, mouse_y = -1;
+    SDL_Cursor *arrow_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+    SDL_Cursor *hand_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
+    int hover_cursor_active = 0;
+
+    while (running)
+    {
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev))
+        {
+            if (ev.type == SDL_QUIT)
+                running = 0;
+            if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE)
+                running = 0;
+            if (ev.type == SDL_MOUSEMOTION)
+            {
+                mouse_x = ev.motion.x;
+                mouse_y = ev.motion.y;
+            }
+        }
+        if (timeout > 0 && SDL_GetTicks() - start >= timeout)
+            running = 0;
+
+        Uint32 now = SDL_GetTicks();
+        float dt = (now - last) / 1000.0f;
+        last = now;
+        anim += dt / 0.45f;
+        if (anim > 1.0f)
+            anim = 1.0f;
+
+        if (dark_mode == 1)
+            SDL_SetRenderDrawColor(ren, 12, 14, 20, 255);
+        else
+            SDL_SetRenderDrawColor(ren, 242, 244, 250, 255);
+        SDL_RenderClear(ren);
+
+        SDL_Color fg =
+            dark_mode == 1 ? (SDL_Color){220, 228, 245, 255} : (SDL_Color){15, 20, 35, 255};
+        SDL_Color dim =
+            dark_mode == 1 ? (SDL_Color){40, 50, 65, 255} : (SDL_Color){200, 210, 225, 255};
+        SDL_Color real_c =
+            dark_mode == 1 ? (SDL_Color){90, 160, 255, 230} : (SDL_Color){30, 120, 230, 255};
+        SDL_Color sim_c =
+            dark_mode == 1 ? (SDL_Color){255, 215, 0, 220} : (SDL_Color){240, 170, 40, 255};
+        SDL_Color rank10_c =
+            dark_mode == 1 ? (SDL_Color){255, 85, 85, 220} : (SDL_Color){220, 40, 40, 255};
+        SDL_Color combo_c =
+            dark_mode == 1 ? (SDL_Color){255, 150, 42, 230} : (SDL_Color){230, 105, 40, 255};
+
+        draw_grid(ren, left, right, top, chart_h, dim);
+        SDL_SetRenderDrawColor(ren, fg.r, fg.g, fg.b, fg.a);
+        SDL_RenderDrawLine(ren, left, bottom, right, bottom);
+        SDL_RenderDrawLine(ren, left, top, left, bottom);
+
+        char header[220];
+        snprintf(header, sizeof(header),
+                 rank10_report
+                     ? "Frequency Delta Overlay: Real (blue) + Best delta (gold) + Rank10 delta "
+                       "(red) | game: %s"
+                     : "Frequency Delta Overlay: Real (blue) + Best delta (gold) | game: %s",
+                 title ? title : "");
+        draw_text(ren, font, header, left, 18, fg);
+        if (font_sm)
+        {
+            char period_line[96] = "Period: full range";
+            if (real_report->from_date[0] && real_report->to_date[0])
+                snprintf(period_line, sizeof(period_line), "Period: %s to %s",
+                         real_report->from_date, real_report->to_date);
+            draw_text(ren, font_sm, period_line, left, 38, (SDL_Color){fg.r, fg.g, fg.b, 200});
+
+            if (!rank10_report)
+            {
+                SDL_Color note_c = dark_mode == 1 ? (SDL_Color){255, 120, 120, 220}
+                                                  : (SDL_Color){190, 30, 30, 255};
+                draw_text(ren, font_sm, "rank10 unavailable (top<10)", left, 56, note_c);
+            }
+        }
+        if (font_sm)
+            draw_text(ren, font_sm, "ESC: close", WINDOW_WIDTH - 120, 18,
+                      (SDL_Color){fg.r, fg.g, fg.b, 160});
+
+        int hovered_bar = -1;
+        if (mouse_x >= left && mouse_x < right && mouse_y >= top && mouse_y <= bottom)
+        {
+            int idx = (mouse_x - left) / (bar_w > 0 ? bar_w : 1);
+            if (idx >= 0 && idx < points)
+                hovered_bar = idx;
+        }
+
+        if (hovered_bar >= 0)
+        {
+            if (!hover_cursor_active)
+            {
+                if (hand_cursor)
+                    SDL_SetCursor(hand_cursor);
+                hover_cursor_active = 1;
+            }
+
+            int x = left + hovered_bar * bar_w + 1;
+            int bw = bar_w > 3 ? bar_w - 2 : 1;
+            SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
+            if (dark_mode == 1)
+                SDL_SetRenderDrawColor(ren, 255, 255, 255, 28);
+            else
+                SDL_SetRenderDrawColor(ren, 20, 35, 60, 22);
+            SDL_Rect column_glow = {x, top, bw, chart_h};
+            SDL_RenderFillRect(ren, &column_glow);
+            SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_NONE);
+        }
+        else if (hover_cursor_active)
+        {
+            if (arrow_cursor)
+                SDL_SetCursor(arrow_cursor);
+            hover_cursor_active = 0;
+        }
+
+        int tooltip_x = -1, tooltip_y = -1, tooltip_n = -1;
+        for (int i = 0; i < points; i++)
+        {
+            int n = real_report->number_min + i;
+            int real_count = real_report->counts[n];
+            int best_delta = sim_report->counts[n] - real_count;
+            int rank10_delta = rank10_report ? (rank10_report->counts[n] - real_count) : 0;
+            int combo_delta = 0;
+            if (rank10_report && best_delta == rank10_delta && best_delta != 0)
+            {
+                combo_delta = best_delta;
+                best_delta = 0;
+                rank10_delta = 0;
+            }
+
+            int best_pos = best_delta > 0 ? best_delta : 0;
+            int best_neg = best_delta < 0 ? -best_delta : 0;
+            int rank10_pos = rank10_delta > 0 ? rank10_delta : 0;
+            int rank10_neg = rank10_delta < 0 ? -rank10_delta : 0;
+            int combo_pos = combo_delta > 0 ? combo_delta : 0;
+            int combo_neg = combo_delta < 0 ? -combo_delta : 0;
+
+            int real_full_h = (real_count * chart_h) / max_stack;
+            int best_pos_full_h = (best_pos * chart_h) / max_stack;
+            int best_neg_full_h = (best_neg * chart_h) / max_stack;
+            int rank10_pos_full_h = (rank10_pos * chart_h) / max_stack;
+            int rank10_neg_full_h = (rank10_neg * chart_h) / max_stack;
+            int combo_pos_full_h = (combo_pos * chart_h) / max_stack;
+            int combo_neg_full_h = (combo_neg * chart_h) / max_stack;
+
+            int real_h = (int)flerpf(0.0f, (float)real_full_h, anim);
+            int best_pos_h = (int)flerpf(0.0f, (float)best_pos_full_h, anim);
+            int best_neg_h = (int)flerpf(0.0f, (float)best_neg_full_h, anim);
+            int rank10_pos_h = (int)flerpf(0.0f, (float)rank10_pos_full_h, anim);
+            int rank10_neg_h = (int)flerpf(0.0f, (float)rank10_neg_full_h, anim);
+            int combo_pos_h = (int)flerpf(0.0f, (float)combo_pos_full_h, anim);
+            int combo_neg_h = (int)flerpf(0.0f, (float)combo_neg_full_h, anim);
+
+            int x = left + i * bar_w + 1;
+            int bw = bar_w > 3 ? bar_w - 2 : 1;
+            int y_neg_cursor = bottom;
+
+            if (combo_neg_h > 0)
+            {
+                int y_combo_neg = y_neg_cursor - combo_neg_h;
+                SDL_SetRenderDrawColor(ren, combo_c.r, combo_c.g, combo_c.b, combo_c.a);
+                SDL_Rect r_combo_neg = {x, y_combo_neg, bw, combo_neg_h};
+                SDL_RenderFillRect(ren, &r_combo_neg);
+                y_neg_cursor = y_combo_neg;
+            }
+
+            if (best_neg_h > 0)
+            {
+                int y_best_neg = y_neg_cursor - best_neg_h;
+                SDL_SetRenderDrawColor(ren, sim_c.r, sim_c.g, sim_c.b, sim_c.a);
+                SDL_Rect r_best_neg = {x, y_best_neg, bw, best_neg_h};
+                SDL_RenderFillRect(ren, &r_best_neg);
+                y_neg_cursor = y_best_neg;
+            }
+
+            if (rank10_report && rank10_neg_h > 0)
+            {
+                int y_rank10_neg = y_neg_cursor - rank10_neg_h;
+                SDL_SetRenderDrawColor(ren, rank10_c.r, rank10_c.g, rank10_c.b, rank10_c.a);
+                SDL_Rect r_rank10_neg = {x, y_rank10_neg, bw, rank10_neg_h};
+                SDL_RenderFillRect(ren, &r_rank10_neg);
+                y_neg_cursor = y_rank10_neg;
+            }
+
+            int y_real = y_neg_cursor - real_h;
+            int y_top = y_real;
+            int y_pos_cursor = y_real;
+
+            SDL_Rect r_real = {x, y_real, bw, real_h};
+            SDL_SetRenderDrawColor(ren, real_c.r, real_c.g, real_c.b, real_c.a);
+            SDL_RenderFillRect(ren, &r_real);
+
+            if (best_pos_h > 0)
+            {
+                int y_best = y_pos_cursor - best_pos_h;
+                SDL_Rect r_best = {x, y_best, bw, best_pos_h};
+                SDL_SetRenderDrawColor(ren, sim_c.r, sim_c.g, sim_c.b, sim_c.a);
+                SDL_RenderFillRect(ren, &r_best);
+                y_pos_cursor = y_best;
+                if (y_best < y_top)
+                    y_top = y_best;
+            }
+
+            if (rank10_report && rank10_pos_h > 0)
+            {
+                int y_rank10 = y_pos_cursor - rank10_pos_h;
+                SDL_Rect r_rank10 = {x, y_rank10, bw, rank10_pos_h};
+                SDL_SetRenderDrawColor(ren, rank10_c.r, rank10_c.g, rank10_c.b, rank10_c.a);
+                SDL_RenderFillRect(ren, &r_rank10);
+                y_pos_cursor = y_rank10;
+                if (y_rank10 < y_top)
+                    y_top = y_rank10;
+            }
+
+            if (combo_pos_h > 0)
+            {
+                int y_combo = y_pos_cursor - combo_pos_h;
+                SDL_Rect r_combo = {x, y_combo, bw, combo_pos_h};
+                SDL_SetRenderDrawColor(ren, combo_c.r, combo_c.g, combo_c.b, combo_c.a);
+                SDL_RenderFillRect(ren, &r_combo);
+                y_pos_cursor = y_combo;
+                if (y_combo < y_top)
+                    y_top = y_combo;
+            }
+
+            if (i == hovered_bar)
+            {
+                SDL_SetRenderDrawColor(ren, 255, 255, 255, 180);
+                SDL_Rect h = {x - 1, y_top - 1, bw + 2, bottom - y_top + 2};
+                SDL_RenderDrawRect(ren, &h);
+                tooltip_x = x + bw / 2;
+                tooltip_y = y_top;
+                tooltip_n = n;
+            }
+
+            if (i % 5 == 0)
+            {
+                char label[8];
+                snprintf(label, sizeof(label), "%d", n);
+                draw_text(ren, font_sm ? font_sm : font, label, x - 2, bottom + 5, fg);
+            }
+        }
+
+        if (tooltip_n >= 0 && font_sm && anim >= 1.0f)
+        {
+            char line1[64], line2[128];
+            int real_c_count = real_report->counts[tooltip_n];
+            int sim_c_count = sim_report->counts[tooltip_n];
+            int rank10_c_count = rank10_report ? rank10_report->counts[tooltip_n] : 0;
+            snprintf(line1, sizeof(line1), "Ball %d", tooltip_n);
+            if (rank10_report)
+            {
+                snprintf(line2, sizeof(line2), "real=%d  best=%d (%+d)  rank10=%d (%+d)",
+                         real_c_count, sim_c_count, sim_c_count - real_c_count, rank10_c_count,
+                         rank10_c_count - real_c_count);
+            }
+            else
+            {
+                snprintf(line2, sizeof(line2), "real=%d  sim=%d  delta=%+d", real_c_count,
+                         sim_c_count, sim_c_count - real_c_count);
+            }
+            draw_tooltip(ren, font_sm, line1, line2, tooltip_x, tooltip_y, WINDOW_WIDTH,
+                         WINDOW_HEIGHT);
+        }
+
+        SDL_RenderPresent(ren);
+        SDL_Delay(16);
+    }
+
+    if (font_sm)
+        TTF_CloseFont(font_sm);
+    TTF_CloseFont(font);
+    SDL_DestroyRenderer(ren);
+    SDL_DestroyWindow(win);
+    if (arrow_cursor)
+        SDL_FreeCursor(arrow_cursor);
+    if (hand_cursor)
+        SDL_FreeCursor(hand_cursor);
+    TTF_Quit();
+    SDL_Quit();
+    return 0;
+}
+
+/** @brief Render the 2D barometer analytics chart. */
 int gui_render_barometer_2d(const char *title, const BarometerReport *report, int dark_mode)
 {
     if (!report)
@@ -1313,6 +1742,7 @@ int gui_render_barometer_2d(const char *title, const BarometerReport *report, in
     return 0;
 }
 
+/** @brief Render the 2D hot/cold analytics chart. */
 int gui_render_hot_cold_2d(const char *title, const HotColdReport *report, int dark_mode)
 {
     if (!report)

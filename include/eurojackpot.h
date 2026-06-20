@@ -7,6 +7,11 @@
 
 #include "random.h"
 
+/**
+ * @file eurojackpot.h
+ * @brief Legacy EuroJackpot draw API (kept for compatibility).
+ */
+
 typedef struct
 {
     int numbers[5];

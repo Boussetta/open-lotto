@@ -8,6 +8,11 @@
 #include "analytics.h"
 #include "combogen.h"
 
+/**
+ * @file gui_opengl.h
+ * @brief OpenGL-based 3D renderers for draws and analytics.
+ */
+
 /*
  * Run the OpenGL 3D GUI for the given game.
  * - window_title: e.g. "Lotto 6aus49"
@@ -21,9 +26,11 @@
 void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_overlay,
                     int dark_mode);
 
-/* Render frequency-distribution analytics as an interactive 3D OpenGL chart. */
+/** @brief Render frequency-distribution analytics as interactive 3D chart. */
 int gui_render_frequency_3d(const char *title, const FrequencyReport *report, int dark_mode);
+/** @brief Render barometer analytics as interactive 3D chart. */
 int gui_render_barometer_3d(const char *title, const BarometerReport *report, int dark_mode);
+/** @brief Render hot/cold analytics as interactive 3D chart. */
 int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int dark_mode);
 
 #endif /* GUI_OPENGL_H */

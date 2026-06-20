@@ -2,6 +2,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file main.c
+ * @brief CLI entrypoint, option parsing, orchestration, and command execution.
+ */
+
 #include "analytics.h"
 #include "analytics_data_quality.h"
 #include "combogen.h"
@@ -25,6 +30,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+#include <omp.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -140,6 +146,9 @@ static void animate_numbers(const LotteryInfo *info, const LotteryResult *result
 /* ---------------------------------------------------------
    SILENT CALLBACK FOR ANIMATION MODE
    --------------------------------------------------------- */
+/**
+ * @brief No-op draw callback used when deterministic generation needs no animation hooks.
+ */
 static void silent_callback(DrawEvent event, const LotteryResult *res)
 {
     (void)event;
@@ -167,6 +176,9 @@ static void print_draw_result(const char *game_name, int draw_num, const Lottery
 /* ---------------------------------------------------------
    PARSE LOG LEVEL FROM STRING
    --------------------------------------------------------- */
+/**
+ * @brief Parse CLI log level strings into enum values.
+ */
 static LogLevel parse_log_level(const char *level_str)
 {
     if (!level_str)
@@ -185,6 +197,7 @@ static LogLevel parse_log_level(const char *level_str)
     return LOG_INFO;
 }
 
+/** @brief SplitMix64 mixing step used for deterministic seed derivation. */
 static uint64_t splitmix64(uint64_t x)
 {
     x += 0x9e3779b97f4a7c15ULL;
@@ -193,6 +206,7 @@ static uint64_t splitmix64(uint64_t x)
     return x ^ (x >> 31);
 }
 
+/** @brief Parse decimal or 0x-prefixed seed strings. */
 static int parse_seed_value(const char *seed_str, uint64_t *out_seed)
 {
     char *end = NULL;
@@ -206,6 +220,7 @@ static int parse_seed_value(const char *seed_str, uint64_t *out_seed)
     return 1;
 }
 
+/** @brief Derive a stable per-draw seed from a base seed and draw index. */
 static uint64_t derive_draw_seed(uint64_t base_seed, int draw_index)
 {
     if (draw_index == 0)
@@ -214,6 +229,7 @@ static uint64_t derive_draw_seed(uint64_t base_seed, int draw_index)
     return splitmix64(base_seed ^ (uint64_t)draw_index);
 }
 
+/** @brief Sample one seed uniformly from an inclusive seed domain. */
 static uint64_t sample_seed_in_domain(uint64_t *state, uint64_t seed_start, uint64_t seed_end)
 {
     *state = splitmix64(*state);
@@ -227,6 +243,9 @@ static uint64_t sample_seed_in_domain(uint64_t *state, uint64_t seed_start, uint
     return seed_start + (*state % domain_size);
 }
 
+/**
+ * @brief Build a unique random sample of candidate seeds without duplicates.
+ */
 static int build_unique_seed_sample(uint64_t seed_start, uint64_t seed_end, int seed_count,
                                     uint64_t sampling_seed, uint64_t *out_seeds)
 {
@@ -274,6 +293,9 @@ typedef struct
     LotteryInfo info;
 } SeedCalibrationDrawContext;
 
+/**
+ * @brief Adapter from seed calibration callbacks to core seeded draw generation.
+ */
 static int seed_calibration_draw_callback(void *ctx, uint64_t seed, int draw_index,
                                           LotteryResult *out_result)
 {
@@ -288,6 +310,7 @@ static int seed_calibration_draw_callback(void *ctx, uint64_t seed, int draw_ind
     return 0;
 }
 
+/** @brief Print closest-seed results as a human-readable table. */
 static void print_closest_seed_table(const SeedCalibrationResult *result)
 {
     printf("Closest seed calibration\n");
@@ -305,6 +328,7 @@ static void print_closest_seed_table(const SeedCalibrationResult *result)
     }
 }
 
+/** @brief Print closest-seed results as CSV. */
 static void print_closest_seed_csv(const SeedCalibrationResult *result)
 {
     printf("section,key,value,extra\n");
@@ -320,6 +344,7 @@ static void print_closest_seed_csv(const SeedCalibrationResult *result)
     }
 }
 
+/** @brief Print closest-seed results as JSON. */
 static void print_closest_seed_json(const SeedCalibrationResult *result, const char *from_date,
                                     const char *to_date)
 {
@@ -347,6 +372,109 @@ static void print_closest_seed_json(const SeedCalibrationResult *result, const c
     printf("}\n");
 }
 
+#define CLOSEST_SEED_PROGRESS_BAR_WIDTH 32
+
+typedef struct
+{
+    int enabled;
+    int printed_lines;
+} ClosestSeedProgressState;
+
+/** @brief Check whether stderr likely supports ANSI redraw sequences. */
+static int closest_seed_terminal_supports_ansi_redraw(void)
+{
+    if (!isatty(fileno(stderr)))
+        return 0;
+
+    const char *term = getenv("TERM");
+    if (!term || term[0] == '\0')
+        return 0;
+    if (strcasecmp(term, "dumb") == 0)
+        return 0;
+    return 1;
+}
+
+/** @brief Draw fixed-width progress bar cells to stderr. */
+static void draw_progress_bar_cells(int done, int total)
+{
+    int filled = 0;
+    if (total > 0)
+    {
+        filled = (int)((double)done / (double)total * CLOSEST_SEED_PROGRESS_BAR_WIDTH);
+        if (filled > CLOSEST_SEED_PROGRESS_BAR_WIDTH)
+            filled = CLOSEST_SEED_PROGRESS_BAR_WIDTH;
+    }
+
+    for (int i = 0; i < CLOSEST_SEED_PROGRESS_BAR_WIDTH; i++)
+    {
+        if (i < filled - 1)
+            fputc('=', stderr);
+        else if (i == filled - 1)
+            fputc('>', stderr);
+        else
+            fputc(' ', stderr);
+    }
+}
+
+/**
+ * @brief Multi-worker progress callback for closest-seed calibration mode.
+ */
+static void closest_seed_progress_callback(void *ctx, int done, int total, int workers,
+                                           const int *worker_done,
+                                           const int *worker_utilization_pct)
+{
+    ClosestSeedProgressState *state = (ClosestSeedProgressState *)ctx;
+    if (!state || !state->enabled || total <= 0)
+        return;
+
+    if (workers < 1)
+        workers = 1;
+
+    if (state->printed_lines > 0)
+        fprintf(stderr, "\033[%dF", state->printed_lines);
+
+    int pct = (int)((double)done / (double)total * 100.0);
+    if (pct > 100)
+        pct = 100;
+
+    fprintf(stderr, "\033[2K  Closest-seed total   [");
+    draw_progress_bar_cells(done, total);
+    fprintf(stderr, "] %d/%d (%d%%)\n", done, total, pct);
+
+    for (int w = 0; w < workers; w++)
+    {
+        int worker_count = worker_done ? worker_done[w] : 0;
+        if (worker_count < 0)
+            worker_count = 0;
+        if (worker_count > total)
+            worker_count = total;
+
+        int cpu_load_pct = worker_utilization_pct ? worker_utilization_pct[w] : 0;
+        if (cpu_load_pct < 0)
+            cpu_load_pct = 0;
+        if (cpu_load_pct > 100)
+            cpu_load_pct = 100;
+
+        int worker_pct = (int)((double)worker_count / (double)total * 100.0);
+        if (worker_pct > 100)
+            worker_pct = 100;
+
+        fprintf(stderr, "\033[2K  CPU %-2d  load:%3d%%   [", w + 1, cpu_load_pct);
+        draw_progress_bar_cells(worker_count, total);
+        fprintf(stderr, "] %d/%d (%d%%)\n", worker_count, total, worker_pct);
+    }
+
+    state->printed_lines = workers + 1;
+    if (done >= total)
+    {
+        state->printed_lines = 0;
+        fputc('\n', stderr);
+    }
+
+    fflush(stderr);
+}
+
+/** @brief Print simulation analytics summary in table form. */
 static void print_simulation_analytics_table(const SimulationAnalyticsCoreReport *core,
                                              const SimulationAnalyticsAdvancedReport *advanced)
 {
@@ -373,6 +501,7 @@ static void print_simulation_analytics_table(const SimulationAnalyticsCoreReport
     }
 }
 
+/** @brief Print simulation analytics summary as JSON. */
 static void print_simulation_analytics_json(const SimulationAnalyticsMetadata *metadata,
                                             const SimulationAnalyticsCoreReport *core,
                                             const SimulationAnalyticsAdvancedReport *advanced)
@@ -413,6 +542,7 @@ static void print_simulation_analytics_json(const SimulationAnalyticsMetadata *m
     printf("}\n");
 }
 
+/** @brief Print simulation analytics summary as CSV. */
 static void print_simulation_analytics_csv(const SimulationAnalyticsCoreReport *core,
                                            const SimulationAnalyticsAdvancedReport *advanced)
 {
@@ -436,6 +566,9 @@ static void print_simulation_analytics_csv(const SimulationAnalyticsCoreReport *
 /* ---------------------------------------------------------
    Usage
    --------------------------------------------------------- */
+/**
+ * @brief Print full CLI help/usage text.
+ */
 static void print_usage(const char *prog)
 {
     fprintf(stderr,
@@ -531,12 +664,13 @@ static void print_usage(const char *prog)
     fprintf(stderr,
             "\nClosest-Seed Mode:\n"
             "  --closest-seed          Find best-fit simulator seed for one fixed period\n"
+            "                         Uses local real-data DB snapshot by default\n"
             "  --seed-start VALUE      Start of seed search range (required)\n"
             "  --seed-end VALUE        End of seed search range (required)\n"
             "  --seed-count N          Evaluate N unique sampled seeds (alternative mode)\n"
             "  --sample-seed VALUE     RNG seed for reproducible unique sampling\n"
             "  --max-evals N           Max seed evaluations (default: 100000)\n"
-            "  --threads N             Worker threads for closest-seed search (default: 1)\n"
+            "  --threads N             Worker threads for closest-seed search (default: max CPUs)\n"
             "  --timeout-ms N          Soft time budget hint in milliseconds (reserved)\n"
             "\n"
             "Closest-Seed Example:\n"
@@ -550,6 +684,7 @@ static void print_usage(const char *prog)
             prog);
 }
 
+/** @brief Trim leading and trailing ASCII whitespace in-place. */
 static void trim_whitespace(char *s)
 {
     if (!s)
@@ -568,6 +703,7 @@ static void trim_whitespace(char *s)
     s[end - start] = '\0';
 }
 
+/** @brief Create a directory tree if it does not already exist. */
 static int ensure_directory_recursive(const char *dir_path)
 {
     if (!dir_path || dir_path[0] == '\0')
@@ -604,6 +740,7 @@ static int ensure_directory_recursive(const char *dir_path)
     return 0;
 }
 
+/** @brief Ensure the parent directory of a file path exists. */
 static int ensure_parent_directory(const char *file_path)
 {
     if (!file_path)
@@ -625,6 +762,7 @@ static int ensure_parent_directory(const char *file_path)
     return ensure_directory_recursive(dir);
 }
 
+/** @brief Resolve effective sources config path for CLI operations. */
 static int get_sources_config_path_cli(char *out, size_t out_size)
 {
     const char *override = getenv("OPEN_LOTTO_SOURCES_CONFIG");
@@ -642,6 +780,7 @@ static int get_sources_config_path_cli(char *out, size_t out_size)
     return (n > 0 && (size_t)n < out_size) ? 0 : -1;
 }
 
+/** @brief Resolve effective download config path for CLI operations. */
 static int get_download_config_path_cli(char *out, size_t out_size)
 {
     const char *override = getenv("OPEN_LOTTO_DOWNLOAD_CONFIG");
@@ -659,6 +798,7 @@ static int get_download_config_path_cli(char *out, size_t out_size)
     return (n > 0 && (size_t)n < out_size) ? 0 : -1;
 }
 
+/** @brief Parse an INI section header line into section name. */
 static int parse_section_header(const char *line, char *section, size_t section_size)
 {
     if (!line || line[0] != '[')
@@ -678,6 +818,7 @@ static int parse_section_header(const char *line, char *section, size_t section_
     return 1;
 }
 
+/** @brief Parse an INI-style key=value line in-place. */
 static int parse_key_value(char *line, char **key_out, char **value_out)
 {
     char *eq = strchr(line, '=');
@@ -697,6 +838,9 @@ static int parse_key_value(char *line, char **key_out, char **value_out)
     return 1;
 }
 
+/**
+ * @brief Set or create one INI value in a config file atomically enough for CLI use.
+ */
 static int ini_set_value(const char *path, const char *target_section, const char *target_key,
                          const char *new_value)
 {
@@ -804,6 +948,7 @@ static int ini_set_value(const char *path, const char *target_section, const cha
     return 0;
 }
 
+/** @brief Map display game name to sources.conf key. */
 static const char *game_source_key_cli(const char *game_name)
 {
     if (!game_name)
@@ -818,6 +963,7 @@ static const char *game_source_key_cli(const char *game_name)
     return NULL;
 }
 
+/** @brief Normalize symbolic download-config names to canonical config keys. */
 static int map_download_config_key(const char *raw_name, const char **out_key)
 {
     if (!raw_name || !out_key)
@@ -882,6 +1028,9 @@ static int map_download_config_key(const char *raw_name, const char **out_key)
 /* ---------------------------------------------------------
    MAIN
    --------------------------------------------------------- */
+/**
+ * @brief Main CLI entry point.
+ */
 int main(int argc, char **argv)
 {
     /* Load config file early so defaults are available */
@@ -952,11 +1101,11 @@ int main(int argc, char **argv)
     int closest_seed_end_set = 0;
     int closest_seed_count = 0;
     int closest_seed_count_set = 0;
-    uint64_t closest_seed_sampling_seed = 0x7a5d9e3779b97f4aULL;
+    uint64_t closest_seed_sampling_seed = 0;
     int closest_seed_sampling_seed_set = 0;
     int closest_seed_max_evals = 100000;
     int closest_seed_max_evals_set = 0;
-    int closest_seed_threads = 1;
+    int closest_seed_threads = 0;
     int closest_seed_threads_set = 0;
     int closest_seed_timeout_ms = 0;
     int closest_seed_timeout_set = 0;
@@ -1658,11 +1807,18 @@ int main(int argc, char **argv)
 
     if (closest_seed_mode)
     {
-        if (gui || animate || export_format || simulation_analytics || analytics_mode_count > 0 ||
+        if (animate || export_format || simulation_analytics || analytics_mode_count > 0 ||
             sim_historical_csv_output)
         {
-            fprintf(stderr, "Error: --closest-seed cannot be combined with GUI/animate/export or "
+            fprintf(stderr, "Error: --closest-seed cannot be combined with animate/export or "
                             "other analytics modes.\n");
+            config_free(&cfg);
+            return 1;
+        }
+        if (gui && strcmp(gui_mode, "2D") != 0)
+        {
+            fprintf(stderr,
+                    "Error: --closest-seed GUI visualization currently supports only --gui 2D.\n");
             config_free(&cfg);
             return 1;
         }
@@ -1827,6 +1983,20 @@ int main(int argc, char **argv)
 
     if (closest_seed_mode)
     {
+        ClosestSeedProgressState progress_state;
+        progress_state.enabled = closest_seed_terminal_supports_ansi_redraw();
+        progress_state.printed_lines = 0;
+
+        if (!closest_seed_threads_set)
+            closest_seed_threads = omp_get_max_threads();
+        if (closest_seed_count_set && !closest_seed_sampling_seed_set)
+            closest_seed_sampling_seed = generate_strong_seed();
+
+        fprintf(stderr, "closest-seed run: threads=%d\n", closest_seed_threads);
+        if (closest_seed_count_set)
+            fprintf(stderr, "closest-seed sampled mode: sample-seed=0x%016llx\n",
+                    (unsigned long long)closest_seed_sampling_seed);
+
         HistoricalDraw *historical_draws = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
         HistoricalDraw *filtered = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
         int draw_count = 0;
@@ -1926,6 +2096,8 @@ int main(int argc, char **argv)
         request.weight_rank = 1.0;
         request.draw_for_seed = seed_calibration_draw_callback;
         request.draw_ctx = &draw_ctx;
+        request.progress_fn = closest_seed_progress_callback;
+        request.progress_ctx = &progress_state;
 
         if (closest_seed_timeout_ms > 0)
         {
@@ -1952,6 +2124,84 @@ int main(int argc, char **argv)
             print_closest_seed_csv(&result);
         else
             print_closest_seed_table(&result);
+
+        if (gui)
+        {
+            HistoricalDraw *simulated = calloc((size_t)filtered_count, sizeof(HistoricalDraw));
+            if (simulated)
+            {
+                for (int i = 0; i < filtered_count; i++)
+                {
+                    simulated[i] = filtered[i];
+                    generate_draw_seeded(selected->info.main_count, selected->info.main_min,
+                                         selected->info.main_max, selected->info.extra_count,
+                                         selected->info.extra_min, selected->info.extra_max,
+                                         derive_draw_seed(result.best.seed, i),
+                                         &simulated[i].result, silent_callback);
+                }
+
+                FrequencyReport real_report;
+                FrequencyReport sim_report;
+                FrequencyReport rank10_report;
+                int has_rank10 = 0;
+                if (analytics_compute_frequency(filtered, filtered_count, selected->info.main_min,
+                                                selected->info.main_max,
+                                                &real_report) == VALIDATE_OK &&
+                    analytics_compute_frequency(simulated, filtered_count, selected->info.main_min,
+                                                selected->info.main_max,
+                                                &sim_report) == VALIDATE_OK)
+                {
+                    if (result.top_candidate_count >= 10)
+                    {
+                        for (int i = 0; i < filtered_count; i++)
+                        {
+                            simulated[i] = filtered[i];
+                            generate_draw_seeded(selected->info.main_count, selected->info.main_min,
+                                                 selected->info.main_max,
+                                                 selected->info.extra_count,
+                                                 selected->info.extra_min, selected->info.extra_max,
+                                                 derive_draw_seed(result.top_candidates[9].seed, i),
+                                                 &simulated[i].result, silent_callback);
+                        }
+
+                        if (analytics_compute_frequency(
+                                simulated, filtered_count, selected->info.main_min,
+                                selected->info.main_max, &rank10_report) == VALIDATE_OK)
+                        {
+                            has_rank10 = 1;
+                        }
+                    }
+
+                    snprintf(real_report.from_date, sizeof(real_report.from_date), "%s",
+                             period_from);
+                    snprintf(real_report.to_date, sizeof(real_report.to_date), "%s", period_to);
+                    snprintf(sim_report.from_date, sizeof(sim_report.from_date), "%s", period_from);
+                    snprintf(sim_report.to_date, sizeof(sim_report.to_date), "%s", period_to);
+                    if (has_rank10)
+                    {
+                        snprintf(rank10_report.from_date, sizeof(rank10_report.from_date), "%s",
+                                 period_from);
+                        snprintf(rank10_report.to_date, sizeof(rank10_report.to_date), "%s",
+                                 period_to);
+                    }
+
+                    if (gui_render_frequency_overlay_stacked_2d(
+                            selected->name, &real_report, &sim_report,
+                            has_rank10 ? &rank10_report : NULL, dark_mode) != 0)
+                    {
+                        fprintf(stderr,
+                                "Warning: Failed to render stacked 2D overlay visualization.\n");
+                    }
+                }
+                free(simulated);
+            }
+            else
+            {
+                fprintf(
+                    stderr,
+                    "Warning: Out of memory; skipping closest-seed GUI overlay visualization.\n");
+            }
+        }
 
         free(sampled_seeds);
         free(historical_draws);

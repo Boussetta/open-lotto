@@ -2,6 +2,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file historical_db.c
+ * @brief Historical snapshot sync, parsing, caching, and local persistence.
+ */
+
 #include "historical_db.h"
 #include "log.h"
 
@@ -1959,6 +1964,9 @@ static int parse_local_snapshot_json(const char *json, HistoricalDrawSnapshot *s
     return validate_snapshot_integrity(snap);
 }
 
+/**
+ * @brief Load the latest locally persisted snapshot for a game.
+ */
 int historical_db_load_latest(const char *game_name, const char *db_root,
                               HistoricalDrawSnapshot *out_snapshot)
 {
@@ -1981,6 +1989,9 @@ int historical_db_load_latest(const char *game_name, const char *db_root,
     return rc == 0 ? HISTORICAL_DB_SYNC_UPDATED : HISTORICAL_DB_ERR_PARSE;
 }
 
+/**
+ * @brief Fetch, validate, and persist the latest snapshot for a game.
+ */
 int historical_db_sync_latest(const char *game_name, const char *db_root,
                               HistoricalDrawSnapshot *out_snapshot)
 {

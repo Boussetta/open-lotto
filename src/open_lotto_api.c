@@ -2,17 +2,28 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file open_lotto_api.c
+ * @brief Stable embedding API wrappers around the core draw engine.
+ */
+
 #include "open_lotto_api.h"
 
 #ifndef OPEN_LOTTO_VERSION_STRING
 #define OPEN_LOTTO_VERSION_STRING "unknown"
 #endif
 
+/**
+ * @brief Check whether an inclusive numeric range can satisfy count unique picks.
+ */
 static int has_enough_numbers(int count, int min_value, int max_value)
 {
     return (max_value - min_value + 1) >= count;
 }
 
+/**
+ * @brief Validate user-facing draw specification before generation.
+ */
 int open_lotto_validate_spec(const OpenLottoDrawSpec *spec)
 {
     if (!spec)
@@ -42,6 +53,9 @@ int open_lotto_validate_spec(const OpenLottoDrawSpec *spec)
     return OPEN_LOTTO_API_SUCCESS;
 }
 
+/**
+ * @brief Generate one draw using validated specification and runtime entropy.
+ */
 int open_lotto_generate(const OpenLottoDrawSpec *spec, LotteryResult *out)
 {
     if (!out)
@@ -57,6 +71,9 @@ int open_lotto_generate(const OpenLottoDrawSpec *spec, LotteryResult *out)
     return OPEN_LOTTO_API_SUCCESS;
 }
 
+/**
+ * @brief Generate one deterministic draw from validated specification and seed.
+ */
 int open_lotto_generate_seeded(const OpenLottoDrawSpec *spec, uint64_t seed, LotteryResult *out)
 {
     if (!out)
@@ -72,6 +89,9 @@ int open_lotto_generate_seeded(const OpenLottoDrawSpec *spec, uint64_t seed, Lot
     return OPEN_LOTTO_API_SUCCESS;
 }
 
+/**
+ * @brief Derive per-draw deterministic seeds via SplitMix64-style mixing.
+ */
 uint64_t open_lotto_derive_seed(uint64_t base_seed, uint64_t draw_index)
 {
     if (draw_index == 0)
@@ -84,6 +104,9 @@ uint64_t open_lotto_derive_seed(uint64_t base_seed, uint64_t draw_index)
     return x ^ (x >> 31);
 }
 
+/**
+ * @brief Return compile-time version string.
+ */
 const char *open_lotto_version(void)
 {
     return OPEN_LOTTO_VERSION_STRING;

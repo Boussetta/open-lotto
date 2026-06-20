@@ -2,13 +2,18 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file theme.c
+ * @brief Theme selection and environment-based dark-mode detection.
+ */
+
 #include "theme.h"
 #include "log.h"
 #include <stdlib.h>
 #include <string.h>
 
 /**
- * Detect dark mode from system environment variables
+ * @brief Detect dark mode from common desktop environment variables.
  */
 int theme_detect_system_dark_mode(void)
 {
@@ -45,7 +50,7 @@ int theme_detect_system_dark_mode(void)
 }
 
 /**
- * Get color palette for light or dark theme
+ * @brief Return the full color palette for the requested theme mode.
  */
 Theme theme_get(int dark_mode)
 {

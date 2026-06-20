@@ -73,6 +73,9 @@ static inline uint64_t rdtsc(void)
  * @note This function logs the entropy source selected for debugging purposes.
  * @note All entropy sources are independent and can be used safely.
  */
+/**
+ * @brief Generate a strong 64-bit seed using the best available entropy source.
+ */
 uint64_t generate_strong_seed(void)
 {
     uint64_t seed = 0;

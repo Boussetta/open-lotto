@@ -2,11 +2,19 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file simulation_analytics_metadata.c
+ * @brief Initialization and JSON serialization helpers for analytics metadata.
+ */
+
 #include "simulation_analytics_metadata.h"
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
+/**
+ * @brief Copy a string or fallback value into fixed-size destination buffer.
+ */
 static void copy_or_default(char *dst, size_t dst_size, const char *src, const char *fallback)
 {
     const char *value = src && src[0] ? src : fallback;
@@ -14,6 +22,9 @@ static void copy_or_default(char *dst, size_t dst_size, const char *src, const c
     dst[dst_size - 1] = '\0';
 }
 
+/**
+ * @brief Initialize export metadata, including UTC timestamp when available.
+ */
 int simulation_analytics_metadata_init(SimulationAnalyticsMetadata *out, const char *game,
                                        int run_count, int has_seed, uint64_t seed,
                                        const char *source)
@@ -53,6 +64,9 @@ int simulation_analytics_metadata_init(SimulationAnalyticsMetadata *out, const c
     return 0;
 }
 
+/**
+ * @brief Serialize metadata into a compact JSON object string.
+ */
 int simulation_analytics_metadata_to_json(const SimulationAnalyticsMetadata *meta, char *out,
                                           size_t out_size)
 {

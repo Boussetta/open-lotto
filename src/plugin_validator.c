@@ -2,6 +2,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file plugin_validator.c
+ * @brief Standalone CLI for validating plugin metadata and sample draws.
+ */
+
 #include "combogen.h"
 #include "log.h"
 #include "plugin_loader.h"
@@ -9,11 +14,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/**
+ * @brief Print validator CLI usage.
+ */
 static void print_usage(const char *prog)
 {
     fprintf(stderr, "Usage: %s PLUGIN.so [PLUGIN.so ...]\n", prog);
 }
 
+/**
+ * @brief Validate rule metadata exposed by a plugin.
+ */
 static int validate_info(const char *path, const LotteryInfo *info)
 {
     if (info->main_count <= 0 || info->main_count > MAX_MAIN_NUMBERS)
@@ -59,6 +70,9 @@ static int validate_info(const char *path, const LotteryInfo *info)
     return 0;
 }
 
+/**
+ * @brief Validate uniqueness and bounds of one returned number set.
+ */
 static int validate_unique_range(const char *path, const int *values, int count, int min, int max,
                                  const char *label)
 {
@@ -84,6 +98,9 @@ static int validate_unique_range(const char *path, const int *values, int count,
     return 0;
 }
 
+/**
+ * @brief Execute one plugin draw and verify structural correctness.
+ */
 static int validate_draw(const char *path, LoadedPlugin *plugin)
 {
     LotteryResult result = {0};
@@ -118,6 +135,9 @@ static int validate_draw(const char *path, LoadedPlugin *plugin)
     return 0;
 }
 
+/**
+ * @brief Load and validate one plugin path end-to-end.
+ */
 static int validate_plugin_path(const char *path)
 {
     LoadedPlugin *plugin = load_plugin(path);
@@ -155,6 +175,9 @@ static int validate_plugin_path(const char *path)
     return status;
 }
 
+/**
+ * @brief Entry point for the plugin validator executable.
+ */
 int main(int argc, char **argv)
 {
     if (argc < 2)

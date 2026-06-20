@@ -2,9 +2,17 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file simulation_analytics_core.c
+ * @brief Core aggregate metrics for batches of simulated draws.
+ */
+
 #include "simulation_analytics_core.h"
 #include <string.h>
 
+/**
+ * @brief Aggregate hit counts plus mean/variance across simulated draws.
+ */
 int simulation_analytics_core_aggregate(const LotteryResult *draws, int draw_count, int number_min,
                                         int number_max, int picks_per_draw,
                                         SimulationAnalyticsCoreReport *out_report)

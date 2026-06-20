@@ -2,6 +2,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file localization.c
+ * @brief Locale detection and localized string lookup helpers.
+ */
+
 #include "localization.h"
 #include <ctype.h>
 #include <stdlib.h>
@@ -34,6 +39,7 @@ static const LocaleTable TABLES[] = {
     },
 };
 
+/** @brief Find locale table by exact locale key. */
 static const LocaleTable *find_table(const char *locale)
 {
     size_t table_count = sizeof(TABLES) / sizeof(TABLES[0]);
@@ -45,6 +51,7 @@ static const LocaleTable *find_table(const char *locale)
     return NULL;
 }
 
+/** @brief Case-insensitive prefix test for locale selection. */
 static int locale_starts_with(const char *locale, const char *prefix)
 {
     size_t i = 0;
@@ -59,6 +66,7 @@ static int locale_starts_with(const char *locale, const char *prefix)
     return 1;
 }
 
+/** @brief Detect effective locale from environment variables. */
 const char *localization_detect_locale(void)
 {
     const char *raw = getenv("OPEN_LOTTO_LANG");
@@ -74,6 +82,7 @@ const char *localization_detect_locale(void)
     return "en";
 }
 
+/** @brief Return localized string or English fallback for a key. */
 const char *localization_get(const char *locale, LocalizationKey key)
 {
     const LocaleTable *fallback = find_table("en");

@@ -7,14 +7,21 @@
 
 #include "combogen.h"
 
+/**
+ * @file lottery_plugin.h
+ * @brief ABI contract required by dynamically loaded game plugins.
+ */
+
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-    /* Every plugin must export these three symbols */
+    /** @brief Return static game rules for this plugin. */
     const LotteryInfo *plugin_get_info(void);
+    /** @brief Return display name of the plugin/game. */
     const char *plugin_get_name(void);
+    /** @brief Generate one draw using plugin-specific rules. */
     void plugin_draw(LotteryResult *out, draw_event_callback cb);
 
 #ifdef __cplusplus

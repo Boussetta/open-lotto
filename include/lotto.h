@@ -7,6 +7,11 @@
 
 #include "random.h" // <-- REQUIRED so RandomGenerator is known
 
+/**
+ * @file lotto.h
+ * @brief Legacy Lotto draw API (kept for compatibility).
+ */
+
 typedef struct
 {
     int numbers[6];

@@ -7,6 +7,11 @@
 
 #include "combogen.h"
 
+/**
+ * @file simulation_analytics_core.h
+ * @brief Core aggregate statistics for simulated draws.
+ */
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -24,6 +29,9 @@ extern "C"
         int counts[128];
     } SimulationAnalyticsCoreReport;
 
+    /**
+     * @brief Aggregate count/mean/variance metrics across simulated draws.
+     */
     int simulation_analytics_core_aggregate(const LotteryResult *draws, int draw_count,
                                             int number_min, int number_max, int picks_per_draw,
                                             SimulationAnalyticsCoreReport *out_report);

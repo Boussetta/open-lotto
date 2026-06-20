@@ -2,9 +2,17 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file simulation_analytics_export.c
+ * @brief Serialize simulation analytics bundles to JSON and CSV files.
+ */
+
 #include "simulation_analytics_export.h"
 #include <stdio.h>
 
+/**
+ * @brief Write a simulation analytics bundle as one JSON document.
+ */
 int simulation_analytics_export_json_file(const char *filename,
                                           const SimulationAnalyticsMetadata *metadata,
                                           const SimulationAnalyticsCoreReport *core,
@@ -62,6 +70,9 @@ int simulation_analytics_export_json_file(const char *filename,
     return 0;
 }
 
+/**
+ * @brief Write a flattened CSV representation of a simulation analytics bundle.
+ */
 int simulation_analytics_export_csv_file(const char *filename,
                                          const SimulationAnalyticsMetadata *metadata,
                                          const SimulationAnalyticsCoreReport *core,

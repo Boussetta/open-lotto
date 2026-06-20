@@ -7,6 +7,11 @@
 
 #include "combogen.h"
 
+/**
+ * @file simulation_analytics_advanced.h
+ * @brief Advanced streak/gap/entropy metrics for simulated draws.
+ */
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -34,6 +39,9 @@ extern "C"
         SimulationHotColdEntry cold[128];
     } SimulationAnalyticsAdvancedReport;
 
+    /**
+     * @brief Compute entropy, gaps, streaks, and hot/cold rankings.
+     */
     int simulation_analytics_advanced_compute(const LotteryResult *draws, int draw_count,
                                               int number_min, int number_max, int top_n,
                                               SimulationAnalyticsAdvancedReport *out_report);

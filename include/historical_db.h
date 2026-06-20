@@ -7,6 +7,11 @@
 
 #include <stddef.h>
 
+/**
+ * @file historical_db.h
+ * @brief Fetch and persist latest official draw snapshots for supported games.
+ */
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -47,9 +52,17 @@ extern "C"
         HistoricalWinningClass winning_classes[HISTORICAL_DB_MAX_WINNING_CLASSES];
     } HistoricalDrawSnapshot;
 
+    /**
+     * @brief Synchronize the latest snapshot from upstream source into local DB.
+     * @return HISTORICAL_DB_SYNC_UPDATED, HISTORICAL_DB_SYNC_UNCHANGED, or a
+     *         negative HISTORICAL_DB_ERR_* code.
+     */
     int historical_db_sync_latest(const char *game_name, const char *db_root,
                                   HistoricalDrawSnapshot *out_snapshot);
 
+    /**
+     * @brief Load the most recent locally stored snapshot for a game.
+     */
     int historical_db_load_latest(const char *game_name, const char *db_root,
                                   HistoricalDrawSnapshot *out_snapshot);
 

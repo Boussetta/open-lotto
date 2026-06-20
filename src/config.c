@@ -1,9 +1,6 @@
 /**
  * @file config.c
- * @brief Implementation of configuration file support (.lottorc).
- *
- * SPDX-FileCopyrightText: 2025 Wissem Boussetta
- * SPDX-License-Identifier: MIT
+ * @brief Loading and parsing of persistent CLI defaults from config files.
  */
 
 #include "config.h"
@@ -218,6 +215,9 @@ int config_load_file(LoCalConfig *config, const char *path)
     return 0;
 }
 
+/**
+ * @brief Load configuration from the default ~/.lottorc path.
+ */
 int config_load_lottorc(LoCalConfig *config)
 {
     if (!config)
@@ -239,6 +239,9 @@ int config_load_lottorc(LoCalConfig *config)
     return config_load_file(config, path);
 }
 
+/**
+ * @brief Free dynamically allocated fields inside a config object.
+ */
 void config_free(LoCalConfig *config)
 {
     if (!config)
@@ -256,6 +259,9 @@ void config_free(LoCalConfig *config)
     memset(config, 0, sizeof(LoCalConfig));
 }
 
+/**
+ * @brief Print config values for debugging and diagnostics.
+ */
 void config_print(const LoCalConfig *config)
 {
     if (!config)
@@ -272,6 +278,9 @@ void config_print(const LoCalConfig *config)
     printf("  gui: %s\n", config->gui_mode ? config->gui_mode : "(not set)");
 }
 
+/**
+ * @brief Return whether the default ~/.lottorc file exists and is readable.
+ */
 int config_lottorc_exists(void)
 {
     const char *home = get_home_dir();

@@ -2,6 +2,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file gui_opengl.c
+ * @brief OpenGL/SDL-based 3D draw visualization and analytics renderers.
+ */
+
 #ifdef _WIN32
 /* On Windows, GLEW provides OpenGL extension prototypes and loads function
  * pointers via wglGetProcAddress — required because opengl32.dll only exports
@@ -264,6 +269,12 @@ typedef struct
    OPENGL UTILITIES
    ============================================================ */
 
+/**
+ * @brief Log and clear the current OpenGL error state (if any).
+ *
+ * This is intentionally lightweight and used as a frame/debug guardrail in
+ * key setup and render locations.
+ */
 static void check_gl_error(const char *context)
 {
     GLenum err = glGetError();
@@ -273,12 +284,21 @@ static void check_gl_error(const char *context)
     }
 }
 
+/**
+ * @brief Return a uniform random float in the closed interval [a, b].
+ */
 static float frand_range(float a, float b)
 {
     return a + (b - a) * ((float)rand() / (float)RAND_MAX);
 }
 
-/* Read CPU usage statistics from /proc/stat and calculate per-core percentages */
+/**
+ * @brief Update per-core CPU usage percentages from /proc/stat.
+ *
+ * The calculation uses delta snapshots:
+ * usage = 100 * (1 - idle_diff / total_diff)
+ * and is throttled to ~2 Hz to keep overlay updates cheap.
+ */
 static void update_cpu_usage(GuiState3D *state)
 {
     Uint32 now = SDL_GetTicks();
@@ -412,6 +432,14 @@ static const char *BALL_COMPUTE_SHADER_SRC =
     "  balls[i].vel = vec4(vel, 0.0);\n"
     "}\n";
 
+/**
+ * @brief Upload CPU-side main-drum state to the GPU SSBO cache.
+ *
+ * The OpenMP loop is a pure struct-of-arrays style copy from simulation state
+ * into a tightly packed GPU buffer layout (std430-friendly float fields).
+ * This keeps the compute shader input contiguous and minimizes per-frame
+ * CPU->GPU transfer overhead.
+ */
 static void sync_cpu_balls_to_gpu(GuiState3D *state)
 {
     if (!state->use_gpu_compute)
@@ -437,6 +465,13 @@ static void sync_cpu_balls_to_gpu(GuiState3D *state)
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
+/**
+ * @brief Read GPU-computed ball state back into CPU simulation arrays.
+ *
+ * We explicitly issue a memory barrier and glFinish() before readback because
+ * the next CPU-side phase logic (picking, overlays, state transitions) depends
+ * on coherent and complete GPU results in the same frame.
+ */
 static void sync_gpu_balls_to_cpu(GuiState3D *state)
 {
     if (!state->use_gpu_compute)
@@ -466,6 +501,12 @@ static void sync_gpu_balls_to_cpu(GuiState3D *state)
     }
 }
 
+/**
+ * @brief Initialize OpenGL compute resources for main-drum physics.
+ *
+ * Compiles/links the compute shader and allocates one SSBO sized to the main
+ * drum ball count. Returns 1 on success, 0 on fallback path.
+ */
 static int init_gpu_compute(GuiState3D *state)
 {
     GLuint shader = glCreateShader(GL_COMPUTE_SHADER);
@@ -520,6 +561,9 @@ static int init_gpu_compute(GuiState3D *state)
     return 1;
 }
 
+/**
+ * @brief Release compute-shader resources and disable GPU compute mode.
+ */
 static void destroy_gpu_compute(GuiState3D *state)
 {
     if (state->ball_ssbo != 0)
@@ -537,6 +581,14 @@ static void destroy_gpu_compute(GuiState3D *state)
     state->use_gpu_compute = 0;
 }
 
+/**
+ * @brief Dispatch one compute pass for main-drum physics.
+ *
+ * Workgroup count uses ceil(n / local_size):
+ *   groups = (ball_count + local_size - 1) / local_size
+ * so every ball gets exactly one invocation even when ball_count is not a
+ * multiple of the shader local size.
+ */
 static void update_animation_gpu(GuiState3D *state, float delta_time)
 {
     /* Early return if GPU compute is not available */
@@ -578,6 +630,15 @@ static void update_animation_gpu(GuiState3D *state, float delta_time)
     glUseProgram(0);
 }
 
+/**
+ * @brief Resolve pairwise collision between two equal-mass balls.
+ *
+ * Uses a standard impulse model along contact normal n:
+ *   j = -((1 + e) * v_rel_n) / 2
+ * where e is restitution and division by 2 comes from equal masses
+ * (1/m1 + 1/m2 with m1 = m2 = 1). A small tangential transfer and spin
+ * coupling are added to avoid unrealistically mirrored trajectories.
+ */
 static void resolve_ball_collision(DrumBall *ball_i, DrumBall *ball_j, float collision_dist)
 {
     float dx = ball_j->x - ball_i->x;
@@ -666,7 +727,13 @@ static void resolve_ball_collision(DrumBall *ball_i, DrumBall *ball_j, float col
     }
 }
 
-/* Initialise balls for a drum */
+/**
+ * @brief Initialize one drum's ball states and optional trail buffers.
+ *
+ * Spawn points are sampled uniformly in the XZ disk of radius 0.6 * drum radius
+ * and Y is biased to the upper half of the drum so the first phase naturally
+ * starts with a visible settling/falling motion.
+ */
 static void drum_instance_init_balls(DrumInstance *drum)
 {
     drum->phase = DRUM_PHASE_FALLING;
@@ -711,7 +778,13 @@ static void drum_instance_init_balls(DrumInstance *drum)
     }
 }
 
-/* Draw a smooth sphere using triangle strips with proper normals */
+/**
+ * @brief Draw a UV sphere with per-vertex normals.
+ *
+ * Parameterization:
+ * x = r sin(phi) cos(theta), y = r sin(phi) sin(theta), z = r cos(phi)
+ * with phi in [0, pi], theta in [0, 2pi].
+ */
 static void draw_sphere(float radius, int slices, int stacks)
 {
     for (int i = 0; i < stacks; i++)
@@ -750,7 +823,9 @@ static void draw_sphere(float radius, int slices, int stacks)
     }
 }
 
-/* Draw a wireframe outline of the sphere for definition */
+/**
+ * @brief Draw a wireframe shell overlay for visual edge definition.
+ */
 static void draw_sphere_frame(float radius, int slices, int stacks, float gr, float gg, float gb)
 {
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -998,6 +1073,12 @@ static void render_debug_overlay(const GuiState3D *state)
    SETUP & INITIALIZATION
    ============================================================ */
 
+/**
+ * @brief Configure fixed-function OpenGL state used by the 3D drum scene.
+ *
+ * Includes depth/blend setup, two-light rig, and material parameters matched
+ * to the selected theme mode.
+ */
 static void setup_opengl(int dark_mode)
 {
     glEnable(GL_DEPTH_TEST);
@@ -1047,6 +1128,12 @@ static void setup_opengl(int dark_mode)
     check_gl_error("setup_opengl");
 }
 
+/**
+ * @brief Allocate and initialize all runtime GUI state.
+ *
+ * Creates drum instances, initial ball states, optional extra drum, CPU usage
+ * trackers, and GPU-compute opt-in flags.
+ */
 static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryInfo *info,
                                     int debug_overlay, int dark_mode)
 {
@@ -1193,6 +1280,9 @@ static GuiState3D *gui_state_create(const char *unused_game_name, const LotteryI
     return state;
 }
 
+/**
+ * @brief Free all GUI state allocations and GL texture handles.
+ */
 static void gui_state_destroy(GuiState3D *state)
 {
     if (!state)
@@ -1244,7 +1334,12 @@ static void gui_state_destroy(GuiState3D *state)
    RENDERING
    ============================================================ */
 
-/* Create an OpenGL texture from a ball number using SDL_ttf */
+/**
+ * @brief Build a centered RGBA texture containing a ball number label.
+ *
+ * A square power-of-two canvas is used for broad compatibility with older
+ * fixed-function texture paths.
+ */
 static GLuint make_number_texture(TTF_Font *font, int number)
 {
     if (!font)
@@ -1293,6 +1388,9 @@ static GLuint make_number_texture(TTF_Font *font, int number)
     return tex;
 }
 
+/**
+ * @brief Initialize SDL_ttf fonts and per-ball number textures for all drums.
+ */
 static void init_ball_textures(GuiState3D *state)
 {
     if (TTF_Init() < 0)
@@ -1353,6 +1451,12 @@ static void init_ball_textures(GuiState3D *state)
     }
 }
 
+/**
+ * @brief Render one drum instance and its current visible content.
+ *
+ * Draw order is: dynamic balls, optional debug trails/vectors, number billboards,
+ * then transparent shell and wireframe for silhouette readability.
+ */
 static void render_drum_instance(const DrumInstance *drum, float sim_time, int debug_overlay,
                                  Theme theme)
 {
@@ -1561,6 +1665,9 @@ static void render_drum_instance(const DrumInstance *drum, float sim_time, int d
     glPopMatrix();
 }
 
+/**
+ * @brief Render a picked result ball in 2D overlay space with optional number decal.
+ */
 static void render_overlay_ball_2d(const DrumInstance *drum, const PickedBallDisplay *pb, float cx,
                                    float cy, float r, float g, float b)
 {
@@ -1599,7 +1706,12 @@ static void render_overlay_ball_2d(const DrumInstance *drum, const PickedBallDis
     }
 }
 
-/* Render final result as one fixed on-screen line: main numbers + superzahl. */
+/**
+ * @brief Render the final combined result row as a fixed 2D overlay.
+ *
+ * Layout is centered in screen space; when both drums exist, a plus separator
+ * is inserted between main and extra-number groups.
+ */
 static void render_combined_result_overlay_2d(const GuiState3D *state, float row_y_px)
 {
     const DrumInstance *main_drum = state->main_drum;
@@ -1658,6 +1770,9 @@ static void render_combined_result_overlay_2d(const GuiState3D *state, float row
     glEnable(GL_LIGHTING);
 }
 
+/**
+ * @brief Render a full frame: 3D world pass followed by 2D overlays.
+ */
 static void render_scene(GuiState3D *state)
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1726,17 +1841,23 @@ static void render_scene(GuiState3D *state)
    ANIMATION
    ============================================================ */
 
+/**
+ * @brief Draw callback hook (currently unused, reserved for instrumentation).
+ */
 static void on_draw_event(DrawEvent event, const LotteryResult *res)
 {
     (void)event;
     (void)res;
 }
 
-/* Apply rolling friction and angular damping to a ball */
+/**
+ * @brief Apply rotational damping and shell-contact rolling friction.
+ *
+ * The term BALL_ROLLING_FRICTION * dt acts as a first-order decay factor
+ * approximating friction torque over one integration step.
+ */
 static void apply_rolling_friction(DrumBall *ball, float delta_time, float contact_with_shell)
 {
-    (void)contact_with_shell; /* Parameter reserved for future enhancements */
-
     /* Dampen angular velocity due to air resistance */
     ball->rot_x *= BALL_ANGULAR_DAMPING;
     ball->rot_y *= BALL_ANGULAR_DAMPING;
@@ -1771,7 +1892,13 @@ static void apply_rolling_friction(DrumBall *ball, float delta_time, float conta
     }
 }
 
-/* Generic per-drum animation update — works for both main and extra drums */
+/**
+ * @brief Advance one drum by one simulation step.
+ *
+ * The update is a phase machine (falling -> rotating -> stopping -> pick pause)
+ * with explicit state thresholds tuned for visual stability and deterministic
+ * pick sequencing.
+ */
 static void update_drum_instance(DrumInstance *drum, float delta_time)
 {
     if (drum->waiting)
@@ -1800,6 +1927,8 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
 
             float radial_sq = ball->x * ball->x + ball->z * ball->z;
             float inside = (drum_radius - BALL_RADIUS) * (drum_radius - BALL_RADIUS) - radial_sq;
+            /* Sphere-shell floor from x^2 + y^2 + z^2 = (R-r)^2:
+             * y = -sqrt((R-r)^2 - x^2 - z^2) for the lower hemisphere. */
             float floor_y = (inside <= 0.0f) ? (-drum_radius + BALL_RADIUS) : -sqrtf(inside);
 
             if (ball->y <= floor_y)
@@ -1904,6 +2033,7 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
                     max_speed = sp;
             }
         }
+        /* Transition criterion: enough settled balls and low residual kinetic energy. */
         int calm = (settled_count >= min_settled) && (max_speed < 50.0f);
         if (force_timeout || (calm && drum->sim_time >= 0.5f))
         {
@@ -2130,6 +2260,7 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
         /* Gravity points along fixed world Y axis (0, -BALL_GRAVITY, 0).
          * Transform to drum's local rotating frame by inverse rotation.
          * Drum rotated by theta around Z, so transform by -theta. */
+        /* Convert degrees->radians for trigonometric projection of gravity. */
         float theta = drum->drum_rotation_z * 3.14159265f / 180.0f;
         float gx = -BALL_GRAVITY * sinf(theta); /* negative sin */
         float gy = -BALL_GRAVITY * cosf(theta);
@@ -2333,6 +2464,9 @@ static void update_drum_instance(DrumInstance *drum, float delta_time)
     drum->drum_rotation_y = 0.0f;
 }
 
+/**
+ * @brief Advance full scene animation (main drum, optional extra drum, GPU sync).
+ */
 static void update_animation(GuiState3D *state, float delta_time)
 {
     update_drum_instance(state->main_drum, delta_time);
@@ -2367,6 +2501,13 @@ static void update_animation(GuiState3D *state, float delta_time)
    MAIN GUI FUNCTION
    ============================================================ */
 
+/**
+ * @brief Run the interactive OpenGL draw visualization until user exit.
+ *
+ * This is the top-level lifecycle entry point: SDL/GL initialization,
+ * optional GPU compute setup, draw generation, event loop, rendering, and
+ * teardown.
+ */
 void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_overlay,
                     int dark_mode)
 {
@@ -2615,6 +2756,9 @@ void gui_run_opengl(const char *game_name, const LotteryInfo *info, int debug_ov
     SDL_Quit();
 }
 
+/**
+ * @brief Draw an axis-aligned rectangular prism anchored at y=0.
+ */
 static void draw_box_prism(float w, float h, float d)
 {
     float x = w * 0.5f;
@@ -2676,6 +2820,9 @@ typedef struct
 #define ACAM_ORBIT_SENS MOUSE_ORBIT_SENSITIVITY  /* 0.25 */
 #define ACAM_ZOOM_STEP (MOUSE_ZOOM_STEP * 0.08f) /* 1.6 units */
 
+/**
+ * @brief Initialize analytics camera to default orbit and zoom values.
+ */
 static void acam_init(AnalyticsCamera *c)
 {
     c->pitch = ACAM_PITCH_DEFAULT;
@@ -2684,6 +2831,11 @@ static void acam_init(AnalyticsCamera *c)
     c->mouse_dragging = 0;
 }
 
+/**
+ * @brief Process SDL input for analytics camera controls.
+ *
+ * Supports orbit drag, wheel zoom, and quick axis-aligned view presets.
+ */
 static int acam_handle_event(AnalyticsCamera *c, SDL_Event *ev, int *quit)
 {
     switch (ev->type)
@@ -2756,7 +2908,9 @@ static int acam_handle_event(AnalyticsCamera *c, SDL_Event *ev, int *quit)
     return 0;
 }
 
-/* Apply the camera transform for a 1000x700 analytics window */
+/**
+ * @brief Apply projection/modelview transforms for analytics 3D views.
+ */
 static void acam_apply(const AnalyticsCamera *c)
 {
     glMatrixMode(GL_PROJECTION);
@@ -2770,6 +2924,12 @@ static void acam_apply(const AnalyticsCamera *c)
     glRotatef(c->yaw, 0.0f, 1.0f, 0.0f);
 }
 
+/**
+ * @brief Project a world-space point to screen coordinates.
+ *
+ * Performs manual model->clip->NDC transform and viewport mapping. Returns 0
+ * when the point is outside clip-space depth or numerically invalid.
+ */
 static int project_analytics_point(float x, float y, float z, int viewport_w, int viewport_h,
                                    float *out_x, float *out_y)
 {
@@ -2812,7 +2972,9 @@ static int project_analytics_point(float x, float y, float z, int viewport_w, in
     return 1;
 }
 
-/* Draw floor grid (XZ plane) */
+/**
+ * @brief Draw a simple floor grid in the XZ plane.
+ */
 static void draw_floor_grid(float half, float step)
 {
     glLineWidth(1.0f);
@@ -2828,7 +2990,9 @@ static void draw_floor_grid(float half, float step)
     glLineWidth(1.0f);
 }
 
-/* Draw Y-axis spine + tick marks */
+/**
+ * @brief Draw the vertical reference axis for analytics charts.
+ */
 static void draw_y_axis(float height)
 {
     glLineWidth(2.0f);
@@ -2839,7 +3003,12 @@ static void draw_y_axis(float height)
     glLineWidth(1.0f);
 }
 
-/* Ortho HUD overlay — same technique as drum debug overlay */
+/**
+ * @brief Reserved analytics HUD hook.
+ *
+ * Placeholder kept to stabilize call sites while richer HUD text rendering is
+ * iterated separately.
+ */
 static void draw_analytics_hud_3d(const char *subtitle, int dark_mode)
 {
     (void)subtitle;
@@ -2848,8 +3017,11 @@ static void draw_analytics_hud_3d(const char *subtitle, int dark_mode)
      * Current: noop placeholder so the architecture is wired. */
 }
 
-/* Render analytics stats bar at top showing ball ranges and total draws
- * Displays format: "Ball #N: count draws (percentage) | Ball #M: ..." etc */
+/**
+ * @brief Render a top overlay strip with summary analytics values.
+ *
+ * Includes date range, sampled entries, and a hover tooltip when available.
+ */
 static void draw_analytics_info_overlay(TTF_Font *font, int number_min, int number_max,
                                         const int *counts, int total_draws, const char *from_date,
                                         const char *to_date, int hovered_bar, int dark_mode)
@@ -2929,7 +3101,9 @@ static void draw_analytics_info_overlay(TTF_Font *font, int number_min, int numb
     glEnable(GL_LIGHTING);
 }
 
-/* Read optional timeout (same logic as SDL helper) */
+/**
+ * @brief Read optional analytics auto-close timeout from environment.
+ */
 static Uint32 analytics_gl_timeout_ms(void)
 {
     const char *env = getenv("OPEN_LOTTO_ANALYTICS_GUI_TIMEOUT_MS");
@@ -2939,7 +3113,12 @@ static Uint32 analytics_gl_timeout_ms(void)
     return (v > 0) ? (Uint32)v : 0;
 }
 
-/* Calculate grid dimensions for matrix layout */
+/**
+ * @brief Choose a near-square matrix layout for analytics bars.
+ *
+ * Special cases preserve familiar lottery layouts (49=>7x7, 50=>5x10), while
+ * other ranges favor compact grids with readable spacing.
+ */
 static void calc_grid_layout(int total_balls, int *out_cols, int *out_rows)
 {
     /* 49 balls -> 7x7, 50 balls -> 5x10 */
@@ -2965,6 +3144,12 @@ static void calc_grid_layout(int total_balls, int *out_cols, int *out_rows)
     }
 }
 
+/**
+ * @brief Render 3D matrix bars for frequency counts.
+ *
+ * Bar height is normalized against the max count and animated from zero over
+ * a short intro interval for readability.
+ */
 int gui_render_frequency_3d(const char *title, const FrequencyReport *report, int dark_mode)
 {
     (void)dark_mode;
@@ -3199,6 +3384,12 @@ int gui_render_frequency_3d(const char *title, const FrequencyReport *report, in
     return 0;
 }
 
+/**
+ * @brief Render 3D overdue-factor (barometer) bars.
+ *
+ * A horizontal reference plane at factor=1.0 is drawn to indicate expected
+ * interval behavior.
+ */
 int gui_render_barometer_3d(const char *title, const BarometerReport *report, int dark_mode)
 {
     if (!report)
@@ -3402,6 +3593,12 @@ int gui_render_barometer_3d(const char *title, const BarometerReport *report, in
     return 0;
 }
 
+/**
+ * @brief Render paired hot/cold bars in 3D matrix form.
+ *
+ * Each logical slot draws a hot bar (front) and cold bar (back) to make
+ * contrast readable from a single camera orbit.
+ */
 int gui_render_hot_cold_3d(const char *title, const HotColdReport *report, int dark_mode)
 {
     if (!report)

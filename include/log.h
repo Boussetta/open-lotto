@@ -7,6 +7,11 @@
 
 #include <stdarg.h>
 
+/**
+ * @file log.h
+ * @brief Central logging facade with configurable level and sink behavior.
+ */
+
 typedef enum
 {
     LOG_ERROR = 0,
@@ -28,11 +33,16 @@ void log_set_level(LogLevel level);
  * %APPDATA%\open-lotto\logs\open-lotto.log.
  */
 void log_init_default_file(void);
+/** @brief Register callback invoked after each emitted log line. */
 void log_set_line_observer(LogLineObserver observer);
 
+/** @brief Emit an error-level log line. */
 void log_error(const char *fmt, ...);
+/** @brief Emit a warning-level log line. */
 void log_warn(const char *fmt, ...);
+/** @brief Emit an info-level log line. */
 void log_info(const char *fmt, ...);
+/** @brief Emit a debug-level log line. */
 void log_debug(const char *fmt, ...);
 
 #endif

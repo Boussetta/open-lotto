@@ -24,11 +24,13 @@ typedef struct
     int day;
 } DateParts;
 
+/** @brief Return non-zero when a Gregorian calendar year is leap. */
 static int is_leap_year(int year)
 {
     return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
 }
 
+/** @brief Parse and validate YYYY-MM-DD into numeric date parts. */
 static int parse_iso_date_parts(const char *date_str, DateParts *out)
 {
     if (!date_str || !out)
@@ -69,6 +71,7 @@ static int parse_iso_date_parts(const char *date_str, DateParts *out)
     return 1;
 }
 
+/** @brief Lexicographically compare two parsed dates. */
 static int compare_dates(const DateParts *a, const DateParts *b)
 {
     if (a->year != b->year)
@@ -84,6 +87,7 @@ static int compare_dates(const DateParts *a, const DateParts *b)
    Game Name Validation
    ===================================================================== */
 
+/** @brief Validate game name presence, length, and registry membership. */
 int validate_game_name(const char *game_name, PluginRegistry *registry)
 {
     if (!game_name || game_name[0] == '\0')
@@ -117,6 +121,7 @@ int validate_game_name(const char *game_name, PluginRegistry *registry)
    Draw Count Validation
    ===================================================================== */
 
+/** @brief Parse and validate a positive draw count. */
 int validate_draw_count(const char *draws_str, int *out_draws)
 {
     if (!draws_str || draws_str[0] == '\0')
@@ -161,6 +166,7 @@ int validate_draw_count(const char *draws_str, int *out_draws)
    Export Format Validation
    ===================================================================== */
 
+/** @brief Validate export format keyword. */
 int validate_export_format(const char *format)
 {
     if (!format || format[0] == '\0')
@@ -186,6 +192,7 @@ int validate_export_format(const char *format)
    Export Filename Validation
    ===================================================================== */
 
+/** @brief Validate export file path and basic writeability assumptions. */
 int validate_export_filename(const char *filename)
 {
     if (!filename || filename[0] == '\0')
@@ -253,6 +260,7 @@ int validate_export_filename(const char *filename)
    Log Level Validation
    ===================================================================== */
 
+/** @brief Validate CLI log level string. */
 int validate_log_level(const char *level)
 {
     if (!level || level[0] == '\0')
@@ -280,6 +288,7 @@ int validate_log_level(const char *level)
    GUI Mode Validation
    ===================================================================== */
 
+/** @brief Validate optional GUI mode string. */
 int validate_gui_mode(const char *mode)
 {
     /* NULL mode is valid (defaults to 2D) */
@@ -303,6 +312,7 @@ int validate_gui_mode(const char *mode)
    Option Pair Validation
    ===================================================================== */
 
+/** @brief Ensure --export and --output are provided as a valid pair. */
 int validate_export_pair(const char *export_format, const char *export_filename)
 {
     int has_format = (export_format != NULL);
@@ -331,6 +341,7 @@ int validate_export_pair(const char *export_format, const char *export_filename)
    Option Conflict Validation
    ===================================================================== */
 
+/** @brief Check mutually exclusive high-level execution modes. */
 int validate_option_conflicts(int animate, int gui, const char *export_format)
 {
     if (animate && gui)
@@ -378,6 +389,7 @@ int validate_option_conflicts(int animate, int gui, const char *export_format)
    Analytics Period Validation
    ===================================================================== */
 
+/** @brief Validate strict ISO calendar date syntax and semantics. */
 int validate_iso_date(const char *date_str)
 {
     if (!date_str || date_str[0] == '\0')
@@ -398,6 +410,7 @@ int validate_iso_date(const char *date_str)
     return VALIDATE_OK;
 }
 
+/** @brief Validate requested analytics period and optional available-data overlap. */
 int validate_analytics_period(const char *from_date, const char *to_date,
                               const char *available_from, const char *available_to)
 {
@@ -466,6 +479,7 @@ int validate_analytics_period(const char *from_date, const char *to_date,
    Error Hint Messages
    ===================================================================== */
 
+/** @brief Return human-readable guidance string for validation errors. */
 const char *validate_error_hint(ValidateError error_code, const char *context)
 {
     (void)context; /* unused for now, but available for future context-specific hints */

@@ -2,6 +2,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file plugin_loader.c
+ * @brief Cross-platform dynamic loading and symbol resolution for plugins.
+ */
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +22,9 @@
 
 static char g_dlerror_buffer[256];
 
+/**
+ * @brief Windows shim for POSIX-style dlopen semantics.
+ */
 static void *dlopen(const char *filename, int flags)
 {
     (void)flags; /* flags parameter unused on Windows */
@@ -25,6 +33,9 @@ static void *dlopen(const char *filename, int flags)
     return (void *)LoadLibraryA(filename);
 }
 
+/**
+ * @brief Windows shim returning last dynamic-loader error string.
+ */
 static const char *dlerror(void)
 {
     DWORD error_code = GetLastError();
@@ -37,6 +48,9 @@ static const char *dlerror(void)
     return g_dlerror_buffer;
 }
 
+/**
+ * @brief Windows shim for POSIX-style dlclose semantics.
+ */
 static int dlclose(void *handle)
 {
     if (!handle)
@@ -49,6 +63,9 @@ static int dlclose(void *handle)
 #include "lottery_plugin.h"
 #include "plugin_loader.h"
 
+/**
+ * @brief Load one plugin shared object and validate required exported symbols.
+ */
 LoadedPlugin *load_plugin(const char *path)
 {
     /* Validate input path */
@@ -169,6 +186,9 @@ LoadedPlugin *load_plugin(const char *path)
     return p;
 }
 
+/**
+ * @brief Unload a previously loaded plugin.
+ */
 void unload_plugin(LoadedPlugin *plugin)
 {
     if (!plugin)

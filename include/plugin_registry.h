@@ -7,7 +7,10 @@
 
 #include "plugin_loader.h"
 
-/* Plugin registry for dynamic discovery and management */
+/**
+ * @file plugin_registry.h
+ * @brief Discovery and lifecycle management for loaded game plugins.
+ */
 
 typedef struct
 {
@@ -16,22 +19,22 @@ typedef struct
     int capacity;
 } PluginRegistry;
 
-/* Initialize and scan plugin directories */
+/** @brief Create an empty plugin registry container. */
 PluginRegistry *registry_create(void);
 
-/* Discover all plugins in standard locations */
+/** @brief Discover plugins from standard search locations. */
 void registry_discover_plugins(PluginRegistry *registry);
 
-/* Find a plugin by game name (case-insensitive) */
+/** @brief Find plugin by game name (case-insensitive match). */
 LoadedPlugin *registry_find_plugin(PluginRegistry *registry, const char *game_name);
 
-/* Reload a discovered plugin from its original shared-object path */
+/** @brief Reload an already discovered plugin in-place. */
 int registry_reload_plugin(PluginRegistry *registry, const char *game_name);
 
-/* List all available games */
+/** @brief Print all discovered games/plugins. */
 void registry_list_games(PluginRegistry *registry);
 
-/* Free registry and all plugins */
+/** @brief Destroy registry and unload all loaded plugins. */
 void registry_destroy(PluginRegistry *registry);
 
 #endif /* PLUGIN_REGISTRY_H */

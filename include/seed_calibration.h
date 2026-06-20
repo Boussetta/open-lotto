@@ -9,6 +9,11 @@
 #include "combogen.h"
 #include <stdint.h>
 
+/**
+ * @file seed_calibration.h
+ * @brief Seed-search calibration against historical draw behavior.
+ */
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -33,8 +38,18 @@ extern "C"
         double rank_score;
     } SeedCalibrationCandidate;
 
+    /**
+     * @brief Callback used to simulate one draw for a given candidate seed.
+     */
     typedef int (*SeedCalibrationDrawFn)(void *ctx, uint64_t seed, int draw_index,
                                          LotteryResult *out_result);
+
+    /**
+     * @brief Progress callback for UI/CLI feedback during calibration search.
+     */
+    typedef void (*SeedCalibrationProgressFn)(void *ctx, int done, int total, int workers,
+                                              const int *worker_done,
+                                              const int *worker_utilization_pct);
 
     typedef struct
     {
@@ -55,6 +70,8 @@ extern "C"
         double weight_rank;
         SeedCalibrationDrawFn draw_for_seed;
         void *draw_ctx;
+        SeedCalibrationProgressFn progress_fn;
+        void *progress_ctx;
     } SeedCalibrationRequest;
 
     typedef struct
@@ -69,6 +86,9 @@ extern "C"
         double seeds_per_second;
     } SeedCalibrationResult;
 
+    /**
+     * @brief Find closest matching seeds under weighted score criteria.
+     */
     int seed_calibration_find_closest(const SeedCalibrationRequest *req,
                                       SeedCalibrationResult *out);
 

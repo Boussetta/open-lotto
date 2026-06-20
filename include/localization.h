@@ -5,6 +5,11 @@
 #ifndef LOCALIZATION_H
 #define LOCALIZATION_H
 
+/**
+ * @file localization.h
+ * @brief Minimal localization key/value API for CLI and overlays.
+ */
+
 typedef enum
 {
     LOCALIZE_DRAW = 0,
@@ -15,6 +20,7 @@ typedef enum
 } LocalizationKey;
 
 const char *localization_detect_locale(void);
+/** @brief Lookup translated string for key under locale fallback rules. */
 const char *localization_get(const char *locale, LocalizationKey key);
 
 #endif

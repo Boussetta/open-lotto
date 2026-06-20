@@ -8,6 +8,11 @@
 #include "validate.h"
 #include <stddef.h>
 
+/**
+ * @file analytics_data_quality.h
+ * @brief Integrity checks for historical data used in analytics.
+ */
+
 #define ANALYTICS_MAX_MAIN_NUMBERS 10
 #define ANALYTICS_MAX_EXTRA_NUMBERS 5
 

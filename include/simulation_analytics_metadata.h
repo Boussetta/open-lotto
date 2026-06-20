@@ -8,6 +8,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/**
+ * @file simulation_analytics_metadata.h
+ * @brief Metadata model and serializers for analytics export artifacts.
+ */
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -26,10 +31,12 @@ extern "C"
         int run_count;
     } SimulationAnalyticsMetadata;
 
+    /** @brief Initialize metadata record with runtime/export context. */
     int simulation_analytics_metadata_init(SimulationAnalyticsMetadata *out, const char *game,
                                            int run_count, int has_seed, uint64_t seed,
                                            const char *source);
 
+    /** @brief Serialize metadata record into a compact JSON object. */
     int simulation_analytics_metadata_to_json(const SimulationAnalyticsMetadata *meta, char *out,
                                               size_t out_size);
 

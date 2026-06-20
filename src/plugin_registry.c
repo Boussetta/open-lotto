@@ -2,6 +2,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file plugin_registry.c
+ * @brief Discovery, lookup, reload, and lifecycle management for plugins.
+ */
+
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +20,9 @@
 #define INITIAL_CAPACITY 10
 #define MAX_PATH 512
 
+/**
+ * @brief Case-insensitive suffix check.
+ */
 static int has_suffix_ci(const char *str, const char *suffix)
 {
     if (!str || !suffix)
@@ -28,6 +36,9 @@ static int has_suffix_ci(const char *str, const char *suffix)
     return strcasecmp(str + (str_len - suffix_len), suffix) == 0;
 }
 
+/**
+ * @brief Check whether a file name matches platform plugin extension.
+ */
 static int is_plugin_file(const char *filename)
 {
 #ifdef _WIN32
@@ -39,6 +50,9 @@ static int is_plugin_file(const char *filename)
 #endif
 }
 
+/**
+ * @brief Return registry index for a game name, or -1 if absent.
+ */
 static int registry_find_plugin_index(PluginRegistry *registry, const char *game_name)
 {
     if (!registry || !game_name)
@@ -56,6 +70,9 @@ static int registry_find_plugin_index(PluginRegistry *registry, const char *game
     return -1;
 }
 
+/**
+ * @brief Append a loaded plugin to the registry, resizing storage if needed.
+ */
 static void registry_add_plugin(PluginRegistry *registry, LoadedPlugin *plugin)
 {
     if (!registry || !plugin)
@@ -86,6 +103,9 @@ static void registry_add_plugin(PluginRegistry *registry, LoadedPlugin *plugin)
     registry->plugins[registry->count++] = plugin;
 }
 
+/**
+ * @brief Scan one directory and attempt to load all plugin candidates found.
+ */
 static void scan_plugin_directory(PluginRegistry *registry, const char *dirpath)
 {
     if (!dirpath || !registry)
@@ -128,6 +148,9 @@ static void scan_plugin_directory(PluginRegistry *registry, const char *dirpath)
     closedir(dir);
 }
 
+/**
+ * @brief Allocate and initialize an empty registry.
+ */
 PluginRegistry *registry_create(void)
 {
     PluginRegistry *registry = malloc(sizeof(PluginRegistry));
@@ -151,6 +174,9 @@ PluginRegistry *registry_create(void)
     return registry;
 }
 
+/**
+ * @brief Discover plugins from environment and standard search paths.
+ */
 void registry_discover_plugins(PluginRegistry *registry)
 {
     if (!registry)
@@ -192,6 +218,9 @@ void registry_discover_plugins(PluginRegistry *registry)
     }
 }
 
+/**
+ * @brief Find a loaded plugin by game name.
+ */
 LoadedPlugin *registry_find_plugin(PluginRegistry *registry, const char *game_name)
 {
     if (!registry)
@@ -225,6 +254,9 @@ LoadedPlugin *registry_find_plugin(PluginRegistry *registry, const char *game_na
     return NULL;
 }
 
+/**
+ * @brief Reload an existing plugin from its original shared-object path.
+ */
 int registry_reload_plugin(PluginRegistry *registry, const char *game_name)
 {
     if (!registry)
@@ -274,6 +306,9 @@ int registry_reload_plugin(PluginRegistry *registry, const char *game_name)
     return 0;
 }
 
+/**
+ * @brief Print discovered game names to stdout.
+ */
 void registry_list_games(PluginRegistry *registry)
 {
     if (!registry)
@@ -295,6 +330,9 @@ void registry_list_games(PluginRegistry *registry)
     }
 }
 
+/**
+ * @brief Destroy registry and unload all owned plugins.
+ */
 void registry_destroy(PluginRegistry *registry)
 {
     if (!registry)

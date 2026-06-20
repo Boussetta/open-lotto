@@ -7,6 +7,11 @@
 
 #include "lottery_plugin.h"
 
+/**
+ * @file plugin_loader.h
+ * @brief Dynamic shared-library loading for lottery plugins.
+ */
+
 #define LOADED_PLUGIN_PATH_MAX 512
 
 typedef struct
@@ -18,7 +23,9 @@ typedef struct
     void *handle;
 } LoadedPlugin;
 
+/** @brief Load one plugin shared object and resolve required symbols. */
 LoadedPlugin *load_plugin(const char *path);
+/** @brief Unload plugin and release associated resources. */
 void unload_plugin(LoadedPlugin *plugin);
 
 #endif /* PLUGIN_LOADER_H */

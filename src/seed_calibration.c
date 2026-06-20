@@ -2,6 +2,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file seed_calibration.c
+ * @brief Parallel search for seeds whose simulated statistics best match history.
+ */
+
 #include "seed_calibration.h"
 #include <limits.h>
 #include <math.h>
@@ -25,6 +30,9 @@ typedef struct
     int count;
 } NumberCount;
 
+/**
+ * @brief Sort helper for descending hit count, then ascending number.
+ */
 static int compare_number_count(const void *a, const void *b)
 {
     const NumberCount *lhs = (const NumberCount *)a;
@@ -35,6 +43,11 @@ static int compare_number_count(const void *a, const void *b)
     return lhs->number - rhs->number;
 }
 
+/**
+ * @brief Total ordering for candidate ranking.
+ *
+ * Lower total score wins; ties break on frequency score then seed value.
+ */
 static int candidate_better(const SeedCalibrationCandidate *lhs,
                             const SeedCalibrationCandidate *rhs)
 {
@@ -51,6 +64,9 @@ static int candidate_better(const SeedCalibrationCandidate *lhs,
     return lhs->seed < rhs->seed;
 }
 
+/**
+ * @brief Keep a small candidate buffer sorted by quality.
+ */
 static void sort_candidates(SeedCalibrationCandidate *arr, int count)
 {
     for (int i = 0; i < count; i++)
@@ -70,6 +86,9 @@ static void sort_candidates(SeedCalibrationCandidate *arr, int count)
     }
 }
 
+/**
+ * @brief Validate calibration request structure before launching work.
+ */
 static int validate_request(const SeedCalibrationRequest *req)
 {
     if (!req || !req->historical_draws || !req->draw_for_seed)
@@ -98,6 +117,9 @@ static int validate_request(const SeedCalibrationRequest *req)
     return 1;
 }
 
+/**
+ * @brief Build reference frequency/gap/rank statistics from historical draws.
+ */
 static int build_stats_from_history(const SeedCalibrationRequest *req, SeedCalibrationStats *stats)
 {
     memset(stats, 0, sizeof(*stats));
@@ -154,6 +176,9 @@ static int build_stats_from_history(const SeedCalibrationRequest *req, SeedCalib
     return 1;
 }
 
+/**
+ * @brief Build comparable statistics from simulated draws for one candidate seed.
+ */
 static int build_stats_from_seed(const SeedCalibrationRequest *req, uint64_t seed,
                                  SeedCalibrationStats *stats)
 {
@@ -215,6 +240,12 @@ static int build_stats_from_seed(const SeedCalibrationRequest *req, uint64_t see
     return 1;
 }
 
+/**
+ * @brief Score one candidate seed against historical reference stats.
+ *
+ * Each component is normalized to [0, 1]-like scales and combined using the
+ * user-provided weights.
+ */
 static SeedCalibrationCandidate score_seed(const SeedCalibrationRequest *req,
                                            const SeedCalibrationStats *historical,
                                            const SeedCalibrationStats *simulated, uint64_t seed)
@@ -258,6 +289,9 @@ static SeedCalibrationCandidate score_seed(const SeedCalibrationRequest *req,
     return candidate;
 }
 
+/**
+ * @brief Evaluate candidate seeds in parallel and keep the top-K matches.
+ */
 int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibrationResult *out)
 {
     if (!out)
@@ -305,13 +339,26 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
     SeedCalibrationCandidate *thread_candidates = (SeedCalibrationCandidate *)calloc(
         (size_t)thread_count * (size_t)req->top_k, sizeof(SeedCalibrationCandidate));
     int *thread_kept = (int *)calloc((size_t)thread_count, sizeof(int));
-    if (!thread_candidates || !thread_kept)
+    int *thread_done = (int *)calloc((size_t)thread_count, sizeof(int));
+    int *thread_utilization_pct = (int *)calloc((size_t)thread_count, sizeof(int));
+    double *thread_started_at = (double *)calloc((size_t)thread_count, sizeof(double));
+    double *thread_finished_at = (double *)calloc((size_t)thread_count, sizeof(double));
+    if (!thread_candidates || !thread_kept || !thread_done || !thread_utilization_pct ||
+        !thread_started_at || !thread_finished_at)
     {
         free(thread_candidates);
         free(thread_kept);
+        free(thread_done);
+        free(thread_utilization_pct);
+        free(thread_started_at);
+        free(thread_finished_at);
         out->status = SEED_CALIBRATION_ERR_INVALID_ARGUMENT;
         return out->status;
     }
+
+    if (req->progress_fn)
+        req->progress_fn(req->progress_ctx, 0, eval_target, thread_count, thread_done,
+                         thread_utilization_pct);
 
     int callback_failed = 0;
     double t0 = omp_get_wtime();
@@ -321,6 +368,9 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
         int tid = omp_get_thread_num();
         SeedCalibrationCandidate *local = &thread_candidates[(size_t)tid * (size_t)req->top_k];
         int local_kept = 0;
+        int local_done = 0;
+        double thread_start = omp_get_wtime();
+        thread_started_at[tid] = thread_start;
 
 #pragma omp for schedule(static)
         for (int i = 0; i < eval_target; i++)
@@ -351,6 +401,92 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
                 local[local_kept - 1] = candidate;
                 sort_candidates(local, local_kept);
             }
+
+            local_done++;
+            if (req->progress_fn && ((local_done % 64) == 0))
+            {
+#pragma omp critical(seed_calibration_progress)
+                {
+                    thread_done[tid] = local_done;
+
+                    double now = omp_get_wtime();
+                    double elapsed = now - t0;
+                    if (elapsed <= 0.0)
+                        elapsed = 1e-9;
+
+                    for (int t = 0; t < thread_count; t++)
+                    {
+                        if (thread_started_at[t] <= 0.0)
+                        {
+                            thread_utilization_pct[t] = 0;
+                            continue;
+                        }
+
+                        double active_until =
+                            (thread_finished_at[t] > 0.0) ? thread_finished_at[t] : now;
+                        double active_elapsed = active_until - thread_started_at[t];
+                        if (active_elapsed < 0.0)
+                            active_elapsed = 0.0;
+
+                        int util_pct = (int)((active_elapsed / elapsed) * 100.0);
+                        if (util_pct > 100)
+                            util_pct = 100;
+                        thread_utilization_pct[t] = util_pct;
+                    }
+
+                    int done = 0;
+                    for (int t = 0; t < thread_count; t++)
+                        done += thread_done[t];
+                    if (done > eval_target)
+                        done = eval_target;
+
+                    req->progress_fn(req->progress_ctx, done, eval_target, thread_count,
+                                     thread_done, thread_utilization_pct);
+                }
+            }
+        }
+
+#pragma omp critical(seed_calibration_progress)
+        {
+            thread_done[tid] = local_done;
+            thread_finished_at[tid] = omp_get_wtime();
+
+            if (req->progress_fn)
+            {
+                double now = omp_get_wtime();
+                double elapsed = now - t0;
+                if (elapsed <= 0.0)
+                    elapsed = 1e-9;
+
+                for (int t = 0; t < thread_count; t++)
+                {
+                    if (thread_started_at[t] <= 0.0)
+                    {
+                        thread_utilization_pct[t] = 0;
+                        continue;
+                    }
+
+                    double active_until =
+                        (thread_finished_at[t] > 0.0) ? thread_finished_at[t] : now;
+                    double active_elapsed = active_until - thread_started_at[t];
+                    if (active_elapsed < 0.0)
+                        active_elapsed = 0.0;
+
+                    int util_pct = (int)((active_elapsed / elapsed) * 100.0);
+                    if (util_pct > 100)
+                        util_pct = 100;
+                    thread_utilization_pct[t] = util_pct;
+                }
+
+                int done = 0;
+                for (int t = 0; t < thread_count; t++)
+                    done += thread_done[t];
+                if (done > eval_target)
+                    done = eval_target;
+
+                req->progress_fn(req->progress_ctx, done, eval_target, thread_count, thread_done,
+                                 thread_utilization_pct);
+            }
         }
 
         thread_kept[tid] = local_kept;
@@ -361,9 +497,17 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
     {
         free(thread_candidates);
         free(thread_kept);
+        free(thread_done);
+        free(thread_utilization_pct);
+        free(thread_started_at);
+        free(thread_finished_at);
         out->status = SEED_CALIBRATION_ERR_CALLBACK_FAILED;
         return out->status;
     }
+
+    if (req->progress_fn)
+        req->progress_fn(req->progress_ctx, eval_target, eval_target, thread_count, thread_done,
+                         thread_utilization_pct);
 
     int kept = 0;
     for (int t = 0; t < thread_count; t++)
@@ -387,6 +531,10 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
 
     free(thread_candidates);
     free(thread_kept);
+    free(thread_done);
+    free(thread_utilization_pct);
+    free(thread_started_at);
+    free(thread_finished_at);
 
     if (kept == 0)
     {

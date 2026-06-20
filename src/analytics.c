@@ -2,6 +2,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file analytics.c
+ * @brief Historical draw loading, analytics computation, and report rendering.
+ */
+
 #include "analytics.h"
 #include <ctype.h>
 #include <stdio.h>
@@ -41,6 +46,9 @@ static int slugify_game_name(const char *game_name, char *out, size_t out_size)
     return 0;
 }
 
+/**
+ * @brief Build the default historical snapshot path for a game.
+ */
 static int build_snapshot_path(const char *game_name, const char *db_root, char *out,
                                size_t out_size)
 {
@@ -69,6 +77,9 @@ static int build_snapshot_path(const char *game_name, const char *db_root, char 
     return (n < 0 || (size_t)n >= out_size) ? -1 : 0;
 }
 
+/**
+ * @brief Read an entire text file into a newly allocated buffer.
+ */
 static int read_file_text(const char *path, char **out)
 {
     if (!path || !out)
@@ -112,6 +123,9 @@ static int read_file_text(const char *path, char **out)
     return 0;
 }
 
+/**
+ * @brief Parse a compact JSON integer array into a fixed output buffer.
+ */
 static int parse_json_int_array(const char *arr_start, int *out, int max_out, int *out_count)
 {
     if (!arr_start || !out || !out_count || max_out <= 0)
@@ -161,6 +175,9 @@ static int parse_json_int_array(const char *arr_start, int *out, int max_out, in
     return -1;
 }
 
+/**
+ * @brief Parse one historical draw object from snapshot JSON.
+ */
 static int parse_draw_object(const char *obj, HistoricalDraw *out_draw, const LotteryInfo *rules)
 {
     const char *date_k = strstr(obj, "\"draw_date\"");
@@ -223,6 +240,9 @@ static int parse_draw_object(const char *obj, HistoricalDraw *out_draw, const Lo
     return 0;
 }
 
+/**
+ * @brief Parse a space-separated list of numbers from CSV fields.
+ */
 static int parse_numbers(const char *field, int *out, int max_out)
 {
     char buf[256];
@@ -251,6 +271,9 @@ static int parse_numbers(const char *field, int *out, int max_out)
     return count;
 }
 
+/**
+ * @brief Load historical draw rows from CSV with rule validation.
+ */
 int analytics_load_historical_csv(const char *csv_path, HistoricalDraw *out_draws, int max_draws,
                                   int *out_count, const LotteryInfo *rules)
 {
@@ -346,6 +369,9 @@ int analytics_load_historical_csv(const char *csv_path, HistoricalDraw *out_draw
     return VALIDATE_OK;
 }
 
+/**
+ * @brief Load historical draws from the local snapshot database JSON.
+ */
 int analytics_load_historical_db_snapshot(const char *game_name, const char *db_root,
                                           HistoricalDraw *out_draws, int max_draws, int *out_count,
                                           const LotteryInfo *rules)
@@ -481,6 +507,9 @@ int analytics_load_historical_db_snapshot(const char *game_name, const char *db_
     return VALIDATE_OK;
 }
 
+/**
+ * @brief Copy only draws inside the inclusive [from_date, to_date] period.
+ */
 int analytics_filter_period(const HistoricalDraw *draws, int draw_count, const char *from_date,
                             const char *to_date, HistoricalDraw *out_filtered,
                             int *out_filtered_count)
@@ -505,6 +534,9 @@ int analytics_filter_period(const HistoricalDraw *draws, int draw_count, const c
     return VALIDATE_OK;
 }
 
+/**
+ * @brief Count how many times each main number appears in the draw history.
+ */
 int analytics_compute_frequency(const HistoricalDraw *draws, int draw_count, int number_min,
                                 int number_max, FrequencyReport *out_report)
 {
@@ -543,6 +575,11 @@ int analytics_compute_frequency(const HistoricalDraw *draws, int draw_count, int
     return VALIDATE_OK;
 }
 
+/**
+ * @brief Compute overdue-factor barometer statistics.
+ *
+ * factor = observed_gap / expected_interval
+ */
 int analytics_compute_barometer(const HistoricalDraw *draws, int draw_count, int number_min,
                                 int number_max, int picks_per_draw, BarometerReport *out_report)
 {
@@ -602,6 +639,7 @@ int analytics_compute_barometer(const HistoricalDraw *draws, int draw_count, int
     return VALIDATE_OK;
 }
 
+/** @brief Sort helper for hot ranking. */
 static int hot_cmp(const void *a, const void *b)
 {
     const HotColdEntry *x = (const HotColdEntry *)a;
@@ -611,6 +649,7 @@ static int hot_cmp(const void *a, const void *b)
     return x->number - y->number;
 }
 
+/** @brief Sort helper for cold ranking. */
 static int cold_cmp(const void *a, const void *b)
 {
     const HotColdEntry *x = (const HotColdEntry *)a;
@@ -620,6 +659,9 @@ static int cold_cmp(const void *a, const void *b)
     return x->number - y->number;
 }
 
+/**
+ * @brief Compute hot/cold rankings from historical frequency counts.
+ */
 int analytics_compute_hot_cold(const HistoricalDraw *draws, int draw_count, int number_min,
                                int number_max, int top_n, HotColdReport *out_report)
 {
@@ -671,6 +713,7 @@ int analytics_compute_hot_cold(const HistoricalDraw *draws, int draw_count, int 
     return VALIDATE_OK;
 }
 
+/** @brief Print frequency report as a simple table. */
 void analytics_print_frequency_table(const FrequencyReport *report)
 {
     if (!report)
@@ -687,11 +730,13 @@ void analytics_print_frequency_table(const FrequencyReport *report)
     }
 }
 
+/** @brief Print frequency report in CSV-compatible form. */
 void analytics_print_frequency_csv(const FrequencyReport *report)
 {
     analytics_print_frequency_table(report);
 }
 
+/** @brief Print frequency report as JSON. */
 void analytics_print_frequency_json(const FrequencyReport *report)
 {
     if (!report)
@@ -714,6 +759,7 @@ void analytics_print_frequency_json(const FrequencyReport *report)
     printf("}\n");
 }
 
+/** @brief Print a lightweight textual 2D frequency preview for CLI use. */
 void analytics_print_frequency_gui_2d(const FrequencyReport *report)
 {
     if (!report)
@@ -737,6 +783,7 @@ void analytics_print_frequency_gui_2d(const FrequencyReport *report)
     }
 }
 
+/** @brief Print a lightweight MatLab-style 3D frequency description. */
 void analytics_print_frequency_gui_3d_matlab(const FrequencyReport *report)
 {
     if (!report)
@@ -754,6 +801,7 @@ void analytics_print_frequency_gui_3d_matlab(const FrequencyReport *report)
     printf("bar3(y); xlabel('Number Index'); ylabel('Series'); zlabel('Frequency');\n");
 }
 
+/** @brief Print barometer report as a simple table. */
 void analytics_print_barometer_table(const BarometerReport *report)
 {
     if (!report)
@@ -769,11 +817,13 @@ void analytics_print_barometer_table(const BarometerReport *report)
     }
 }
 
+/** @brief Print barometer report in CSV-compatible form. */
 void analytics_print_barometer_csv(const BarometerReport *report)
 {
     analytics_print_barometer_table(report);
 }
 
+/** @brief Print barometer report as JSON. */
 void analytics_print_barometer_json(const BarometerReport *report)
 {
     if (!report)
@@ -795,6 +845,7 @@ void analytics_print_barometer_json(const BarometerReport *report)
     printf("}\n");
 }
 
+/** @brief Print a lightweight textual 2D barometer preview for CLI use. */
 void analytics_print_barometer_gui_2d(const BarometerReport *report)
 {
     if (!report)
@@ -816,6 +867,7 @@ void analytics_print_barometer_gui_2d(const BarometerReport *report)
     }
 }
 
+/** @brief Print a lightweight MatLab-style 3D barometer description. */
 void analytics_print_barometer_gui_3d_matlab(const BarometerReport *report)
 {
     if (!report)
@@ -832,6 +884,7 @@ void analytics_print_barometer_gui_3d_matlab(const BarometerReport *report)
     printf("bar3(y); xlabel('Number Index'); ylabel('Series'); zlabel('Overdue Factor');\n");
 }
 
+/** @brief Print hot/cold rankings as a simple table. */
 void analytics_print_hot_cold_table(const HotColdReport *report)
 {
     if (!report)
@@ -855,11 +908,13 @@ void analytics_print_hot_cold_table(const HotColdReport *report)
     }
 }
 
+/** @brief Print hot/cold rankings in CSV-compatible form. */
 void analytics_print_hot_cold_csv(const HotColdReport *report)
 {
     analytics_print_hot_cold_table(report);
 }
 
+/** @brief Print hot/cold rankings as JSON. */
 void analytics_print_hot_cold_json(const HotColdReport *report)
 {
     if (!report)
@@ -889,6 +944,7 @@ void analytics_print_hot_cold_json(const HotColdReport *report)
     printf("}\n");
 }
 
+/** @brief Print a lightweight textual 2D hot/cold preview for CLI use. */
 void analytics_print_hot_cold_gui_2d(const HotColdReport *report)
 {
     if (!report)
@@ -910,6 +966,7 @@ void analytics_print_hot_cold_gui_2d(const HotColdReport *report)
     printf("\n");
 }
 
+/** @brief Print a lightweight MatLab-style 3D hot/cold description. */
 void analytics_print_hot_cold_gui_3d_matlab(const HotColdReport *report)
 {
     if (!report)

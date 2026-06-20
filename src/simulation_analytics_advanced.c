@@ -2,11 +2,17 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file simulation_analytics_advanced.c
+ * @brief Advanced simulation metrics such as entropy, gaps, streaks, and hot/cold rankings.
+ */
+
 #include "simulation_analytics_advanced.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
+/** @brief Sort helper for hot ranking (highest count first). */
 static int hot_cmp(const void *a, const void *b)
 {
     const SimulationHotColdEntry *x = (const SimulationHotColdEntry *)a;
@@ -16,6 +22,7 @@ static int hot_cmp(const void *a, const void *b)
     return x->number - y->number;
 }
 
+/** @brief Sort helper for cold ranking (lowest count first). */
 static int cold_cmp(const void *a, const void *b)
 {
     const SimulationHotColdEntry *x = (const SimulationHotColdEntry *)a;
@@ -25,6 +32,12 @@ static int cold_cmp(const void *a, const void *b)
     return x->number - y->number;
 }
 
+/**
+ * @brief Compute advanced simulated-draw metrics over a draw sequence.
+ *
+ * Entropy is normalized by dividing Shannon entropy by log2(population), so a
+ * perfectly uniform distribution tends toward 1.0.
+ */
 int simulation_analytics_advanced_compute(const LotteryResult *draws, int draw_count,
                                           int number_min, int number_max, int top_n,
                                           SimulationAnalyticsAdvancedReport *out_report)

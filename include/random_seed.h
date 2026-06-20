@@ -7,6 +7,12 @@
 
 #include <stdint.h>
 
+/**
+ * @file random_seed.h
+ * @brief Cryptographically strong seed derivation helpers.
+ */
+
+/** @brief Generate a high-entropy 64-bit seed from system sources. */
 uint64_t generate_strong_seed(void);
 
 #endif

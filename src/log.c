@@ -2,6 +2,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file log.c
+ * @brief Runtime logging implementation with console/file sinks.
+ */
+
 #include "log.h"
 
 #include <errno.h>
@@ -22,6 +27,9 @@ static LogLevel current_level = LOG_INFO;
 static FILE *log_file = NULL;
 static LogLineObserver line_observer = NULL;
 
+/**
+ * @brief Cross-platform mkdir wrapper.
+ */
 static int mkdir_compat(const char *path)
 {
 #ifdef _WIN32
@@ -38,6 +46,7 @@ static int mkdir_compat(const char *path)
 #define COLOR_INFO "\033[32m"
 #define COLOR_DEBUG "\033[36m"
 
+/** @brief Convert log level enum to printable name. */
 static const char *level_to_string(LogLevel level)
 {
     switch (level)
@@ -55,6 +64,7 @@ static const char *level_to_string(LogLevel level)
     }
 }
 
+/** @brief Map log level to ANSI console color code. */
 static const char *level_to_color(LogLevel level)
 {
     switch (level)
@@ -72,11 +82,13 @@ static const char *level_to_color(LogLevel level)
     }
 }
 
+/** @brief Set the minimum emitted log level. */
 void log_set_level(LogLevel level)
 {
     current_level = level;
 }
 
+/** @brief Open file sink in append mode. */
 static void log_enable_file_output(const char *filename)
 {
     log_file = fopen(filename, "a");
@@ -87,6 +99,7 @@ static void log_enable_file_output(const char *filename)
 }
 
 /* Create every component of `path` that does not already exist. */
+/** @brief Create all missing path components for a directory. */
 static void log_mkdir_p(const char *path)
 {
     char tmp[768];
@@ -117,6 +130,7 @@ static void log_mkdir_p(const char *path)
     mkdir_compat(tmp); /* last component */
 }
 
+/** @brief Initialize the default OS-specific log file sink. */
 void log_init_default_file(void)
 {
     char dir[768];
@@ -166,11 +180,15 @@ void log_init_default_file(void)
     log_enable_file_output(path);
 }
 
+/** @brief Install observer invoked after each emitted log line. */
 void log_set_line_observer(LogLineObserver observer)
 {
     line_observer = observer;
 }
 
+/**
+ * @brief Core log writer used by all public logging functions.
+ */
 static void log_write(LogLevel level, const char *fmt, va_list args)
 {
     if (level > current_level)
@@ -200,6 +218,7 @@ static void log_write(LogLevel level, const char *fmt, va_list args)
     }
 }
 
+/** @brief Emit an error-level log line. */
 void log_error(const char *fmt, ...)
 {
     va_list args;
@@ -208,6 +227,7 @@ void log_error(const char *fmt, ...)
     va_end(args);
 }
 
+/** @brief Emit a warning-level log line. */
 void log_warn(const char *fmt, ...)
 {
     va_list args;
@@ -216,6 +236,7 @@ void log_warn(const char *fmt, ...)
     va_end(args);
 }
 
+/** @brief Emit an info-level log line. */
 void log_info(const char *fmt, ...)
 {
     va_list args;
@@ -224,6 +245,7 @@ void log_info(const char *fmt, ...)
     va_end(args);
 }
 
+/** @brief Emit a debug-level log line. */
 void log_debug(const char *fmt, ...)
 {
     va_list args;

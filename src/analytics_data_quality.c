@@ -2,10 +2,16 @@
  * SPDX-License-Identifier: MIT
  */
 
+/**
+ * @file analytics_data_quality.c
+ * @brief Data integrity checks for analytics input datasets.
+ */
+
 #include "analytics_data_quality.h"
 #include <stdio.h>
 #include <string.h>
 
+/** @brief Return non-zero when two number arrays are element-wise identical. */
 static int numbers_equal(const int *a, const int *b, int count)
 {
     for (int i = 0; i < count; i++)
@@ -16,6 +22,9 @@ static int numbers_equal(const int *a, const int *b, int count)
     return 1;
 }
 
+/**
+ * @brief Check whether one analytics record matches expected game rules.
+ */
 static int record_numbers_in_range(const AnalyticsDrawRecord *r, int expected_main_count,
                                    int main_min, int main_max, int expected_extra_count,
                                    int extra_min, int extra_max)
@@ -40,6 +49,7 @@ static int record_numbers_in_range(const AnalyticsDrawRecord *r, int expected_ma
     return 1;
 }
 
+/** @brief Check whether one record lies inside an inclusive date period. */
 static int record_in_period(const AnalyticsDrawRecord *r, const char *period_from,
                             const char *period_to)
 {
@@ -54,6 +64,9 @@ static int record_in_period(const AnalyticsDrawRecord *r, const char *period_fro
     return 1;
 }
 
+/**
+ * @brief Evaluate malformed rows, duplicates, period mismatches, and rule mismatches.
+ */
 int analytics_data_quality_evaluate(const AnalyticsDrawRecord *records, int record_count,
                                     const char *period_from, const char *period_to,
                                     int expected_main_count, int main_min, int main_max,
@@ -106,6 +119,7 @@ int analytics_data_quality_evaluate(const AnalyticsDrawRecord *records, int reco
     return VALIDATE_OK;
 }
 
+/** @brief Return non-zero when the report contains severe integrity issues. */
 int analytics_data_quality_has_severe_issues(const AnalyticsDataQualityReport *report)
 {
     if (!report)
@@ -115,6 +129,7 @@ int analytics_data_quality_has_severe_issues(const AnalyticsDataQualityReport *r
             report->game_rule_inconsistencies > 0);
 }
 
+/** @brief Format a concise CLI-oriented diagnostics summary string. */
 void analytics_data_quality_format_cli(const AnalyticsDataQualityReport *report, char *out,
                                        size_t out_size)
 {
@@ -134,6 +149,7 @@ void analytics_data_quality_format_cli(const AnalyticsDataQualityReport *report,
              report->out_of_range_dates, report->game_rule_inconsistencies);
 }
 
+/** @brief Format a compact overlay-friendly diagnostics summary string. */
 void analytics_data_quality_format_gui(const AnalyticsDataQualityReport *report, char *out,
                                        size_t out_size)
 {
