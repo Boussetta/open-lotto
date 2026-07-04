@@ -33,6 +33,11 @@ available options (e.g., "Lotto 6aus49", "EuroJackpot").
 Number of independent draws to generate (default: 1).
 Must be a positive integer >= 1.
 .TP
+.B \-\-sorted
+Sort generated numbers from lowest to highest for non-GUI workflows.
+Applies to CLI output and exported draw files.
+Ignored in GUI mode.
+.TP
 .B \-\-animate
 Display animated CLI with spinner animation for each number reveal.
 Cannot be used with \fB--gui\fR or \fB--export\fR.
@@ -101,6 +106,35 @@ Show formulas and assumptions for analytics outputs.
 .TP
 .B \-\-historical\-csv \fIFILE\fR
 Use a CSV file as historical analytics source (simulation/dev datasets).
+.TP
+.B \-\-closest\-seed
+Find the best-fit simulator seed for one fixed period.
+Requires \fB--from\fR and \fB--to\fR and one search mode:
+range mode (\fB--seed-start\fR + \fB--seed-end\fR) or sampled mode (\fB--seed-count\fR).
+.TP
+.B \-\-seed\-start \fIVALUE\fR
+Start of seed range (required in range mode).
+.TP
+.B \-\-seed\-end \fIVALUE\fR
+End of seed range (required in range mode).
+.TP
+.B \-\-seed\-count \fIN\fR
+Number of unique sampled seeds to evaluate (sampled mode).
+.TP
+.B \-\-sample\-seed \fIVALUE\fR
+Deterministic sampling seed for \fB--seed-count\fR mode.
+.TP
+.B \-\-max\-evals \fIN\fR
+Maximum seed evaluations (default: 100000).
+.TP
+.B \-\-threads \fIN\fR
+Worker threads for closest-seed search (default: auto/max CPUs).
+.TP
+.B \-\-timeout\-ms \fIN\fR
+Soft time-budget hint in milliseconds.
+.TP
+.B \-\-output\-file \fIFILE\fR
+Write closest-seed results directly to FILE.
 .SH EXAMPLES
 .SS Basic usage
 .TP
@@ -147,6 +181,13 @@ Run hot/cold analytics (top 15) with formula explanation:
 .TP
 Use a custom historical CSV source:
 .B open-lotto --game "Lotto 6aus49" --historical-csv data.csv --from 2024-01-01 --to 2024-12-31 --frequency-distribution
+.SS Closest-seed search
+.TP
+Find top 10 seeds in a fixed range for a specific period and write JSON to file:
+.B open-lotto --game "Lotto 6aus49" --closest-seed --from 2026-01-01 --to 2026-06-30 --seed-start 0 --seed-end 1000000 --top 10 --format json --output-file closest-seed.json
+.TP
+Find top 10 seeds with sampled mode:
+.B open-lotto --game "Lotto 6aus49" --closest-seed --from 2026-01-01 --to 2026-06-30 --seed-count 200000 --sample-seed 0x1234 --top 10 --format table
 .SS Real-data snapshot
 .TP
 Update local historical DB snapshot:

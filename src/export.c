@@ -16,25 +16,16 @@
 /**
  * @brief Export a single lottery result to CSV format
  *
- * CSV format: draw_number,main_numbers (space-separated),extra_numbers
- * (space-separated)
+ * CSV format: main_numbers + extra_numbers (space-separated)
  *
  * Example:
- *   1,5 23 41 2 19,11 5
+ *   5 23 41 2 19 + 11 5
  */
-static int export_result_csv(FILE *file, const char *game_name, int draw_num,
-                             const LotteryResult *result)
+static int export_result_csv(FILE *file, const LotteryResult *result)
 {
-    if (!file || !game_name || !result)
+    if (!file || !result)
     {
         log_error("export_result_csv: Invalid arguments");
-        return -1;
-    }
-
-    /* Write draw number */
-    if (fprintf(file, "%d,", draw_num) < 0)
-    {
-        log_error("Failed to write to CSV file");
         return -1;
     }
 
@@ -56,10 +47,10 @@ static int export_result_csv(FILE *file, const char *game_name, int draw_num,
         }
     }
 
-    /* Write separator if extra numbers exist */
+    /* Write separator and extra numbers if present */
     if (result->extra_count > 0)
     {
-        if (fprintf(file, ",") < 0)
+        if (fprintf(file, " + ") < 0)
         {
             log_error("Failed to write to CSV file");
             return -1;
@@ -97,8 +88,8 @@ static int export_result_csv(FILE *file, const char *game_name, int draw_num,
 /**
  * @brief Export multiple lottery results to CSV file
  *
- * Creates a CSV file with header row and data rows.
- * Header: draw_number,main_numbers,extra_numbers
+ * Creates a plain text CSV-style file with one draw per line:
+ * main_numbers + extra_numbers
  */
 int export_results_csv_file(const char *filename, const char *game_name,
                             const LotteryResult *results, int num_results)
@@ -116,18 +107,10 @@ int export_results_csv_file(const char *filename, const char *game_name,
         return -1;
     }
 
-    /* Write header */
-    if (fprintf(file, "draw_number,main_numbers,extra_numbers\n") < 0)
-    {
-        log_error("Failed to write CSV header");
-        fclose(file);
-        return -1;
-    }
-
     /* Write each result */
     for (int i = 0; i < num_results; i++)
     {
-        if (export_result_csv(file, game_name, i + 1, &results[i]) != 0)
+        if (export_result_csv(file, &results[i]) != 0)
         {
             log_error("Failed to export result %d", i + 1);
             fclose(file);

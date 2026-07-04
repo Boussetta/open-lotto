@@ -505,10 +505,6 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
         return out->status;
     }
 
-    if (req->progress_fn)
-        req->progress_fn(req->progress_ctx, eval_target, eval_target, thread_count, thread_done,
-                         thread_utilization_pct);
-
     int kept = 0;
     for (int t = 0; t < thread_count; t++)
     {

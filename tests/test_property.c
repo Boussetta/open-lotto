@@ -185,19 +185,6 @@ static void test_csv_export_property(void)
         }
 
         char line[256];
-        /* Header must be present */
-        if (!fgets(line, sizeof(line), f))
-        {
-            p7_ok = 0;
-            fclose(f);
-            continue;
-        }
-        if (strstr(line, "draw_number") == NULL)
-        {
-            p7_ok = 0;
-            fclose(f);
-            continue;
-        }
         /* Data row must be present */
         if (!fgets(line, sizeof(line), f))
         {
@@ -205,17 +192,29 @@ static void test_csv_export_property(void)
             fclose(f);
             continue;
         }
-        /* Must start with "1," */
-        if (strncmp(line, "1,", 2) != 0)
+
+        if (line[0] == '\0' || line[0] == '\n')
         {
             p7_ok = 0;
         }
+
+        /* If extras exist, the plus separator must be present. */
+        if (r.extra_count > 0 && strstr(line, " + ") == NULL)
+            p7_ok = 0;
+
+        /* If no extras, plus separator should not be present. */
+        if (r.extra_count == 0 && strstr(line, " + ") != NULL)
+            p7_ok = 0;
+
+        /* No additional rows expected for single-result export. */
+        if (fgets(line, sizeof(line), f) != NULL)
+            p7_ok = 0;
 
         fclose(f);
         remove(path);
     }
 
-    assert_true(p7_ok, "P7: CSV export always produces valid header + data row");
+    assert_true(p7_ok, "P7: CSV export always produces one valid formatted row");
 }
 
 /* ------------------------------------------------------------------ */

@@ -165,7 +165,7 @@ Advanced 3D visualization using fixed-function OpenGL.
 Serialize lottery draws to file formats.
 
 **Formats:**
-- **CSV**: `draw_number,main_numbers,extra_numbers`
+- **CSV**: `main_numbers + extra_numbers` (one draw per line)
 - **JSON**: Structured with game metadata and array of draws
 
 **Key Functions:**

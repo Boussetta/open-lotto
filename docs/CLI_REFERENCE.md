@@ -77,6 +77,21 @@ Number of independent draws to generate.
 
 ---
 
+### `--sorted`
+
+Sort generated draw numbers from lowest to highest in non-GUI workflows.
+
+- Applies to: standard CLI output, animated CLI output, and exported draw files
+- Ignored in GUI mode (`--gui`)
+
+**Example:**
+```bash
+./open-lotto --game "Lotto 6aus49" --sorted
+./open-lotto --game "EuroJackpot" --draws 20 --sorted --export json --output draws.json
+```
+
+---
+
 ### `--seed VALUE`
 
 Deterministic seed for reproducible draws.
@@ -326,6 +341,59 @@ Rank numbers by frequency (hot = highest, cold = lowest).
 ./open-lotto --game "Lotto 6aus49" --from 2024-01-01 --to 2024-12-31 --analytics-hot-cold
 ./open-lotto --game lotto --analytics-hot-cold --top 15
 ./open-lotto --game lotto --analytics-hot-cold --format json --explain
+```
+
+---
+
+### Closest Seed Search (`--closest-seed`)
+
+Find the best-fit simulator seed for a fixed historical period.
+
+This mode compares simulated draws against historical draws and returns ranked candidates.
+
+**Syntax (range mode):**
+```bash
+./open-lotto --game NAME --closest-seed --from YYYY-MM-DD --to YYYY-MM-DD \
+  --seed-start START --seed-end END [--top N] [--max-evals N] [--threads N] \
+  [--timeout-ms N] [--format table|json|csv]
+```
+
+**Syntax (sampled mode):**
+```bash
+./open-lotto --game NAME --closest-seed --from YYYY-MM-DD --to YYYY-MM-DD \
+  --seed-count N --sample-seed VALUE [--top N] [--max-evals N] [--threads N] \
+  [--timeout-ms N] [--format table|json|csv]
+```
+
+**Required options:**
+- `--from` and `--to` (inclusive period)
+- One search mode:
+  - `--seed-start` + `--seed-end` (range mode), or
+  - `--seed-count` (sampled mode)
+
+**Optional tuning:**
+- `--top N` — Number of best candidates to return (default: 10)
+- `--sample-seed VALUE` — Deterministic sampling seed for sampled mode
+- `--max-evals N` — Evaluation budget (default: 100000)
+- `--threads N` — Worker threads (default: auto/max CPUs)
+- `--timeout-ms N` — Reserved soft time-budget hint
+- `--format` — Output format: `table`, `json`, `csv`
+- `--output-file FILE` — Write closest-seed result directly to file (no shell redirection)
+
+**Top-10 example (specific period):**
+```bash
+./open-lotto --game "Lotto 6aus49" --closest-seed \
+  --from 2026-01-01 --to 2026-06-30 \
+  --seed-start 0 --seed-end 1000000 \
+  --top 10 --format json --output-file closest-seed.json
+```
+
+**Top-10 sampled example:**
+```bash
+./open-lotto --game "Lotto 6aus49" --closest-seed \
+  --from 2026-01-01 --to 2026-06-30 \
+  --seed-count 200000 --sample-seed 0x1234 \
+  --top 10 --format table
 ```
 
 ---

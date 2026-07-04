@@ -54,6 +54,31 @@ static const char *SPINNER_FRAMES[] = {"-", "\\", "|", "/", "-", "\\", "|", "/",
 static const int SPINNER_COUNT = 10;
 static const char *g_cli_locale = "en";
 
+static int compare_int_asc(const void *a, const void *b)
+{
+    const int lhs = *(const int *)a;
+    const int rhs = *(const int *)b;
+    return (lhs > rhs) - (lhs < rhs);
+}
+
+static void sort_lottery_result_numbers(LotteryResult *result)
+{
+    if (!result)
+        return;
+
+    if (result->main_count > 1)
+    {
+        qsort(result->main_numbers, (size_t)result->main_count, sizeof(result->main_numbers[0]),
+              compare_int_asc);
+    }
+
+    if (result->extra_count > 1)
+    {
+        qsort(result->extra_numbers, (size_t)result->extra_count, sizeof(result->extra_numbers[0]),
+              compare_int_asc);
+    }
+}
+
 /* ---------------------------------------------------------
    ANIMATION HELPERS
    --------------------------------------------------------- */
@@ -311,65 +336,69 @@ static int seed_calibration_draw_callback(void *ctx, uint64_t seed, int draw_ind
 }
 
 /** @brief Print closest-seed results as a human-readable table. */
-static void print_closest_seed_table(const SeedCalibrationResult *result)
+static void print_closest_seed_table(FILE *out, const SeedCalibrationResult *result)
 {
-    printf("Closest seed calibration\n");
-    printf("best_seed,%llu\n", (unsigned long long)result->best.seed);
-    printf("best_score,%.9f\n", result->best.total_score);
-    printf("evaluated_seeds,%d\n", result->evaluated_seeds);
-    printf("score_gap,%.9f\n", result->score_gap);
-    printf("\nTop Candidates\n");
-    printf("rank,seed,total,frequency,gap,rank_score\n");
+    fprintf(out, "Closest seed calibration\n");
+    fprintf(out, "best_seed,%llu\n", (unsigned long long)result->best.seed);
+    fprintf(out, "best_score,%.9f\n", result->best.total_score);
+    fprintf(out, "evaluated_seeds,%d\n", result->evaluated_seeds);
+    fprintf(out, "score_gap,%.9f\n", result->score_gap);
+    fprintf(out, "\nTop Candidates\n");
+    fprintf(out, "rank,seed,total,frequency,gap,rank_score\n");
     for (int i = 0; i < result->top_candidate_count; i++)
     {
         const SeedCalibrationCandidate *c = &result->top_candidates[i];
-        printf("%d,%llu,%.9f,%.9f,%.9f,%.9f\n", i + 1, (unsigned long long)c->seed, c->total_score,
-               c->frequency_score, c->gap_score, c->rank_score);
+        fprintf(out, "%d,%llu,%.9f,%.9f,%.9f,%.9f\n", i + 1, (unsigned long long)c->seed,
+                c->total_score, c->frequency_score, c->gap_score, c->rank_score);
     }
 }
 
 /** @brief Print closest-seed results as CSV. */
-static void print_closest_seed_csv(const SeedCalibrationResult *result)
+static void print_closest_seed_csv(FILE *out, const SeedCalibrationResult *result)
 {
-    printf("section,key,value,extra\n");
-    printf("summary,best_seed,%llu,\n", (unsigned long long)result->best.seed);
-    printf("summary,best_score,%.9f,\n", result->best.total_score);
-    printf("summary,evaluated_seeds,%d,\n", result->evaluated_seeds);
-    printf("diagnostics,score_gap,%.9f,\n", result->score_gap);
+    fprintf(out, "section,key,value,extra\n");
+    fprintf(out, "summary,best_seed,%llu,\n", (unsigned long long)result->best.seed);
+    fprintf(out, "summary,best_score,%.9f,\n", result->best.total_score);
+    fprintf(out, "summary,evaluated_seeds,%d,\n", result->evaluated_seeds);
+    fprintf(out, "diagnostics,score_gap,%.9f,\n", result->score_gap);
     for (int i = 0; i < result->top_candidate_count; i++)
     {
         const SeedCalibrationCandidate *c = &result->top_candidates[i];
-        printf("top_candidates,%d,%llu,%.9f|%.9f|%.9f|%.9f\n", i + 1, (unsigned long long)c->seed,
-               c->total_score, c->frequency_score, c->gap_score, c->rank_score);
+        fprintf(out, "top_candidates,%d,%llu,%.9f|%.9f|%.9f|%.9f\n", i + 1,
+                (unsigned long long)c->seed, c->total_score, c->frequency_score, c->gap_score,
+                c->rank_score);
     }
 }
 
 /** @brief Print closest-seed results as JSON. */
-static void print_closest_seed_json(const SeedCalibrationResult *result, const char *from_date,
-                                    const char *to_date)
+static void print_closest_seed_json(FILE *out, const SeedCalibrationResult *result,
+                                    const char *from_date, const char *to_date)
 {
-    printf("{\n");
-    printf("  \"mode\": \"closest-seed\",\n");
-    printf("  \"schema_version\": \"seed-calibration/v1\",\n");
-    printf("  \"period\": {\"from\": \"%s\", \"to\": \"%s\"},\n", from_date, to_date);
-    printf("  \"summary\": {\"best_seed\": %llu, \"best_score\": %.9f, \"evaluated_seeds\": %d},\n",
-           (unsigned long long)result->best.seed, result->best.total_score,
-           result->evaluated_seeds);
-    printf("  \"diagnostics\": {\"score_gap\": %.9f, \"score_components\": {\"frequency\": %.9f, "
-           "\"gap\": %.9f, \"rank\": %.9f}},\n",
-           result->score_gap, result->best.frequency_score, result->best.gap_score,
-           result->best.rank_score);
-    printf("  \"top_candidates\": [\n");
+    fprintf(out, "{\n");
+    fprintf(out, "  \"mode\": \"closest-seed\",\n");
+    fprintf(out, "  \"schema_version\": \"seed-calibration/v1\",\n");
+    fprintf(out, "  \"period\": {\"from\": \"%s\", \"to\": \"%s\"},\n", from_date, to_date);
+    fprintf(
+        out,
+        "  \"summary\": {\"best_seed\": %llu, \"best_score\": %.9f, \"evaluated_seeds\": %d},\n",
+        (unsigned long long)result->best.seed, result->best.total_score, result->evaluated_seeds);
+    fprintf(out,
+            "  \"diagnostics\": {\"score_gap\": %.9f, \"score_components\": {\"frequency\": %.9f, "
+            "\"gap\": %.9f, \"rank\": %.9f}},\n",
+            result->score_gap, result->best.frequency_score, result->best.gap_score,
+            result->best.rank_score);
+    fprintf(out, "  \"top_candidates\": [\n");
     for (int i = 0; i < result->top_candidate_count; i++)
     {
         const SeedCalibrationCandidate *c = &result->top_candidates[i];
-        printf("    {\"rank\": %d, \"seed\": %llu, \"score\": %.9f, \"frequency\": %.9f, \"gap\": "
-               "%.9f, \"rank_score\": %.9f}%s\n",
-               i + 1, (unsigned long long)c->seed, c->total_score, c->frequency_score, c->gap_score,
-               c->rank_score, (i + 1 == result->top_candidate_count) ? "" : ",");
+        fprintf(out,
+                "    {\"rank\": %d, \"seed\": %llu, \"score\": %.9f, \"frequency\": %.9f, "
+                "\"gap\": %.9f, \"rank_score\": %.9f}%s\n",
+                i + 1, (unsigned long long)c->seed, c->total_score, c->frequency_score,
+                c->gap_score, c->rank_score, (i + 1 == result->top_candidate_count) ? "" : ",");
     }
-    printf("  ]\n");
-    printf("}\n");
+    fprintf(out, "  ]\n");
+    fprintf(out, "}\n");
 }
 
 #define CLOSEST_SEED_PROGRESS_BAR_WIDTH 32
@@ -602,6 +631,7 @@ static void print_usage(const char *prog)
             "Output Options:\n"
             "  --output FILE     Destination file for --export (required with --export)\n"
             "  --draws N         Number of draws (default: 1)\n"
+            "  --sorted          Sort drawn numbers from lowest to highest (non-GUI only)\n"
             "  --seed VALUE      Deterministic seed (decimal or 0x-prefixed hex)\n"
             "  --verbose LEVEL   Log level: ERROR, WARN, INFO, DEBUG (default: INFO)\n"
             "\n"
@@ -635,7 +665,10 @@ static void print_usage(const char *prog)
             "Download Config Files:\n"
             "  ~/.config/open-lotto/sources.conf   Upstream source URLs per game\n"
             "  ~/.config/open-lotto/download.conf  Persistent download tuning values\n"
-            "\n"
+            "\n",
+            prog, prog, prog, prog, prog, prog, prog);
+
+    fprintf(stderr,
             "Examples:\n"
             "  %s --list-games\n"
             "  %s --game \"Lotto 6aus49\" --database-gewinnzahlen update\n"
@@ -658,8 +691,7 @@ static void print_usage(const char *prog)
             "  OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT  Override upstream sync endpoint\n"
             "  OPEN_LOTTO_SOURCES_CONFIG               Override sources config path\n"
             "  OPEN_LOTTO_DOWNLOAD_CONFIG              Override download config path\n",
-            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
-            prog, prog, prog, prog, prog, prog, prog);
+            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 
     fprintf(stderr,
             "\nClosest-Seed Mode:\n"
@@ -671,6 +703,7 @@ static void print_usage(const char *prog)
             "  --sample-seed VALUE     RNG seed for reproducible unique sampling\n"
             "  --max-evals N           Max seed evaluations (default: 100000)\n"
             "  --threads N             Worker threads for closest-seed search (default: max CPUs)\n"
+            "  --output-file FILE      Write closest-seed output directly to FILE\n"
             "  --timeout-ms N          Soft time budget hint in milliseconds (reserved)\n"
             "\n"
             "Closest-Seed Example:\n"
@@ -1069,6 +1102,7 @@ int main(int argc, char **argv)
     int animate = 0;
     int gui = 0;
     const char *gui_mode = NULL;
+    int sorted_numbers = 0;
     int debug_overlay = 0;
 #if !OPEN_LOTTO_ENABLE_OPENGL
     (void)debug_overlay;
@@ -1109,6 +1143,7 @@ int main(int argc, char **argv)
     int closest_seed_threads_set = 0;
     int closest_seed_timeout_ms = 0;
     int closest_seed_timeout_set = 0;
+    const char *closest_seed_output_file = NULL;
     const char *sim_historical_csv_output = NULL;
     int analytics_top = 10;
     int analytics_explain = 0;
@@ -1143,6 +1178,10 @@ int main(int argc, char **argv)
             {
                 gui_mode = argv[++i];
             }
+        }
+        else if (strcmp(argv[i], "--sorted") == 0)
+        {
+            sorted_numbers = 1;
         }
         else if (strcmp(argv[i], "--debug-overlay") == 0)
         {
@@ -1512,6 +1551,23 @@ int main(int argc, char **argv)
             }
             closest_seed_timeout_ms = (int)parsed;
             closest_seed_timeout_set = 1;
+        }
+        else if (strcmp(argv[i], "--output-file") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--output-file requires a file path.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            closest_seed_output_file = argv[++i];
+            if (closest_seed_output_file[0] == '\0')
+            {
+                fprintf(stderr, "--output-file requires a non-empty path.\n");
+                config_free(&cfg);
+                return 1;
+            }
         }
         else if (strcmp(argv[i], "--format") == 0)
         {
@@ -1896,10 +1952,11 @@ int main(int argc, char **argv)
         }
     }
     else if (closest_seed_threads_set || closest_seed_timeout_set || closest_seed_count_set ||
-             closest_seed_sampling_seed_set)
+             closest_seed_sampling_seed_set || closest_seed_output_file)
     {
-        fprintf(stderr, "Error: --threads/--timeout-ms/--seed-count/--sample-seed are supported "
-                        "only with --closest-seed.\n");
+        fprintf(stderr,
+                "Error: --threads/--timeout-ms/--seed-count/--sample-seed/--output-file are "
+                "supported only with --closest-seed.\n");
         config_free(&cfg);
         return 1;
     }
@@ -2119,11 +2176,80 @@ int main(int argc, char **argv)
         }
 
         if (strcmp(analytics_format, "json") == 0)
-            print_closest_seed_json(&result, period_from, period_to);
+        {
+            FILE *closest_seed_out = stdout;
+            if (closest_seed_output_file)
+            {
+                closest_seed_out = fopen(closest_seed_output_file, "w");
+                if (!closest_seed_out)
+                {
+                    fprintf(stderr, "Error: Cannot open '%s' for writing.\n",
+                            closest_seed_output_file);
+                    free(sampled_seeds);
+                    free(historical_draws);
+                    free(filtered);
+                    registry_destroy(registry);
+                    config_free(&cfg);
+                    return 1;
+                }
+            }
+            print_closest_seed_json(closest_seed_out, &result, period_from, period_to);
+            if (closest_seed_out != stdout)
+            {
+                fclose(closest_seed_out);
+                printf("Closest-seed output written to %s\n", closest_seed_output_file);
+            }
+        }
         else if (strcmp(analytics_format, "csv") == 0)
-            print_closest_seed_csv(&result);
+        {
+            FILE *closest_seed_out = stdout;
+            if (closest_seed_output_file)
+            {
+                closest_seed_out = fopen(closest_seed_output_file, "w");
+                if (!closest_seed_out)
+                {
+                    fprintf(stderr, "Error: Cannot open '%s' for writing.\n",
+                            closest_seed_output_file);
+                    free(sampled_seeds);
+                    free(historical_draws);
+                    free(filtered);
+                    registry_destroy(registry);
+                    config_free(&cfg);
+                    return 1;
+                }
+            }
+            print_closest_seed_csv(closest_seed_out, &result);
+            if (closest_seed_out != stdout)
+            {
+                fclose(closest_seed_out);
+                printf("Closest-seed output written to %s\n", closest_seed_output_file);
+            }
+        }
         else
-            print_closest_seed_table(&result);
+        {
+            FILE *closest_seed_out = stdout;
+            if (closest_seed_output_file)
+            {
+                closest_seed_out = fopen(closest_seed_output_file, "w");
+                if (!closest_seed_out)
+                {
+                    fprintf(stderr, "Error: Cannot open '%s' for writing.\n",
+                            closest_seed_output_file);
+                    free(sampled_seeds);
+                    free(historical_draws);
+                    free(filtered);
+                    registry_destroy(registry);
+                    config_free(&cfg);
+                    return 1;
+                }
+            }
+            print_closest_seed_table(closest_seed_out, &result);
+            if (closest_seed_out != stdout)
+            {
+                fclose(closest_seed_out);
+                printf("Closest-seed output written to %s\n", closest_seed_output_file);
+            }
+        }
 
         if (gui)
         {
@@ -2527,6 +2653,8 @@ int main(int argc, char **argv)
                 combogen_clear_forced_seed();
 
             selected->draw(&result, silent_callback);
+            if (sorted_numbers)
+                sort_lottery_result_numbers(&result);
 
             /* Advance date by i days from start */
             struct tm t = {0};
@@ -2676,6 +2804,10 @@ int main(int argc, char **argv)
         {
             printf("  Plugin reload: enabled\n");
         }
+        if (sorted_numbers)
+        {
+            printf("  Output ordering: sorted ascending\n");
+        }
         if (use_seed)
         {
             printf("  Seed: 0x%016llx\n", (unsigned long long)seed_value);
@@ -2691,6 +2823,8 @@ int main(int argc, char **argv)
     if (gui)
     {
         log_debug("Launching %s GUI mode", gui_mode);
+        if (sorted_numbers)
+            log_warn("Ignoring --sorted in GUI mode.");
 
         /* Resolve dark_mode: CLI override > config file > system auto-detect */
         int resolved_dark_mode = dark_mode;
@@ -2753,6 +2887,8 @@ int main(int argc, char **argv)
                 combogen_clear_forced_seed();
 
             selected->draw(&results[i], silent_callback);
+            if (sorted_numbers)
+                sort_lottery_result_numbers(&results[i]);
         }
 
         combogen_clear_forced_seed();
@@ -2793,6 +2929,8 @@ int main(int argc, char **argv)
                 combogen_clear_forced_seed();
 
             selected->draw(&result, silent_callback);
+            if (sorted_numbers)
+                sort_lottery_result_numbers(&result);
 
             if (animate)
             {

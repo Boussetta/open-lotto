@@ -16,7 +16,8 @@
 /**
  * @brief Export multiple lottery results to CSV file
  *
- * Writes a CSV file with header and all results as rows.
+ * Writes one draw per line in the format:
+ * main_numbers + extra_numbers
  *
  * @param filename Path to output CSV file
  * @param game_name Name of the game

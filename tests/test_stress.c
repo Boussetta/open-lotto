@@ -232,21 +232,26 @@ static void test_export_stress(void)
     }
     assert_true(csv_ok, "S4: CSV export succeeds for all 1000 draws");
 
-    /* Verify final file is readable and non-empty */
+    /* Verify final file is readable and contains one formatted row */
     FILE *f = fopen(csv_path, "r");
     assert_true(f != NULL, "S4: final CSV file is readable");
     if (f)
     {
         char line[256];
-        int has_header = 0, has_data = 0;
-        if (fgets(line, sizeof(line), f) && strstr(line, "draw_number"))
-            has_header = 1;
+        int has_data = 0;
+        int has_plus_separator = 0;
         if (fgets(line, sizeof(line), f))
+        {
             has_data = 1;
+            if (strstr(line, " + "))
+                has_plus_separator = 1;
+        }
+        int has_extra_rows = (fgets(line, sizeof(line), f) != NULL);
         fclose(f);
         remove(csv_path);
-        assert_true(has_header, "S4: CSV file has header row");
-        assert_true(has_data, "S4: CSV file has at least one data row");
+        assert_true(has_data, "S4: CSV file has one data row");
+        assert_true(has_plus_separator, "S4: CSV row contains main/extra separator");
+        assert_true(!has_extra_rows, "S4: CSV file has exactly one row for one draw export");
     }
 
     /* JSON export of 1000 draws (one draw at a time) */

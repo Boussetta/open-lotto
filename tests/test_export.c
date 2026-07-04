@@ -7,7 +7,7 @@
  * @brief Golden-file tests for CSV and JSON export.
  *
  * A fixed LotteryResult is exported to a temporary file whose contents are
- * then verified byte-for-byte against expected strings.  This catches any
+ * then verified byte-for-byte against expected strings. This catches any
  * silent regression in the export format.
  */
 
@@ -52,18 +52,6 @@ static void test_csv_export(void)
 
     char line[256];
 
-    /* Header row */
-    char *hdr = fgets(line, sizeof(line), f);
-    if (!hdr)
-    {
-        fclose(f);
-        remove(path);
-        assert_true(0, "CSV: header line readable");
-        return;
-    }
-    assert_true(strcmp(line, "draw_number,main_numbers,extra_numbers\n") == 0,
-                "CSV: header is 'draw_number,main_numbers,extra_numbers'");
-
     /* Data row */
     char *row = fgets(line, sizeof(line), f);
     if (!row)
@@ -73,7 +61,7 @@ static void test_csv_export(void)
         assert_true(0, "CSV: data line readable");
         return;
     }
-    assert_true(strcmp(line, "1,5 12 23 34 41 48,7 11\n") == 0,
+    assert_true(strcmp(line, "5 12 23 34 41 48 + 7 11\n") == 0,
                 "CSV: data row matches expected format");
 
     /* No more rows */
@@ -101,20 +89,15 @@ static void test_csv_no_extras(void)
         return;
 
     char line[256];
-    char *hdr2 = fgets(line, sizeof(line), f); /* header */
-    if (!hdr2)
-    {
-        fclose(f);
-        remove(path);
-        assert_true(0, "CSV (no extras): header readable");
-        return;
-    }
     char *row2 = fgets(line, sizeof(line), f);
     assert_true(row2 != NULL, "CSV (no extras): data line readable");
 
-    /* Row must not contain a trailing comma for extras */
-    assert_true(strcmp(line, "1,5 12 23 34 41 48\n") == 0,
-                "CSV (no extras): row has no extra column");
+    /* Row must not include the plus separator when there are no extras */
+    assert_true(strcmp(line, "5 12 23 34 41 48\n") == 0,
+                "CSV (no extras): row has no extra section");
+
+    char *eof2 = fgets(line, sizeof(line), f);
+    assert_true(eof2 == NULL, "CSV (no extras): only one data row written");
 
     fclose(f);
     remove(path);

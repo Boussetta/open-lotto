@@ -16,6 +16,7 @@ This document provides a comprehensive reference for the Open-Lotto public API. 
 5. [Validation](#validation)
 6. [Configuration](#configuration)
 7. [Logging](#logging)
+8. [Closest-Seed CLI API](#closest-seed-cli-api)
 
 ---
 
@@ -360,9 +361,8 @@ int export_draws_to_csv(const char* filename,
 
 **Output Format:**
 ```
-draw_number,main_numbers,extra_numbers
-1,1 2 3 4 5 6,
-2,7 8 9 10 11 12,
+1 2 3 4 5 6 + 7
+7 8 9 10 11 12 + 2
 ```
 
 **Example:**
@@ -629,6 +629,56 @@ void log_verbose(const char* format, ...);
 log_info("Generating %d draws for game '%s'", count, game->name);
 log_debug("Using seed: 0x%016llx", seed);
 ```
+
+---
+
+## Closest-Seed CLI API
+
+Closest-seed is a command-line calibration API for finding the best simulator seeds for a fixed historical period.
+
+### Required Inputs
+
+- `--game NAME`
+- `--closest-seed`
+- `--from YYYY-MM-DD`
+- `--to YYYY-MM-DD`
+- One search mode:
+    - Range mode: `--seed-start VALUE --seed-end VALUE`
+    - Sampled mode: `--seed-count N` (optionally with `--sample-seed VALUE`)
+
+### Optional Inputs
+
+- `--top N` (default: 10)
+- `--max-evals N` (default: 100000)
+- `--threads N` (default: auto/max CPUs)
+- `--timeout-ms N` (soft time-budget hint)
+- `--format table|json|csv` (default: table)
+- `--historical-csv FILE` (override historical source)
+- `--output-file FILE` (write closest-seed output directly to file)
+
+### Range Search Example (Top 10)
+
+```bash
+./open-lotto --game "Lotto 6aus49" --closest-seed \
+    --from 2026-01-01 --to 2026-06-30 \
+    --seed-start 0 --seed-end 1000000 \
+    --top 10 --format json --output-file closest-seed.json
+```
+
+### Sampled Search Example (Top 10)
+
+```bash
+./open-lotto --game "Lotto 6aus49" --closest-seed \
+    --from 2026-01-01 --to 2026-06-30 \
+    --seed-count 200000 --sample-seed 0x1234 \
+    --top 10 --format table
+```
+
+### Notes
+
+- Use range mode when the domain is manageable.
+- Use sampled mode for very large ranges.
+- `--top 10` is the standard configuration for best-candidate review.
 
 ---
 
