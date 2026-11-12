@@ -7,21 +7,21 @@ Open‑Lotto
 
 A modular, high‑entropy lottery number generator written in C.
 
-Open‑Lotto is a plugin‑based lottery engine designed with clean architecture, strong randomness guarantees, and extensibility in mind. It uses a hybrid entropy source, a PCG32 random generator, and dynamically loaded plugins to simulate real lottery draws with accuracy and style.
+Open‑Lotto is a plugin‑based lottery engine designed with clean architecture, strong randomness guarantees, and extensibility in mind. It seeds from the operating system's secure random source, uses a PCG32 random generator, and dynamically loaded plugins to simulate real lottery draws with accuracy and style.
 
 🚀 Features
 
-🔐 Hybrid RNG Seeding
+🔐 OS-Backed RNG Seeding
 
-Every draw uses a high‑quality seed built from:
+Every unseeded draw takes a fresh 64-bit seed from the operating system's CSPRNG:
 
-Linux kernel entropy (getrandom())
+getrandom() on Linux, getentropy() on macOS, rand_s() (RtlGenRandom) on Windows
 
-Hardware entropy (RDRAND) when supported
+/dev/urandom as a fallback on POSIX systems
 
-Monotonic clock jitter
+A clock-based seed only as a last resort (logged as a warning)
 
-These sources are XOR‑combined to produce a robust, unpredictable seed for each draw.
+The OS value is XORed with a CPU timestamp-counter reading. Note that PCG32 itself is a fast statistical PRNG, not a cryptographic one.
 
 🎲 PCG32 Random Number Generator
 
@@ -309,15 +309,15 @@ For IDE setup, see [docs/ide-setup.md](docs/ide-setup.md).
 
 🔧 RNG Architecture
 
-Hybrid Seed Generation
+Seed Generation
 
-The seed is built from:
+The seed comes from the first source that succeeds:
 
-getrandom() (primary entropy)
+getrandom() / getentropy() / rand_s() (OS CSPRNG)
 
-RDRAND (if CPU supports it)
+/dev/urandom (POSIX fallback)
 
-CLOCK_MONOTONIC timestamp
+Clock + timestamp counter (weak last resort)
 
 Random Number Generation
 
@@ -348,7 +348,7 @@ graph TD
         PR["plugin_registry.c\n(game list)"]
         CG["combogen.c\n(draw generation)"]
         RNG["random.c\n(PCG32 RNG)"]
-        SEED["random_seed.c\n(hybrid entropy)"]
+        SEED["random_seed.c\n(OS entropy)"]
         EXP["export.c\n(CSV / JSON)"]
         LOG["log.c\n(structured logging)"]
     end
@@ -386,7 +386,7 @@ runtime by `plugin_loader`.
 | `plugin_registry.c` | Central list of loaded game plugins |
 | `combogen.c` | Fisher-Yates draw of main + extra numbers; event callback hook |
 | `random.c` | PCG32 random number generator |
-| `random_seed.c` | Hybrid entropy from `getrandom()`, RDRAND, and monotonic clock jitter |
+| `random_seed.c` | Seeds from the OS CSPRNG (`getrandom()`/`getentropy()`/`rand_s()`), `/dev/urandom` fallback |
 | `export.c` | Serialize results to CSV or JSON |
 | `gui_sdl.c` | 2D animated draw display via SDL2 + SDL_ttf |
 | `gui_opengl.c` | 3D drum simulation — dual `DrumInstance` physics + OpenGL rendering |

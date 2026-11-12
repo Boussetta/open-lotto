@@ -7,7 +7,7 @@ SPDX-License-Identifier: MIT
 
 ## Overview
 
-Open-Lotto is a modular, plugin-based lottery number generator written in C. The architecture emphasizes clean separation of concerns, extensibility through plugins, and high-quality random number generation with hybrid entropy seeding.
+Open-Lotto is a modular, plugin-based lottery number generator written in C. The architecture emphasizes clean separation of concerns, extensibility through plugins, and high-quality random number generation seeded from the operating system's CSPRNG.
 
 ## Core Components
 
@@ -37,20 +37,19 @@ PCG32 is a modern, fast, and statistically strong random number generator ideal 
 - Statistical properties suitable for Monte Carlo workloads
 - Seed advance functionality for reproducible streams
 
-#### Hybrid Entropy Seeding (`src/random_seed.c`, `include/random_seed.h`)
+#### Entropy Seeding (`src/random_seed.c`, `include/random_seed.h`)
 
-Every draw uses a composite seed built from multiple independent entropy sources:
+Each unseeded draw gets a 64-bit seed from the first source that succeeds:
 
-1. **Linux Kernel Entropy** (`getrandom()`) — Cryptographic-grade entropy from `/dev/urandom`
-2. **Hardware Entropy** (`RDRAND`) — x86-64 CPU instruction when available
-3. **Monotonic Clock Jitter** — High-resolution timer with jitter from system load
-4. **Fallback** — Pseudo-random seed from time()/getpid() if entropy unavailable
+1. **OS CSPRNG** — `getrandom()` (Linux), `getentropy()` (macOS) or `rand_s()` (Windows, RtlGenRandom), with EINTR/short-read retries
+2. **`/dev/urandom`** — POSIX fallback
+3. **Clock fallback** — `timespec_get()` + timestamp counter; weak, logged as a warning
 
-All sources are XOR-combined into a 64-bit seed that feeds the PCG32 generator.
+The chosen value is XORed with a timestamp-counter reading before seeding PCG32.
+PCG32 is seeded the same way as the reference `pcg32_srandom_r()`.
 
 **Key Functions:**
-- `generate_hybrid_seed()` — Composite seed generation
-- `get_cpu_entropy()` — RDRAND support detection and execution
+- `generate_strong_seed()` — Seed generation
 
 ### 3. Combination Generation (`src/combogen.c`, `include/combogen.h`)
 

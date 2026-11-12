@@ -2,13 +2,19 @@
  * SPDX-License-Identifier: MIT
  */
 
+#ifdef _WIN32
+#define _CRT_RAND_S /* enables rand_s() (RtlGenRandom-backed CSPRNG) */
+#endif
+
 #include "log.h"
 #include <stdint.h>
+#include <stdlib.h>
 #include <time.h>
 
 #ifndef _WIN32
+#include <errno.h>
 #include <fcntl.h>
-#include <sys/random.h>
+#include <sys/random.h> /* getrandom() on Linux, getentropy() on macOS */
 #include <unistd.h>
 #endif
 
@@ -16,15 +22,14 @@
  * @file random_seed.c
  * @brief High-entropy seed generation for the PCG32 random number generator.
  *
- * This module provides a robust entropy source that combines multiple entropy
- * sources to generate cryptographically strong seeds suitable for lottery draws.
- * The seed generation uses a fallback strategy:
- *   1. getrandom() - Linux kernel entropy (preferred)
- *   2. /dev/urandom - Linux character device entropy
- *   3. Time-based jitter - Monotonic clock + RDTSC/clock_gettime
+ * Seeds come from the operating system CSPRNG, using the first source that
+ * succeeds:
+ *   1. getrandom() on Linux, getentropy() on macOS, rand_s() on Windows
+ *   2. /dev/urandom (POSIX)
+ *   3. Clock-based fallback (weak; logged as a warning)
  *
- * Each entropy path is XORed with a timing jitter source (rdtsc or clock)
- * to further increase randomness and prevent predictability.
+ * The OS value is XORed with a CPU timestamp counter reading. That cannot
+ * weaken an OS-provided seed and adds a little variation to the weak fallback.
  */
 
 /**
@@ -54,82 +59,89 @@ static inline uint64_t rdtsc(void)
 }
 #endif
 
-/**
- * @brief Generate a cryptographically strong seed for lottery RNG.
- *
- * Attempts to obtain high-quality entropy from the system and combines it
- * with timing jitter (TSC or monotonic clock). The seed is generated using
- * a priority fallback approach:
- *
- *   - First try: getrandom() syscall (recommended, strong entropy)
- *   - Second try: /dev/urandom (fallback, good entropy)
- *   - Third try: Time-based fallback (weak entropy, last resort)
- *
- * Each successful entropy source is XOR'd with rdtsc/clock jitter to
- * further randomize the seed and prevent predictable patterns.
- *
- * @return uint64_t - Generated seed value suitable for PCG32 initialization
- *
- * @note This function logs the entropy source selected for debugging purposes.
- * @note All entropy sources are independent and can be used safely.
- */
+#ifndef _WIN32
+/** @brief Read exactly len bytes from /dev/urandom, retrying on EINTR and short reads. */
+static int read_urandom(void *buf, size_t len)
+{
+    int fd;
+    do
+    {
+        fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
+    } while (fd < 0 && errno == EINTR);
+    if (fd < 0)
+        return -1;
+
+    unsigned char *p = (unsigned char *)buf;
+    size_t got = 0;
+    while (got < len)
+    {
+        ssize_t n = read(fd, p + got, len - got);
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n <= 0)
+        {
+            close(fd);
+            return -1;
+        }
+        got += (size_t)n;
+    }
+    close(fd);
+    return 0;
+}
+
+/** @brief Fill buf from the kernel CSPRNG, retrying on EINTR and short reads. */
+static int os_random(void *buf, size_t len)
+{
+#if defined(__APPLE__)
+    return getentropy(buf, len) == 0 ? 0 : -1;
+#else
+    unsigned char *p = (unsigned char *)buf;
+    size_t got = 0;
+    while (got < len)
+    {
+        ssize_t n = getrandom(p + got, len - got, 0);
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n <= 0)
+            return -1;
+        got += (size_t)n;
+    }
+    return 0;
+#endif
+}
+#endif
+
 /**
  * @brief Generate a strong 64-bit seed using the best available entropy source.
+ *
+ * @return uint64_t - Seed suitable for PCG32 initialization.
  */
 uint64_t generate_strong_seed(void)
 {
     uint64_t seed = 0;
 
 #ifdef _WIN32
-    /* Windows / MinGW: Use time-based entropy with jitter */
-    log_debug("Using time-based entropy on Windows");
-    struct timespec ts;
-    if (clock_gettime(CLOCK_REALTIME, &ts) == 0)
+    unsigned int lo = 0, hi = 0;
+    if (rand_s(&lo) == 0 && rand_s(&hi) == 0)
     {
-        seed = (((uint64_t)ts.tv_sec) ^ ((uint64_t)ts.tv_nsec << 32)) ^ rdtsc();
-        log_debug("Successfully obtained entropy from system clock");
-        return seed;
-    }
-
-    /* Fallback to time() */
-    log_warn("clock_gettime failed, falling back to time()");
-    seed = (uint64_t)time(NULL) ^ rdtsc();
-    return seed;
-
-#else
-    /* POSIX: Try getrandom() first */
-    log_debug("Attempting to get entropy from getrandom()");
-    if (getrandom(&seed, sizeof(seed), 0) == sizeof(seed))
-    {
-        log_debug("Successfully obtained entropy from getrandom()");
+        seed = ((uint64_t)hi << 32) | (uint64_t)lo;
         return seed ^ rdtsc();
     }
+    log_warn("rand_s() failed, using weak time-based seed");
+#else
+    if (os_random(&seed, sizeof(seed)) == 0)
+        return seed ^ rdtsc();
 
-    /* Fallback: /dev/urandom */
-    log_debug("getrandom() failed, falling back to /dev/urandom");
-    int fd = open("/dev/urandom", O_RDONLY);
-    if (fd >= 0)
-    {
-        ssize_t n = read(fd, &seed, sizeof(seed));
-        close(fd);
+    log_debug("OS random API failed, falling back to /dev/urandom");
+    if (read_urandom(&seed, sizeof(seed)) == 0)
+        return seed ^ rdtsc();
 
-        if (n == (ssize_t)sizeof(seed))
-        {
-            log_debug("Successfully obtained entropy from /dev/urandom");
-            return seed ^ rdtsc();
-        }
-
-        log_warn("/dev/urandom returned insufficient entropy, using time-based fallback");
-    }
-
-    /* Final fallback: time + jitter */
-    log_warn("Both getrandom() and /dev/urandom failed, using time-based fallback");
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-
-    /* Combine timestamp components and jitter for weak entropy fallback */
-    seed = (((uint64_t)ts.tv_sec) << 32) ^ (uint64_t)ts.tv_nsec ^ rdtsc();
-
-    return seed;
+    log_warn("No OS entropy source available, using weak time-based seed");
 #endif
+
+    /* Last resort: clock + timestamp counter (predictable; not for anything security-sensitive) */
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    seed = ((uint64_t)ts.tv_sec << 32) ^ (uint64_t)ts.tv_nsec ^ rdtsc();
+    return seed;
 }
