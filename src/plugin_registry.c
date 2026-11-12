@@ -17,6 +17,14 @@
 #include "log.h"
 #include "plugin_registry.h"
 
+#if defined(_WIN32)
+#include <windows.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+#else
+#include <unistd.h>
+#endif
+
 #define INITIAL_CAPACITY 10
 #define MAX_PATH 512
 
@@ -89,15 +97,17 @@ static void registry_add_plugin(PluginRegistry *registry, LoadedPlugin *plugin)
     /* Resize if needed */
     if (registry->count >= registry->capacity)
     {
-        registry->capacity *= 2;
-        LoadedPlugin **new_plugins = (LoadedPlugin **)realloc(
-            registry->plugins, registry->capacity * sizeof(LoadedPlugin *));
+        size_t new_capacity = registry->capacity > 0 ? (size_t)registry->capacity * 2 : 4;
+        LoadedPlugin **new_plugins =
+            (LoadedPlugin **)realloc(registry->plugins, new_capacity * sizeof(LoadedPlugin *));
         if (!new_plugins)
         {
             log_error("Failed to resize plugin registry");
+            unload_plugin(plugin);
             return;
         }
         registry->plugins = new_plugins;
+        registry->capacity = (int)new_capacity;
     }
 
     registry->plugins[registry->count++] = plugin;
@@ -175,7 +185,52 @@ PluginRegistry *registry_create(void)
 }
 
 /**
+ * @brief Resolve the directory containing the running executable.
+ *
+ * Plugins are searched relative to the executable rather than the current
+ * working directory, so running open-lotto from an untrusted directory
+ * cannot load (and execute) shared libraries placed there.
+ *
+ * @return 0 on success, -1 if the location cannot be determined.
+ */
+static int get_executable_dir(char *out, size_t out_size)
+{
+    if (!out || out_size == 0)
+        return -1;
+
+#if defined(_WIN32)
+    DWORD len = GetModuleFileNameA(NULL, out, (DWORD)out_size);
+    if (len == 0 || len >= out_size)
+        return -1;
+#elif defined(__APPLE__)
+    uint32_t size = (uint32_t)out_size;
+    if (_NSGetExecutablePath(out, &size) != 0)
+        return -1;
+#else
+    ssize_t len = readlink("/proc/self/exe", out, out_size - 1);
+    if (len <= 0)
+        return -1;
+    out[len] = '\0';
+#endif
+
+    char *slash = strrchr(out, '/');
+#ifdef _WIN32
+    char *bslash = strrchr(out, '\\');
+    if (!slash || (bslash && bslash > slash))
+        slash = bslash;
+#endif
+    if (!slash)
+        return -1;
+    *slash = '\0';
+    return 0;
+}
+
+/**
  * @brief Discover plugins from environment and standard search paths.
+ *
+ * Search order: $OPEN_LOTTO_PLUGIN_PATH, <exe_dir>/plugins,
+ * <exe_dir>/../lib/open-lotto/plugins, then the system install prefixes.
+ * The current working directory is intentionally NOT searched.
  */
 void registry_discover_plugins(PluginRegistry *registry)
 {
@@ -195,9 +250,32 @@ void registry_discover_plugins(PluginRegistry *registry)
         scan_plugin_directory(registry, env_path);
     }
 
-    /* Try default locations */
-    const char *default_paths[] = {"./plugins", "./build/plugins", "/usr/lib/open-lotto/plugins",
-                                   "/usr/local/lib/open-lotto/plugins", NULL};
+    /* Locations relative to the executable (build tree, portable installs) */
+    char exe_dir[MAX_PATH];
+    char exe_paths[2][MAX_PATH];
+    int exe_path_count = 0;
+    if (get_executable_dir(exe_dir, sizeof(exe_dir)) == 0)
+    {
+        int n1 = snprintf(exe_paths[0], MAX_PATH, "%s/plugins", exe_dir);
+        if (n1 > 0 && n1 < MAX_PATH)
+            exe_path_count = 1;
+        int n2 =
+            snprintf(exe_paths[exe_path_count], MAX_PATH, "%s/../lib/open-lotto/plugins", exe_dir);
+        if (n2 > 0 && n2 < MAX_PATH)
+            exe_path_count++;
+    }
+    else
+    {
+        log_warn("Could not determine executable location; set OPEN_LOTTO_PLUGIN_PATH");
+    }
+
+    const char *default_paths[6];
+    int path_count = 0;
+    for (int i = 0; i < exe_path_count; i++)
+        default_paths[path_count++] = exe_paths[i];
+    default_paths[path_count++] = "/usr/lib/open-lotto/plugins";
+    default_paths[path_count++] = "/usr/local/lib/open-lotto/plugins";
+    default_paths[path_count] = NULL;
 
     for (int i = 0; default_paths[i] != NULL; i++)
     {

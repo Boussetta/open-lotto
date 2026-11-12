@@ -33,7 +33,8 @@ static int validate_info(const char *path, const LotteryInfo *info)
         return -1;
     }
 
-    if (info->main_min <= 0 || info->main_max < info->main_min)
+    if (info->main_min <= 0 || info->main_max < info->main_min ||
+        info->main_max > COMBOGEN_MAX_NUMBER)
     {
         fprintf(stderr, "%s: invalid main range [%d, %d]\n", path, info->main_min, info->main_max);
         return -1;
@@ -54,7 +55,8 @@ static int validate_info(const char *path, const LotteryInfo *info)
     if (info->extra_count == 0)
         return 0;
 
-    if (info->extra_min < 0 || info->extra_max < info->extra_min)
+    if (info->extra_min < 0 || info->extra_max < info->extra_min ||
+        info->extra_max > COMBOGEN_MAX_NUMBER)
     {
         fprintf(stderr, "%s: invalid extra range [%d, %d]\n", path, info->extra_min,
                 info->extra_max);

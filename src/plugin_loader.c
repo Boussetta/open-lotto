@@ -64,6 +64,41 @@ static int dlclose(void *handle)
 #include "plugin_loader.h"
 
 /**
+ * @brief Reject plugins whose advertised game rules cannot be drawn safely.
+ *
+ * Mirrors open-lotto-plugin-validator's checks so a bad plugin is refused at
+ * load time instead of failing (or allocating huge pools) at draw time.
+ */
+static int validate_plugin_info(const char *path, const LotteryInfo *info)
+{
+    if (info->main_count <= 0 || info->main_count > MAX_MAIN_NUMBERS || info->main_min <= 0 ||
+        info->main_max < info->main_min || info->main_max > COMBOGEN_MAX_NUMBER ||
+        (info->main_max - info->main_min + 1) < info->main_count)
+    {
+        log_error("Plugin %s has invalid main rules: %d of [%d, %d]", path, info->main_count,
+                  info->main_min, info->main_max);
+        return -1;
+    }
+
+    if (info->extra_count < 0 || info->extra_count > MAX_EXTRA_NUMBERS)
+    {
+        log_error("Plugin %s has invalid extra_count %d", path, info->extra_count);
+        return -1;
+    }
+
+    if (info->extra_count > 0 && (info->extra_min < 0 || info->extra_max < info->extra_min ||
+                                  info->extra_max > COMBOGEN_MAX_NUMBER ||
+                                  (info->extra_max - info->extra_min + 1) < info->extra_count))
+    {
+        log_error("Plugin %s has invalid extra rules: %d of [%d, %d]", path, info->extra_count,
+                  info->extra_min, info->extra_max);
+        return -1;
+    }
+
+    return 0;
+}
+
+/**
  * @brief Load one plugin shared object and validate required exported symbols.
  */
 LoadedPlugin *load_plugin(const char *path)
@@ -132,6 +167,12 @@ LoadedPlugin *load_plugin(const char *path)
     if (!info)
     {
         log_error("Plugin %s get_info() returned NULL", path);
+        dlclose(handle);
+        return NULL;
+    }
+
+    if (validate_plugin_info(path, info) != 0)
+    {
         dlclose(handle);
         return NULL;
     }
