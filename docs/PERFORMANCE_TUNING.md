@@ -116,12 +116,11 @@ uint32_t pcg32_random(struct PCG32* state) {
 
 ### Entropy Seeding
 
-Function: `generate_hybrid_seed()` in `src/random_seed.c`
+Function: `generate_strong_seed()` in `src/random_seed.c`
 
 **Cost Breakdown:**
-- `getrandom()` call: ~10–100 µs (system dependent, can block)
-- `__rdrand64_step()` (if available): ~20–100 cycles
-- Clock jitter read: ~5 cycles
+- `getrandom()` / `getentropy()` / `rand_s()` call: ~1–100 µs (system dependent)
+- Timestamp-counter read: ~5–30 cycles
 
 **If this bottlenecks:**
 - It only runs once per draw (not per random number)

@@ -94,28 +94,29 @@ int dice = pcg32_random_bounded(&rng, 6) + 1;  // 1–6
 
 **Header:** `include/random_seed.h`
 
-#### generate_hybrid_seed()
+#### generate_strong_seed()
 
 ```c
-uint64_t generate_hybrid_seed(void)
+uint64_t generate_strong_seed(void)
 ```
 
-**Description:** Generate a high-entropy 64-bit seed from hybrid sources.
+**Description:** Generate a 64-bit seed from the operating system's CSPRNG.
 
-**Sources (in priority order):**
-1. Linux kernel entropy (`getrandom()`)
-2. Hardware RDRAND (if available on x86-64)
-3. Monotonic clock jitter
-4. Fallback: time()/getpid()
+**Sources (first that succeeds):**
+1. `getrandom()` (Linux), `getentropy()` (macOS), `rand_s()` / RtlGenRandom (Windows)
+2. `/dev/urandom` (POSIX fallback)
+3. Clock + timestamp counter (weak last resort, logged as a warning)
+
+The chosen value is XORed with a CPU timestamp-counter reading.
 
 **Returns:** 64-bit seed suitable for RNG initialization
 
-**Thread-safety:** Safe; uses atomic CPU instructions for entropy
+**Thread-safety:** Safe; keeps no shared state.
 
 **Example:**
 ```c
-uint64_t seed = generate_hybrid_seed();
-pcg32_seed(&rng, seed, 1ULL);
+uint64_t seed = generate_strong_seed();
+generate_draw_seeded(6, 1, 49, 0, 0, 0, seed, &result, NULL);
 ```
 
 ---
@@ -194,7 +195,7 @@ int combogen_draw(struct Combination* out,
 ```c
 struct Combination draw;
 struct PCG32 rng;
-uint64_t seed = generate_hybrid_seed();
+uint64_t seed = generate_strong_seed();
 pcg32_seed(&rng, seed, 1ULL);
 
 if (combogen_draw(&draw, 50, 5, 12, 2, &rng) == 0) {
@@ -760,7 +761,7 @@ free(games);  // Caller frees
 | PCG32 | No | Each thread needs its own instance |
 | combogen | Yes | Stateless function |
 | plugin_registry | Yes | Read-only after init |
-| generate_hybrid_seed | Yes | Uses atomic CPU instructions |
+| generate_strong_seed | Yes | No shared state |
 | Logging | Yes | Thread-local buffering |
 
 ---
