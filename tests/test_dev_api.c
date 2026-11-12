@@ -80,6 +80,26 @@ int main(void)
     assert_true(open_lotto_derive_seed(0x42ULL, 1) != 0x42ULL,
                 "Derived seed changes for later draws");
 
+    /* Regression: nearby base seeds must not share per-draw seeds
+     * (old scheme splitmix(base ^ i) made draw 2 of seed 4 == draw 3 of seed 5). */
+    {
+        int collisions = 0;
+        for (uint64_t base = 0; base < 64; base++)
+            for (uint64_t other = base + 1; other < 64; other++)
+                for (uint64_t i = 1; i < 64; i++)
+                    for (uint64_t j = 1; j < 64; j++)
+                        collisions +=
+                            open_lotto_derive_seed(base, i) == open_lotto_derive_seed(other, j);
+        assert_equals(collisions, 0, "Nearby base seeds do not share derived draw seeds");
+    }
+
+    {
+        OpenLottoDrawSpec too_wide = valid_spec;
+        too_wide.main_max = COMBOGEN_MAX_NUMBER + 1;
+        assert_equals(open_lotto_validate_spec(&too_wide), OPEN_LOTTO_API_ERR_INVALID_SPEC,
+                      "Number range above COMBOGEN_MAX_NUMBER is rejected");
+    }
+
     const char *version = open_lotto_version();
     assert_true(version != NULL, "Version string is available");
 

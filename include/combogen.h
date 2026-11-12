@@ -24,6 +24,8 @@ typedef enum
 
 #define MAX_MAIN_NUMBERS 7  /* supports 6aus49 and EuroJackpot */
 #define MAX_EXTRA_NUMBERS 3 /* supports EuroJackpot (2 extras) */
+/** Largest number value a game may use. Analytics tables are sized [COMBOGEN_MAX_NUMBER + 1]. */
+#define COMBOGEN_MAX_NUMBER 127
 
 typedef struct
 {

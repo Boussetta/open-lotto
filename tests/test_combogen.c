@@ -214,5 +214,31 @@ int main(void)
         assert_true(!results_equal(&a, &c), "Different seeds produce different draw results");
     }
 
+    /* Regression: small seeds must not bias the first draw. Before PCG32 was
+     * seeded like pcg32_srandom_r(), every seed < 2^27 produced 0 as its first
+     * output, so the lowest number could never appear in draw 0. */
+    {
+        int hits_of_one = 0;
+        const int trials = 20000;
+        for (uint64_t seed = 0; seed < (uint64_t)trials; seed++)
+        {
+            LotteryResult r;
+            generate_draw_seeded(6, 1, 49, 0, 0, 0, seed, &r, NULL);
+            for (int i = 0; i < r.main_count; i++)
+                hits_of_one += (r.main_numbers[i] == 1);
+        }
+        /* Expected 20000 * 6/49 ~= 2449; allow a wide margin. */
+        assert_true(hits_of_one > 2000 && hits_of_one < 2900,
+                    "Number 1 appears at the expected rate across small seeds");
+    }
+
+    /* Invalid rules leave the result empty so callers can detect failure. */
+    {
+        LotteryResult r;
+        r.main_count = 99;
+        generate_draw_seeded(6, 1, COMBOGEN_MAX_NUMBER + 1, 0, 0, 0, 1, &r, NULL);
+        assert_equals(r.main_count, 0, "Out-of-range rules produce an empty result");
+    }
+
     test_summary();
 }

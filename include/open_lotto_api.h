@@ -21,6 +21,7 @@ extern "C"
 #define OPEN_LOTTO_API_SUCCESS 0
 #define OPEN_LOTTO_API_ERR_INVALID_ARG 1
 #define OPEN_LOTTO_API_ERR_INVALID_SPEC 2
+#define OPEN_LOTTO_API_ERR_GENERATION 3
 
     typedef struct
     {

@@ -27,7 +27,7 @@
  * This ensures:
  *   - No duplicates within a draw (Fisher-Yates property)
  *   - Uniform distribution across all possible draws
- *   - Cryptographically strong randomness
+ *   - Strongly seeded (but PCG32 itself is NOT a cryptographic RNG)
  *   - High performance (O(n) time complexity)
  */
 
@@ -59,6 +59,22 @@ static _Thread_local int forced_seed_enabled = 0;
 static _Thread_local uint64_t forced_seed_value = 0;
 
 static uint64_t rng_init_seeded(uint64_t seed);
+static uint32_t rng_next(void);
+
+/**
+ * @brief Seed PCG32 exactly like the reference pcg32_srandom_r().
+ *
+ * The state is advanced once after mixing in the seed so that the first
+ * output does not leak the raw (often small) seed value.
+ */
+static void rng_seed_state(uint64_t initstate, uint64_t initseq)
+{
+    rng_state.state = 0U;
+    rng_state.inc = (initseq << 1u) | 1u;
+    (void)rng_next();
+    rng_state.state += initstate;
+    (void)rng_next();
+}
 
 /**
  * @brief Initialize PCG32 generator with cryptographically strong seeds.
@@ -78,8 +94,7 @@ static uint64_t rng_init(void)
         return rng_init_seeded(forced_seed_value);
 
     last_seed = generate_strong_seed();
-    rng_state.state = last_seed;
-    rng_state.inc = (generate_strong_seed() << 1) | 1;
+    rng_seed_state(last_seed, generate_strong_seed());
     return last_seed;
 }
 
@@ -94,8 +109,7 @@ static uint64_t splitmix64(uint64_t x)
 static uint64_t rng_init_seeded(uint64_t seed)
 {
     last_seed = seed;
-    rng_state.state = seed;
-    rng_state.inc = (splitmix64(seed) << 1) | 1ULL;
+    rng_seed_state(seed, splitmix64(seed));
     return last_seed;
 }
 
@@ -107,8 +121,8 @@ static uint64_t rng_init_seeded(uint64_t seed)
  *   2. Advance state via linear congruential generator
  *   3. XOR-shift and rotate output for statistical whitening
  *
- * The PCG32 output function provides excellent statistical properties
- * suitable for cryptographic applications.
+ * The PCG32 output function provides excellent statistical properties.
+ * It is NOT a cryptographically secure generator.
  *
  * @return uint32_t - Next random number in [0, UINT32_MAX]
  *
@@ -129,8 +143,8 @@ static uint32_t rng_next(void)
 /**
  * @brief Generate a random integer in the range [min, max] inclusive.
  *
- * Uses rejection sampling with modulo to map [0, UINT32_MAX] to [min, max].
- * This provides uniform distribution across the requested range.
+ * Uses Lemire's nearly-divisionless method with rejection, so every value in
+ * [min, max] is exactly equally likely (no modulo bias).
  *
  * @param min - Minimum value (inclusive)
  * @param max - Maximum value (inclusive)
@@ -138,13 +152,22 @@ static uint32_t rng_next(void)
  * @return int - Random number in [min, max]
  *
  * @note Assumes min <= max (caller's responsibility to validate)
- * @note Uses modulo bias elimination implicitly (acceptable for lottery use)
  */
 static int rng_int(int min, int max)
 {
-    uint32_t range = (uint32_t)(max - min + 1);
-    uint32_t val = rng_next();
-    return min + (int)(val % range);
+    uint32_t range = (uint32_t)((int64_t)max - (int64_t)min + 1);
+    uint64_t m = (uint64_t)rng_next() * range;
+    uint32_t low = (uint32_t)m;
+    if (low < range)
+    {
+        uint32_t threshold = (uint32_t)(-range) % range;
+        while (low < threshold)
+        {
+            m = (uint64_t)rng_next() * range;
+            low = (uint32_t)m;
+        }
+    }
+    return min + (int)(m >> 32);
 }
 
 /**
@@ -175,8 +198,9 @@ static int rng_int(int min, int max)
  *
  * @return void - Results stored in 'out'; errors logged but not returned
  *
- * @note Validates all parameters; invalid inputs are logged and silently
- *       fail (output remains unmodified).
+ * @note Validates all parameters; on any failure the error is logged and
+ *       out->main_count / out->extra_count are left at 0 so callers can
+ *       detect that no draw was produced.
  * @note Thread-safe for different draw calls; uses thread-local state if
  *       needed (currently global, caller must synchronize if multi-threaded).
  * @note Callbacks are invoked at: RNG_INITIALIZED, POOL_INITIALIZED,
@@ -193,6 +217,10 @@ static void generate_draw_impl(int main_count, int main_min, int main_max, int e
         return;
     }
 
+    /* Mark the result as empty until a draw has been fully produced. */
+    out->main_count = 0;
+    out->extra_count = 0;
+
     /* Validate main numbers count (supports 1-7 numbers per draw) */
     if (main_count <= 0 || main_count > 7)
     {
@@ -208,7 +236,7 @@ static void generate_draw_impl(int main_count, int main_min, int main_max, int e
     }
 
     /* Validate main number range constraints */
-    if (main_min <= 0 || main_max <= 0 || main_min > main_max)
+    if (main_min <= 0 || main_max <= 0 || main_min > main_max || main_max > COMBOGEN_MAX_NUMBER)
     {
         log_error("Invalid main range: [%d, %d]", main_min, main_max);
         return;
@@ -225,7 +253,8 @@ static void generate_draw_impl(int main_count, int main_min, int main_max, int e
     /* Validate extra number range if extra numbers are requested */
     if (extra_count > 0)
     {
-        if (extra_min < 0 || extra_max < 0 || extra_min > extra_max)
+        if (extra_min < 0 || extra_max < 0 || extra_min > extra_max ||
+            extra_max > COMBOGEN_MAX_NUMBER)
         {
             log_error("Invalid extra range: [%d, %d]", extra_min, extra_max);
             return;
@@ -243,23 +272,22 @@ static void generate_draw_impl(int main_count, int main_min, int main_max, int e
 
     /* Initialize PCG32 RNG with a cryptographically strong seed */
     uint64_t seed = use_seed ? rng_init_seeded(seed_value) : rng_init();
-    log_info("RNG Seed: 0x%016lx", (unsigned long)seed);
+    log_debug("RNG Seed: 0x%016llx", (unsigned long long)seed);
 
     /* Fire RNG initialization callback for animation */
     if (cb)
         cb(EVENT_RNG_INITIALIZED, NULL);
 
-    /* Store counts in result for consumer */
-    out->main_count = main_count;
-    out->extra_count = extra_count;
-
     /* === MAIN NUMBERS: Fisher-Yates Shuffle === */
 
     /* Allocate pool of main numbers */
     int pool_size = main_max - main_min + 1;
-    int *pool = malloc(pool_size * sizeof(int));
+    int *pool = malloc((size_t)pool_size * sizeof(int));
     if (!pool)
+    {
+        log_error("Out of memory allocating main number pool");
         return;
+    }
 
     /* Initialize pool with [main_min, main_min+1, ..., main_max] */
     for (int i = 0; i < pool_size; i++)
@@ -289,6 +317,8 @@ static void generate_draw_impl(int main_count, int main_min, int main_max, int e
     /* Release main number pool memory */
     free(pool);
 
+    out->main_count = main_count;
+
     /* Fire main numbers complete callback */
     if (cb)
         cb(EVENT_AFTER_PICK, out);
@@ -299,9 +329,13 @@ static void generate_draw_impl(int main_count, int main_min, int main_max, int e
     {
         /* Allocate pool of extra numbers */
         int extra_pool_size = extra_max - extra_min + 1;
-        int *extra_pool = malloc(extra_pool_size * sizeof(int));
+        int *extra_pool = malloc((size_t)extra_pool_size * sizeof(int));
         if (!extra_pool)
+        {
+            log_error("Out of memory allocating extra number pool");
+            out->main_count = 0;
             return;
+        }
 
         /* Initialize pool with [extra_min, extra_min+1, ..., extra_max] */
         for (int i = 0; i < extra_pool_size; i++)
@@ -323,6 +357,9 @@ static void generate_draw_impl(int main_count, int main_min, int main_max, int e
         /* Release extra number pool memory */
         free(extra_pool);
     }
+
+    /* Publish the extra count only once every number has been written */
+    out->extra_count = extra_count;
 
     /* Fire draw completion callback */
     if (cb)
