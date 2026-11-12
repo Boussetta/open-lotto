@@ -21,3 +21,8 @@ docs/api/
 # Performance baseline files (local, architecture-specific)
 benchmark_memory_baseline_*.txt
 
+
+# Generated outputs from running the CLI / CTest locally
+/results.csv
+/results.json
+Testing/
