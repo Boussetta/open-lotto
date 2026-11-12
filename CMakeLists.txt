@@ -656,6 +656,13 @@ if(BUILD_TESTING)
         PASS_REGULAR_EXPRESSION "closest-seed sampled determinism OK"
     )
 
+    add_test(NAME cli_closest_seed_input_robustness
+        COMMAND bash "${CMAKE_SOURCE_DIR}/tests/test_closest_seed_input_robustness.sh" $<TARGET_FILE:open-lotto>
+    )
+    set_tests_properties(cli_closest_seed_input_robustness PROPERTIES
+        PASS_REGULAR_EXPRESSION "closest-seed input robustness OK"
+    )
+
     add_test(NAME cli_analytics_frequency_table
         COMMAND $<TARGET_FILE:open-lotto> --game "Lotto 6aus49" --frequency-distribution --from 2025-01-01 --to 2025-01-31 --historical-csv ${CMAKE_SOURCE_DIR}/tests/fixtures/historical_lotto_small.csv
     )
