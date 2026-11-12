@@ -251,7 +251,9 @@ static uint64_t derive_draw_seed(uint64_t base_seed, int draw_index)
     if (draw_index == 0)
         return base_seed;
 
-    return splitmix64(base_seed ^ (uint64_t)draw_index);
+    /* Hash the base first so nearby base seeds do not share per-draw seeds.
+     * Must stay identical to open_lotto_derive_seed(). */
+    return splitmix64(splitmix64(base_seed) + (uint64_t)draw_index);
 }
 
 /** @brief Sample one seed uniformly from an inclusive seed domain. */
