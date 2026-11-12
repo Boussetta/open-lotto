@@ -5,6 +5,7 @@
 
 #include "config.h"
 #include "log.h"
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,6 +30,16 @@ static const char *get_home_dir(void)
 }
 
 /**
+ * @brief Replace an owned config string, freeing any previous value
+ *        (a key may appear more than once in the file).
+ */
+static void replace_string(char **slot, char *value)
+{
+    free(*slot);
+    *slot = value;
+}
+
+/**
  * @brief Trim leading and trailing whitespace from a string.
  * @param str String to trim (modified in-place)
  */
@@ -39,14 +50,15 @@ static void trim_whitespace(char *str)
 
     /* Trim leading whitespace */
     size_t start = 0;
-    while (str[start] && (str[start] == ' ' || str[start] == '\t'))
+    while (str[start] && (str[start] == ' ' || str[start] == '\t' || str[start] == '\r'))
     {
         start++;
     }
 
     /* Trim trailing whitespace */
     size_t end = strlen(str);
-    while (end > start && (str[end - 1] == ' ' || str[end - 1] == '\t' || str[end - 1] == '\n'))
+    while (end > start && (str[end - 1] == ' ' || str[end - 1] == '\t' || str[end - 1] == '\n' ||
+                           str[end - 1] == '\r'))
     {
         end--;
     }
@@ -128,11 +140,8 @@ int config_load_file(LoCalConfig *config, const char *path)
 
     while (fgets(line, sizeof(line), f))
     {
-        /* Remove trailing newline */
-        if (line[strlen(line) - 1] == '\n')
-        {
-            line[strlen(line) - 1] = '\0';
-        }
+        /* Remove trailing newline (LF or CRLF) */
+        line[strcspn(line, "\r\n")] = '\0';
 
         /* Check for section header */
         if (line[0] == '[')
@@ -162,13 +171,13 @@ int config_load_file(LoCalConfig *config, const char *path)
 
             if (strcmp(key, "game") == 0)
             {
-                config->game = value;
+                replace_string(&config->game, value);
             }
             else if (strcmp(key, "draws") == 0)
             {
                 char *end = NULL;
                 long draws_val = strtol(value, &end, 10);
-                if (end != value && *end == '\0' && draws_val > 0)
+                if (end != value && *end == '\0' && draws_val > 0 && draws_val <= INT_MAX)
                 {
                     config->draws = (int)draws_val;
                 }
@@ -180,23 +189,23 @@ int config_load_file(LoCalConfig *config, const char *path)
             }
             else if (strcmp(key, "export") == 0)
             {
-                config->export_format = value;
+                replace_string(&config->export_format, value);
             }
             else if (strcmp(key, "output") == 0)
             {
-                config->output_file = value;
+                replace_string(&config->output_file, value);
             }
             else if (strcmp(key, "verbose") == 0)
             {
-                config->verbose_level = value;
+                replace_string(&config->verbose_level, value);
             }
             else if (strcmp(key, "gui") == 0)
             {
-                config->gui_mode = value;
+                replace_string(&config->gui_mode, value);
             }
             else if (strcmp(key, "dark-mode") == 0)
             {
-                config->dark_mode = value;
+                replace_string(&config->dark_mode, value);
             }
             else
             {
