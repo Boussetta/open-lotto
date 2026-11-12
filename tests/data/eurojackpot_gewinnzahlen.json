@@ -1,0 +1,61 @@
+{
+  "objType": "zahlenUndQuoten",
+  "error": null,
+  "head": {
+    "datum": "2026-06-05",
+    "folgeZiehung": {
+      "datum": "2026-06-09",
+      "annahmeschluss": "2026-06-09T19:00:00+02:00"
+    }
+  },
+  "zahlen": {
+    "hauptlotterie": {
+      "ziehungen": [
+        {
+          "bezeichnung": "5 aus 50",
+          "zahlenSortiert": ["21", "23", "44", "47", "50"]
+        },
+        {
+          "bezeichnung": "2 aus 12",
+          "zahlenSortiert": ["1", "7"]
+        }
+      ]
+    }
+  },
+  "auswertung": {
+    "quoten": {
+      "hauptlotterie": {
+        "ziehungen": [
+          {
+            "gewinnklassen": [
+              {
+                "klasse": "1",
+                "beschreibung": "5 + 2",
+                "anzahl": 0,
+                "quote": 0.0
+              },
+              {
+                "klasse": "2",
+                "beschreibung": "5 + 1",
+                "anzahl": 2,
+                "quote": 923584.2
+              },
+              {
+                "klasse": "3",
+                "beschreibung": "5 + 0",
+                "anzahl": 4,
+                "quote": 260429.2
+              },
+              {
+                "klasse": "4",
+                "beschreibung": "4 + 2",
+                "anzahl": 35,
+                "quote": 4909.4
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
