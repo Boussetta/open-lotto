@@ -319,7 +319,10 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
     }
     else
     {
-        uint64_t domain_size_u64 = req->seed_end - req->seed_start + 1ULL;
+        /* seed_end - seed_start + 1 wraps to 0 for the full 0..UINT64_MAX
+         * domain; saturate instead of reporting an empty period. */
+        uint64_t span = req->seed_end - req->seed_start;
+        uint64_t domain_size_u64 = (span == UINT64_MAX) ? UINT64_MAX : span + 1ULL;
         eval_target_u64 = domain_size_u64;
         if (req->max_evals > 0 && (uint64_t)req->max_evals < eval_target_u64)
             eval_target_u64 = (uint64_t)req->max_evals;
@@ -375,7 +378,10 @@ int seed_calibration_find_closest(const SeedCalibrationRequest *req, SeedCalibra
 #pragma omp for schedule(static)
         for (int i = 0; i < eval_target; i++)
         {
-            if (callback_failed)
+            int failed_now;
+#pragma omp atomic read
+            failed_now = callback_failed;
+            if (failed_now)
                 continue;
 
             uint64_t seed =
