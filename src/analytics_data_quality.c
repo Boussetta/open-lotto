@@ -38,12 +38,22 @@ static int record_numbers_in_range(const AnalyticsDrawRecord *r, int expected_ma
     {
         if (r->main_numbers[i] < main_min || r->main_numbers[i] > main_max)
             return 0;
+        for (int j = 0; j < i; j++)
+        {
+            if (r->main_numbers[j] == r->main_numbers[i])
+                return 0; /* repeated number within one draw */
+        }
     }
 
     for (int i = 0; i < r->extra_count; i++)
     {
         if (r->extra_numbers[i] < extra_min || r->extra_numbers[i] > extra_max)
             return 0;
+        for (int j = 0; j < i; j++)
+        {
+            if (r->extra_numbers[j] == r->extra_numbers[i])
+                return 0;
+        }
     }
 
     return 1;
@@ -101,7 +111,9 @@ int analytics_data_quality_evaluate(const AnalyticsDrawRecord *records, int reco
                                      expected_extra_count, extra_min, extra_max))
             out_report->game_rule_inconsistencies++;
 
-        for (int j = i + 1; j < record_count; j++)
+        /* Count a row as a duplicate when an EARLIER row has the same date and
+         * numbers, so N identical rows yield N-1 duplicates (not N*(N-1)/2). */
+        for (int j = 0; j < i; j++)
         {
             const AnalyticsDrawRecord *other = &records[j];
             if (strcmp(r->draw_date, other->draw_date) != 0)
@@ -113,6 +125,7 @@ int analytics_data_quality_evaluate(const AnalyticsDrawRecord *records, int reco
             if (!numbers_equal(r->extra_numbers, other->extra_numbers, r->extra_count))
                 continue;
             out_report->duplicate_draws++;
+            break;
         }
     }
 

@@ -9,6 +9,7 @@
 
 #include "analytics.h"
 #include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -261,7 +262,7 @@ static int parse_numbers(const char *field, int *out, int max_out)
 
         char *end = NULL;
         long val = strtol(token, &end, 10);
-        if (!end || *end != '\0')
+        if (!end || end == token || *end != '\0' || val < INT_MIN || val > INT_MAX)
             return -1;
 
         out[count++] = (int)val;
@@ -269,6 +270,24 @@ static int parse_numbers(const char *field, int *out, int max_out)
     }
 
     return count;
+}
+
+/**
+ * @brief Check that count numbers lie in [min, max] with no repeats.
+ */
+static int numbers_in_range_unique(const int *nums, int count, int min, int max)
+{
+    for (int i = 0; i < count; i++)
+    {
+        if (nums[i] < min || nums[i] > max)
+            return 0;
+        for (int j = 0; j < i; j++)
+        {
+            if (nums[j] == nums[i])
+                return 0;
+        }
+    }
+    return 1;
 }
 
 /**
@@ -306,15 +325,29 @@ int analytics_load_historical_csv(const char *csv_path, HistoricalDraw *out_draw
             return VALIDATE_ERR_OUT_OF_RANGE;
         }
 
-        char *nl = strchr(line, '\n');
-        if (nl)
-            *nl = '\0';
+        line[strcspn(line, "\r\n")] = '\0';
 
-        char *date = strtok(line, ",");
-        char *main_field = strtok(NULL, ",");
-        char *extra_field = strtok(NULL, ",");
+        /* Split on commas without merging empty fields (strtok would turn
+         * "date,,7" into main="7"). */
+        char *date = line;
+        char *main_field = NULL;
+        char *extra_field = NULL;
+        char *comma = strchr(date, ',');
+        if (comma)
+        {
+            *comma = '\0';
+            main_field = comma + 1;
+            comma = strchr(main_field, ',');
+            if (comma)
+            {
+                *comma = '\0';
+                extra_field = comma + 1;
+                if (strchr(extra_field, ','))
+                    main_field = NULL; /* too many columns */
+            }
+        }
 
-        if (!date || !main_field)
+        if (!date[0] || !main_field || !main_field[0])
         {
             fclose(f);
             fprintf(stderr, "Error: Malformed historical CSV row.\n");
@@ -343,6 +376,15 @@ int analytics_load_historical_csv(const char *csv_path, HistoricalDraw *out_draw
                     date);
             return VALIDATE_ERR_INVALID_FORMAT;
         }
+        if (!numbers_in_range_unique(d->result.main_numbers, d->result.main_count, rules->main_min,
+                                     rules->main_max))
+        {
+            fclose(f);
+            fprintf(stderr,
+                    "Error: Main numbers out of range or repeated in historical CSV row '%s'.\n",
+                    date);
+            return VALIDATE_ERR_OUT_OF_RANGE;
+        }
 
         if (rules->extra_count > 0)
         {
@@ -354,6 +396,16 @@ int analytics_load_historical_csv(const char *csv_path, HistoricalDraw *out_draw
                 fprintf(stderr, "Error: Extra number count mismatch in historical CSV row '%s'.\n",
                         date);
                 return VALIDATE_ERR_INVALID_FORMAT;
+            }
+            if (!numbers_in_range_unique(d->result.extra_numbers, d->result.extra_count,
+                                         rules->extra_min, rules->extra_max))
+            {
+                fclose(f);
+                fprintf(stderr,
+                        "Error: Extra numbers out of range or repeated in historical CSV row "
+                        "'%s'.\n",
+                        date);
+                return VALIDATE_ERR_OUT_OF_RANGE;
             }
         }
         else
