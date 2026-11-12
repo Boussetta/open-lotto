@@ -396,6 +396,101 @@ This mode compares simulated draws against historical draws and returns ranked c
   --top 10 --format table
 ```
 
+### Closest-Seed Input Prediction (`--closest-seed-input`)
+
+Synthesize the next draw(s) from a closest-seed JSON file produced by `--closest-seed --format json`.
+
+This mode uses the `top_candidates` seeds from the input file (at most 64; extra entries are
+ignored with a warning) and reference frequencies embedded in the JSON metadata for the calibrated
+period.
+
+**Input validation** (shared with `--next-draw`):
+- The JSON may be compact or pretty-printed; whitespace and newlines are ignored.
+- The file's `"game"` must match `--game` (case-insensitive), otherwise the command fails.
+- `reference.historical_draw_count` must be an integer between 1 and 100000.
+- `top_candidates` must contain at least one entry with a non-negative integer `seed`.
+- `reference.main_frequency` (and `reference.extra_frequency` for games with extra numbers) must
+  list every number of the game range exactly once with a frequency in `[0, 1]`.
+- `--format` is rejected: the output is always the synthesized draw listing.
+
+**Uniqueness and fallback:** numbers are unique within the main numbers and within the extra
+numbers of each synthesized draw. When every candidate value for a position is already used in
+that draw, the CLI deterministically falls back to the unused number of the game range with the
+highest reference frequency (ties go to the smallest number), so synthesis never aborts.
+
+**Syntax:**
+```bash
+./open-lotto --game NAME --closest-seed-input FILE [--draws N] [--sorted] [--trace-draw N]
+```
+
+**Debug/audit logs:**
+- Add `--verbose DEBUG` to print background diagnostics.
+- In DEBUG mode, the CLI logs per-seed period-frequency distance metrics against the
+  historical reference period from the JSON metadata.
+- Add `--trace-draw N` to print only synthesized draw N trace details:
+  - generated numbers for each candidate seed
+  - per-position candidate frequencies and selected value explanation
+
+**Example workflow:**
+```bash
+# 1) Produce closest-seed JSON with metadata
+./open-lotto --game "Lotto 6aus49" --closest-seed \
+  --from 2026-01-01 --to 2026-07-01 \
+  --seed-count 2000 --format json --output-file closest-10.json
+
+# 2) Generate upcoming draw(s) from that file
+./open-lotto --game "Lotto 6aus49" --closest-seed-input closest-10.json --draws 3 --sorted
+
+# 3) Explain only draw 51 selection path (per-seed + per-position trace)
+./open-lotto --game "Lotto 6aus49" --closest-seed-input closest-10.json \
+  --draws 51 --trace-draw 51 --sorted --verbose INFO
+```
+
+### Next Draw API (`--next-draw`)
+
+Compute exactly draw `N+1` from a closest-seed JSON period containing `N` real draws.
+
+Rules:
+- For every seed in `top_candidates`, generate draw number `N+1`.
+- Recompute period frequency distribution per seed on the JSON period (`1..N`).
+- For each candidate number at each position, compute number-level frequency error versus real reference.
+- Keep the candidate with lowest number-level frequency error (tie-break by seed rank).
+- Numbers already chosen in the same group (main or extra) are skipped; if all candidates are used,
+  the same deterministic fallback as `--closest-seed-input` applies.
+- The input file is validated exactly like `--closest-seed-input` (whitespace-tolerant JSON,
+  `"game"` must match `--game`, bounded `historical_draw_count`).
+- `--draws` other than 1 is rejected (a `draws` default in `~/.lottorc` is ignored);
+  `--format` and `--trace-draw` are rejected because the N+1 trace is always printed to stderr.
+
+**Syntax:**
+```bash
+./open-lotto --game NAME --next-draw FILE [--sorted]
+```
+
+**Example:**
+```bash
+./open-lotto --game "Lotto 6aus49" --next-draw closest-10.json --sorted
+```
+
+**Terminal traces include:**
+- draw `N+1` candidate produced by every seed
+- reason for kept element per position (lowest number-frequency error, tie-break by rank)
+
+### Period Draw Count API (`--draw-count-period`)
+
+Return the exact number of historical draws in an inclusive date range.
+
+**Syntax:**
+```bash
+./open-lotto --game NAME --draw-count-period --from YYYY-MM-DD --to YYYY-MM-DD [--format table|json|csv]
+```
+
+**Examples:**
+```bash
+./open-lotto --game "Lotto 6aus49" --draw-count-period --from 2026-01-01 --to 2026-07-01
+./open-lotto --game "Lotto 6aus49" --draw-count-period --from 2026-01-01 --to 2026-07-01 --format json
+```
+
 ---
 
 ### Period Filtering

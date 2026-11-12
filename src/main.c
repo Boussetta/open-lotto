@@ -29,7 +29,9 @@
 #include "validate.h"
 #include <ctype.h>
 #include <errno.h>
+#include <float.h>
 #include <limits.h>
+#include <math.h>
 #include <omp.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -231,9 +233,17 @@ static uint64_t splitmix64(uint64_t x)
     return x ^ (x >> 31);
 }
 
-/** @brief Parse decimal or 0x-prefixed seed strings. */
+/**
+ * @brief Parse decimal or 0x-prefixed seed strings.
+ *
+ * Rejects empty strings, leading whitespace, signs (strtoull would silently turn "-1" into
+ * UINT64_MAX), trailing garbage and out-of-range values.
+ */
 static int parse_seed_value(const char *seed_str, uint64_t *out_seed)
 {
+    if (!seed_str || !isdigit((unsigned char)seed_str[0]))
+        return 0;
+
     char *end = NULL;
     errno = 0;
 
@@ -243,6 +253,40 @@ static int parse_seed_value(const char *seed_str, uint64_t *out_seed)
 
     *out_seed = (uint64_t)parsed;
     return 1;
+}
+
+/** @brief Write @p s to @p out as a JSON string literal (including the surrounding quotes). */
+static void fprint_json_string(FILE *out, const char *s)
+{
+    fputc('"', out);
+    for (const unsigned char *p = (const unsigned char *)(s ? s : ""); *p; p++)
+    {
+        switch (*p)
+        {
+        case '"':
+            fputs("\\\"", out);
+            break;
+        case '\\':
+            fputs("\\\\", out);
+            break;
+        case '\n':
+            fputs("\\n", out);
+            break;
+        case '\r':
+            fputs("\\r", out);
+            break;
+        case '\t':
+            fputs("\\t", out);
+            break;
+        default:
+            if (*p < 0x20)
+                fprintf(out, "\\u%04x", (unsigned)*p);
+            else
+                fputc(*p, out);
+            break;
+        }
+    }
+    fputc('"', out);
 }
 
 /** @brief Derive a stable per-draw seed from a base seed and draw index. */
@@ -320,6 +364,48 @@ typedef struct
     LotteryInfo info;
 } SeedCalibrationDrawContext;
 
+/** Size of per-number frequency tables (indexed directly by number value). */
+#define CLOSEST_SEED_FREQ_TABLE_SIZE (COMBOGEN_MAX_NUMBER + 1)
+
+/** Upper bound accepted for reference.historical_draw_count in closest-seed input files. */
+#define CLOSEST_SEED_MAX_HISTORICAL_DRAWS ANALYTICS_MAX_DRAWS
+
+typedef struct
+{
+    int historical_draw_count;
+    uint64_t seeds[SEED_CALIBRATION_MAX_TOP_K];
+    int seed_count;
+    double main_frequency[CLOSEST_SEED_FREQ_TABLE_SIZE];
+    double extra_frequency[CLOSEST_SEED_FREQ_TABLE_SIZE];
+    int has_main_frequency;
+    int has_extra_frequency;
+} ClosestSeedReference;
+
+/** @brief Per-seed normalized number frequencies over the calibrated period (draws 0..N-1). */
+typedef struct
+{
+    double main_frequency[SEED_CALIBRATION_MAX_TOP_K][CLOSEST_SEED_FREQ_TABLE_SIZE];
+    double extra_frequency[SEED_CALIBRATION_MAX_TOP_K][CLOSEST_SEED_FREQ_TABLE_SIZE];
+} ClosestSeedPeriodFrequencies;
+
+/**
+ * @brief Check that a game's number ranges fit the closest-seed frequency tables.
+ * @return 1 when supported, 0 (after printing an error) otherwise.
+ */
+static int closest_seed_game_supported(const LotteryInfo *info)
+{
+    if (!info || info->main_min < 0 || info->main_max > COMBOGEN_MAX_NUMBER ||
+        info->main_min > info->main_max ||
+        (info->extra_count > 0 && (info->extra_min < 0 || info->extra_max > COMBOGEN_MAX_NUMBER ||
+                                   info->extra_min > info->extra_max)))
+    {
+        fprintf(stderr, "Error: game number ranges must lie within 0..%d for closest-seed modes.\n",
+                COMBOGEN_MAX_NUMBER);
+        return 0;
+    }
+    return 1;
+}
+
 /**
  * @brief Adapter from seed calibration callbacks to core seeded draw generation.
  */
@@ -374,12 +460,20 @@ static void print_closest_seed_csv(FILE *out, const SeedCalibrationResult *resul
 
 /** @brief Print closest-seed results as JSON. */
 static void print_closest_seed_json(FILE *out, const SeedCalibrationResult *result,
-                                    const char *from_date, const char *to_date)
+                                    const char *game_name, const char *from_date,
+                                    const char *to_date, const LotteryInfo *info,
+                                    const ClosestSeedReference *reference)
 {
     fprintf(out, "{\n");
     fprintf(out, "  \"mode\": \"closest-seed\",\n");
     fprintf(out, "  \"schema_version\": \"seed-calibration/v1\",\n");
-    fprintf(out, "  \"period\": {\"from\": \"%s\", \"to\": \"%s\"},\n", from_date, to_date);
+    fprintf(out, "  \"game\": ");
+    fprint_json_string(out, game_name ? game_name : "unknown");
+    fprintf(out, ",\n  \"period\": {\"from\": ");
+    fprint_json_string(out, from_date);
+    fprintf(out, ", \"to\": ");
+    fprint_json_string(out, to_date);
+    fprintf(out, "},\n");
     fprintf(
         out,
         "  \"summary\": {\"best_seed\": %llu, \"best_score\": %.9f, \"evaluated_seeds\": %d},\n",
@@ -399,8 +493,859 @@ static void print_closest_seed_json(FILE *out, const SeedCalibrationResult *resu
                 i + 1, (unsigned long long)c->seed, c->total_score, c->frequency_score,
                 c->gap_score, c->rank_score, (i + 1 == result->top_candidate_count) ? "" : ",");
     }
-    fprintf(out, "  ]\n");
+    fprintf(out, "  ],\n");
+
+    fprintf(out, "  \"reference\": {\"historical_draw_count\": %d, \"main_frequency\": [",
+            reference ? reference->historical_draw_count : 0);
+    int emitted = 0;
+    if (reference && info)
+    {
+        for (int n = info->main_min; n <= info->main_max; n++)
+        {
+            if (emitted++)
+                fprintf(out, ", ");
+            fprintf(out, "{\"number\": %d, \"frequency\": %.12f}", n, reference->main_frequency[n]);
+        }
+    }
+    fprintf(out, "]");
+
+    if (info && info->extra_count > 0)
+    {
+        fprintf(out, ", \"extra_frequency\": [");
+        emitted = 0;
+        if (reference)
+        {
+            for (int n = info->extra_min; n <= info->extra_max; n++)
+            {
+                if (emitted++)
+                    fprintf(out, ", ");
+                fprintf(out, "{\"number\": %d, \"frequency\": %.12f}", n,
+                        reference->extra_frequency[n]);
+            }
+        }
+        fprintf(out, "]");
+    }
+
     fprintf(out, "}\n");
+    fprintf(out, "}\n");
+}
+
+/**
+ * @brief Build normalized historical frequencies for main/extra numbers in one period.
+ * @return 1 on success, 0 when a historical number lies outside the game's range.
+ */
+static int build_closest_seed_reference(const HistoricalDraw *draws, int draw_count,
+                                        const LotteryInfo *info, ClosestSeedReference *out)
+{
+    if (!out)
+        return 0;
+    memset(out, 0, sizeof(*out));
+    if (!draws || draw_count <= 0 || !info)
+        return 1;
+
+    out->historical_draw_count = draw_count;
+
+    for (int i = 0; i < draw_count; i++)
+    {
+        for (int j = 0; j < draws[i].result.main_count; j++)
+        {
+            int n = draws[i].result.main_numbers[j];
+            if (n < info->main_min || n > info->main_max)
+            {
+                fprintf(stderr,
+                        "Error: historical draw %d has main number %d outside the game range "
+                        "%d..%d.\n",
+                        i + 1, n, info->main_min, info->main_max);
+                return 0;
+            }
+            out->main_frequency[n] += 1.0;
+        }
+        for (int j = 0; j < draws[i].result.extra_count && info->extra_count > 0; j++)
+        {
+            int n = draws[i].result.extra_numbers[j];
+            if (n < info->extra_min || n > info->extra_max)
+            {
+                fprintf(stderr,
+                        "Error: historical draw %d has extra number %d outside the game range "
+                        "%d..%d.\n",
+                        i + 1, n, info->extra_min, info->extra_max);
+                return 0;
+            }
+            out->extra_frequency[n] += 1.0;
+        }
+    }
+
+    double main_norm = (double)draw_count * (double)info->main_count;
+    if (main_norm <= 0.0)
+        main_norm = 1.0;
+    for (int n = info->main_min; n <= info->main_max; n++)
+        out->main_frequency[n] /= main_norm;
+    out->has_main_frequency = 1;
+
+    if (info->extra_count > 0)
+    {
+        double extra_norm = (double)draw_count * (double)info->extra_count;
+        if (extra_norm <= 0.0)
+            extra_norm = 1.0;
+        for (int n = info->extra_min; n <= info->extra_max; n++)
+            out->extra_frequency[n] /= extra_norm;
+        out->has_extra_frequency = 1;
+    }
+    return 1;
+}
+
+/* ---------------------------------------------------------
+   CLOSEST-SEED JSON INPUT PARSING
+
+   A deliberately small, whitespace-tolerant reader for the JSON written by
+   print_closest_seed_json(). It understands string literals (so brackets inside
+   strings never confuse nesting) but is not a general JSON parser.
+   --------------------------------------------------------- */
+
+/** @brief Skip JSON whitespace inside [p, end). */
+static const char *json_skip_ws(const char *p, const char *end)
+{
+    while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r'))
+        p++;
+    return p;
+}
+
+/** @brief Return pointer just past the string literal starting at @p p ('"'), or NULL. */
+static const char *json_skip_string(const char *p, const char *end)
+{
+    if (p >= end || *p != '"')
+        return NULL;
+    for (p++; p < end; p++)
+    {
+        if (*p == '\\')
+        {
+            p++;
+            continue;
+        }
+        if (*p == '"')
+            return p + 1;
+    }
+    return NULL;
+}
+
+/**
+ * @brief Return pointer to the bracket closing the array/object that opens at @p open.
+ */
+static const char *json_find_container_end(const char *open, const char *end)
+{
+    if (!open || open >= end || (*open != '[' && *open != '{'))
+        return NULL;
+
+    int depth = 0;
+    for (const char *p = open; p < end; p++)
+    {
+        if (*p == '"')
+        {
+            p = json_skip_string(p, end);
+            if (!p)
+                return NULL;
+            p--; /* loop increment moves past the closing quote */
+        }
+        else if (*p == '[' || *p == '{')
+            depth++;
+        else if (*p == ']' || *p == '}')
+        {
+            if (--depth == 0)
+                return p;
+        }
+    }
+    return NULL;
+}
+
+/**
+ * @brief Find `"key"` followed by optional whitespace and ':' inside [start, end).
+ * @return Pointer to the first non-whitespace character of the value, or NULL.
+ */
+static const char *json_find_value(const char *start, const char *end, const char *key)
+{
+    size_t key_len = strlen(key);
+    for (const char *p = start; p && p < end; p++)
+    {
+        if (*p != '"')
+            continue;
+        const char *after = json_skip_string(p, end);
+        if (!after)
+            return NULL;
+        if ((size_t)(after - p) == key_len + 2 && memcmp(p + 1, key, key_len) == 0)
+        {
+            const char *q = json_skip_ws(after, end);
+            if (q < end && *q == ':')
+                return json_skip_ws(q + 1, end);
+        }
+        p = after - 1;
+    }
+    return NULL;
+}
+
+/** @brief Parse a JSON integer (optional '-') value at @p p into @p out. */
+static int json_parse_ll(const char *p, const char *end, long long *out, const char **out_next)
+{
+    if (!p || p >= end || !(isdigit((unsigned char)*p) || *p == '-'))
+        return 0;
+    char *stop = NULL;
+    errno = 0;
+    long long v = strtoll(p, &stop, 10);
+    if (errno != 0 || stop == p || stop > end || *stop == '.' || *stop == 'e' || *stop == 'E')
+        return 0;
+    *out = v;
+    if (out_next)
+        *out_next = stop;
+    return 1;
+}
+
+/**
+ * @brief Parse one frequency array (objects with "number" and "frequency") from closest-seed JSON.
+ *
+ * Every number in [number_min, number_max] must appear exactly once with a finite frequency in
+ * [0, 1]; anything else is an error.
+ */
+static int parse_frequency_array(const char *json, const char *json_end, const char *array_key,
+                                 double *out_frequency, int number_min, int number_max)
+{
+    const char *array_start = json_find_value(json, json_end, array_key);
+    if (!array_start || *array_start != '[')
+    {
+        fprintf(stderr, "Error: closest-seed input is missing the \"%s\" array.\n", array_key);
+        return 0;
+    }
+    const char *array_end = json_find_container_end(array_start, json_end);
+    if (!array_end)
+    {
+        fprintf(stderr, "Error: closest-seed input has an unterminated \"%s\" array.\n", array_key);
+        return 0;
+    }
+
+    unsigned char seen[CLOSEST_SEED_FREQ_TABLE_SIZE] = {0};
+    int entries = 0;
+    const char *p = json_skip_ws(array_start + 1, array_end);
+    while (p < array_end)
+    {
+        if (*p != '{')
+        {
+            fprintf(stderr, "Error: closest-seed input \"%s\" must contain only objects.\n",
+                    array_key);
+            return 0;
+        }
+        const char *obj_end = json_find_container_end(p, array_end);
+        if (!obj_end)
+        {
+            fprintf(stderr, "Error: closest-seed input has a malformed \"%s\" entry.\n", array_key);
+            return 0;
+        }
+
+        long long number = 0;
+        const char *num_p = json_find_value(p, obj_end, "number");
+        const char *freq_p = json_find_value(p, obj_end, "frequency");
+        char *freq_stop = NULL;
+        double freq = freq_p ? strtod(freq_p, &freq_stop) : 0.0;
+        if (!json_parse_ll(num_p, obj_end, &number, NULL) || !freq_p || freq_stop == freq_p ||
+            freq_stop > obj_end)
+        {
+            fprintf(stderr,
+                    "Error: closest-seed input \"%s\" entry %d needs numeric \"number\" and "
+                    "\"frequency\" fields.\n",
+                    array_key, entries + 1);
+            return 0;
+        }
+        if (number < number_min || number > number_max)
+        {
+            fprintf(stderr,
+                    "Error: closest-seed input \"%s\" number %lld is outside the game range "
+                    "%d..%d.\n",
+                    array_key, number, number_min, number_max);
+            return 0;
+        }
+        if (!isfinite(freq) || freq < 0.0 || freq > 1.0)
+        {
+            fprintf(stderr,
+                    "Error: closest-seed input \"%s\" frequency for number %lld must be in "
+                    "[0, 1].\n",
+                    array_key, number);
+            return 0;
+        }
+        if (seen[number])
+        {
+            fprintf(stderr, "Error: closest-seed input \"%s\" lists number %lld twice.\n",
+                    array_key, number);
+            return 0;
+        }
+        seen[number] = 1;
+        out_frequency[number] = freq;
+        entries++;
+
+        p = json_skip_ws(obj_end + 1, array_end);
+        if (p < array_end)
+        {
+            if (*p != ',')
+            {
+                fprintf(stderr, "Error: closest-seed input \"%s\" is not a valid JSON array.\n",
+                        array_key);
+                return 0;
+            }
+            p = json_skip_ws(p + 1, array_end);
+        }
+    }
+
+    int expected = number_max - number_min + 1;
+    if (entries != expected)
+    {
+        fprintf(stderr,
+                "Error: closest-seed input \"%s\" has %d entries; expected %d (numbers %d..%d).\n",
+                array_key, entries, expected, number_min, number_max);
+        return 0;
+    }
+    return 1;
+}
+
+/** @brief Parse the top-level "game" string; returns 1 and fills @p out on success. */
+static int parse_json_game_name(const char *json, const char *json_end, char *out, size_t out_size)
+{
+    const char *p = json_find_value(json, json_end, "game");
+    const char *str_end = p ? json_skip_string(p, json_end) : NULL;
+    if (!str_end)
+        return 0;
+
+    size_t n = 0;
+    for (const char *c = p + 1; c < str_end - 1; c++)
+    {
+        char ch = *c;
+        if (ch == '\\')
+        {
+            c++;
+            switch (*c)
+            {
+            case 'n':
+                ch = '\n';
+                break;
+            case 't':
+                ch = '\t';
+                break;
+            case 'r':
+                ch = '\r';
+                break;
+            case 'u': /* Non-ASCII escapes cannot match a plugin name we would print. */
+                return 0;
+            default:
+                ch = *c; /* \" \\ \/ */
+                break;
+            }
+        }
+        if (n + 1 >= out_size)
+            return 0;
+        out[n++] = ch;
+    }
+    out[n] = '\0';
+    return 1;
+}
+
+/** @brief Read a whole (<= 10 MiB) file into a NUL-terminated heap buffer. */
+static char *read_small_text_file(const char *file_path, size_t *out_len)
+{
+    FILE *f = fopen(file_path, "rb");
+    if (!f)
+        return NULL;
+
+    char *buf = NULL;
+    long size = -1;
+    if (fseek(f, 0, SEEK_END) == 0)
+        size = ftell(f);
+    if (size > 0 && size <= 10 * 1024 * 1024 && fseek(f, 0, SEEK_SET) == 0)
+    {
+        buf = calloc((size_t)size + 1, 1);
+        if (buf && fread(buf, 1, (size_t)size, f) != (size_t)size)
+        {
+            free(buf);
+            buf = NULL;
+        }
+    }
+    fclose(f);
+    if (buf && out_len)
+        *out_len = (size_t)size;
+    return buf;
+}
+
+/**
+ * @brief Parse closest-seed JSON output for seeds and historical reference frequencies.
+ *
+ * Prints a specific error message on failure.
+ */
+static int parse_closest_seed_json_file(const char *file_path, const char *expected_game,
+                                        const LotteryInfo *info, ClosestSeedReference *out)
+{
+    if (!file_path || !info || !out)
+        return 0;
+
+    memset(out, 0, sizeof(*out));
+
+    size_t len = 0;
+    char *json = read_small_text_file(file_path, &len);
+    if (!json)
+    {
+        fprintf(stderr,
+                "Error: Cannot read closest-seed input '%s' (missing, empty or > 10 MiB).\n",
+                file_path);
+        return 0;
+    }
+    const char *json_end = json + len;
+    int ok = 0;
+
+    char file_game[256];
+    if (!parse_json_game_name(json, json_end, file_game, sizeof(file_game)))
+    {
+        fprintf(stderr, "Error: closest-seed input is missing a valid \"game\" field.\n");
+        goto done;
+    }
+    if (expected_game && strcasecmp(file_game, expected_game) != 0)
+    {
+        fprintf(stderr,
+                "Error: closest-seed input was generated for game '%s' but --game is '%s'.\n",
+                file_game, expected_game);
+        goto done;
+    }
+
+    long long historical_draw_count = 0;
+    if (!json_parse_ll(json_find_value(json, json_end, "historical_draw_count"), json_end,
+                       &historical_draw_count, NULL))
+    {
+        fprintf(stderr, "Error: closest-seed input is missing integer "
+                        "\"reference.historical_draw_count\".\n");
+        goto done;
+    }
+    if (historical_draw_count < 1 || historical_draw_count > CLOSEST_SEED_MAX_HISTORICAL_DRAWS)
+    {
+        fprintf(stderr,
+                "Error: closest-seed input historical_draw_count %lld must be between 1 and %d.\n",
+                historical_draw_count, CLOSEST_SEED_MAX_HISTORICAL_DRAWS);
+        goto done;
+    }
+    out->historical_draw_count = (int)historical_draw_count;
+
+    const char *top_start = json_find_value(json, json_end, "top_candidates");
+    const char *top_end =
+        (top_start && *top_start == '[') ? json_find_container_end(top_start, json_end) : NULL;
+    if (!top_end)
+    {
+        fprintf(stderr, "Error: closest-seed input is missing the \"top_candidates\" array.\n");
+        goto done;
+    }
+
+    int listed = 0;
+    const char *p = json_skip_ws(top_start + 1, top_end);
+    while (p < top_end)
+    {
+        const char *obj_end = (*p == '{') ? json_find_container_end(p, top_end) : NULL;
+        const char *seed_p = obj_end ? json_find_value(p, obj_end, "seed") : NULL;
+        char *stop = NULL;
+        unsigned long long seed = 0;
+        if (seed_p && isdigit((unsigned char)*seed_p))
+        {
+            errno = 0;
+            seed = strtoull(seed_p, &stop, 10);
+        }
+        if (!seed_p || !stop || stop == seed_p || stop > obj_end || errno != 0 || *stop == '.' ||
+            *stop == 'e' || *stop == 'E')
+        {
+            fprintf(stderr,
+                    "Error: closest-seed input top_candidates entry %d needs a non-negative "
+                    "integer \"seed\" (0..18446744073709551615).\n",
+                    listed + 1);
+            goto done;
+        }
+        if (out->seed_count < SEED_CALIBRATION_MAX_TOP_K)
+            out->seeds[out->seed_count++] = (uint64_t)seed;
+        listed++;
+
+        p = json_skip_ws(obj_end + 1, top_end);
+        if (p < top_end && *p == ',')
+            p = json_skip_ws(p + 1, top_end);
+        else if (p < top_end)
+        {
+            fprintf(stderr, "Error: closest-seed input \"top_candidates\" is not a valid array.\n");
+            goto done;
+        }
+    }
+
+    if (out->seed_count <= 0)
+    {
+        fprintf(stderr, "Error: closest-seed input \"top_candidates\" is empty.\n");
+        goto done;
+    }
+    if (listed > out->seed_count)
+    {
+        fprintf(stderr, "Warning: closest-seed input lists %d seeds; only the first %d are used.\n",
+                listed, out->seed_count);
+    }
+
+    if (!parse_frequency_array(json, json_end, "main_frequency", out->main_frequency,
+                               info->main_min, info->main_max))
+        goto done;
+    out->has_main_frequency = 1;
+
+    if (info->extra_count > 0)
+    {
+        if (!parse_frequency_array(json, json_end, "extra_frequency", out->extra_frequency,
+                                   info->extra_min, info->extra_max))
+            goto done;
+        out->has_extra_frequency = 1;
+    }
+
+    ok = 1;
+
+done:
+    free(json);
+    return ok;
+}
+
+/* ---------------------------------------------------------
+   CLOSEST-SEED DRAW SYNTHESIS
+   --------------------------------------------------------- */
+
+/** @brief One candidate value for a draw position; lower score is better. */
+typedef struct
+{
+    int value;
+    int rank; /* 0-based rank of the first seed that produced the value */
+    double score;
+} PositionCandidate;
+
+/**
+ * @brief Candidates for --closest-seed-input: group the per-seed values at one position and score
+ * each distinct value by |sample frequency across seeds - reference frequency|.
+ */
+static int build_sample_frequency_candidates(const int *values, int value_count,
+                                             const double *reference_frequency,
+                                             const unsigned char *used, PositionCandidate *out,
+                                             FILE *trace)
+{
+    int counts[SEED_CALIBRATION_MAX_TOP_K];
+    int n = 0;
+
+    for (int i = 0; i < value_count; i++)
+    {
+        int idx = 0;
+        while (idx < n && out[idx].value != values[i])
+            idx++;
+        if (idx == n)
+        {
+            out[n].value = values[i];
+            out[n].rank = i;
+            counts[n++] = 0;
+        }
+        counts[idx]++;
+    }
+
+    if (trace)
+    {
+        fprintf(trace, "  candidate-by-seed-rank:");
+        for (int i = 0; i < value_count; i++)
+            fprintf(trace, " #%d=%d", i + 1, values[i]);
+        fputc('\n', trace);
+    }
+
+    for (int i = 0; i < n; i++)
+    {
+        double sample = (double)counts[i] / (double)value_count;
+        double ref = reference_frequency[out[i].value];
+        out[i].score = fabs(sample - ref);
+        if (trace)
+        {
+            fprintf(trace,
+                    "  value=%d count=%d sample=%.9f reference=%.9f delta=%.9f first_rank=%d%s\n",
+                    out[i].value, counts[i], sample, ref, out[i].score, out[i].rank + 1,
+                    used[out[i].value] ? " [already-used]" : "");
+        }
+    }
+    return n;
+}
+
+/**
+ * @brief Candidates for --next-draw: one per seed, scored by |seed period frequency - reference
+ * frequency| of the number that seed produced.
+ */
+static int
+build_period_score_candidates(const int *values, int value_count,
+                              const double (*seed_frequency)[CLOSEST_SEED_FREQ_TABLE_SIZE],
+                              const double *reference_frequency, double norm,
+                              const unsigned char *used, PositionCandidate *out, FILE *trace)
+{
+    for (int s = 0; s < value_count; s++)
+    {
+        int v = values[s];
+        double delta = seed_frequency[s][v] - reference_frequency[v];
+        out[s].value = v;
+        out[s].rank = s;
+        out[s].score = fabs(delta);
+        if (trace)
+        {
+            fprintf(trace,
+                    "  rank=%d candidate=%d ref=%.9f seed=%.9f error=%.9f delta_count=%+lld%s\n",
+                    s + 1, v, reference_frequency[v], seed_frequency[s][v], out[s].score,
+                    (long long)llround(delta * norm), used[v] ? " [already-used]" : "");
+        }
+    }
+    return value_count;
+}
+
+/**
+ * @brief Choose the value for one position.
+ *
+ * Picks the unused candidate with the lowest score (tie-break: best seed rank). When every
+ * candidate is already used in this draw, falls back deterministically to the unused number in
+ * [number_min, number_max] with the highest reference frequency (tie-break: smallest number).
+ *
+ * @return The chosen value, or -1 if the range has no unused number left.
+ */
+static int select_position_value(const PositionCandidate *cands, int cand_count, int number_min,
+                                 int number_max, const unsigned char *used,
+                                 const double *reference_frequency, FILE *trace)
+{
+    int best = -1;
+    for (int i = 0; i < cand_count; i++)
+    {
+        int v = cands[i].value;
+        if (v < number_min || v > number_max || used[v])
+            continue;
+        if (best < 0 || cands[i].score < cands[best].score - 1e-15 ||
+            (fabs(cands[i].score - cands[best].score) <= 1e-15 && cands[i].rank < cands[best].rank))
+            best = i;
+    }
+
+    if (best >= 0)
+    {
+        if (trace)
+            fprintf(trace,
+                    "  selected=%d from seed-rank=%d (lowest frequency error=%.9f; "
+                    "tie-break=seed rank)\n",
+                    cands[best].value, cands[best].rank + 1, cands[best].score);
+        return cands[best].value;
+    }
+
+    int fallback = -1;
+    for (int v = number_min; v <= number_max; v++)
+    {
+        if (used[v])
+            continue;
+        if (fallback < 0 || reference_frequency[v] > reference_frequency[fallback] + 1e-15)
+            fallback = v;
+    }
+
+    if (trace)
+    {
+        if (fallback >= 0)
+            fprintf(trace,
+                    "  selected=%d (fallback: all candidates already used; unused number with "
+                    "highest reference frequency=%.9f, tie-break=smallest number)\n",
+                    fallback, reference_frequency[fallback]);
+        else
+            fprintf(trace, "  selected=<none> (no unused number left in range)\n");
+    }
+    return fallback;
+}
+
+/**
+ * @brief Synthesize one draw at @p draw_index from all closest-seed candidates.
+ *
+ * With @p period == NULL the --closest-seed-input strategy (sample frequency across seeds) is
+ * used; otherwise the --next-draw strategy (per-seed period frequency error). Numbers are unique
+ * within the main group and within the extra group.
+ */
+static int synthesize_closest_seed_draw(const ClosestSeedReference *closest_ref,
+                                        const LotteryInfo *info, int draw_index,
+                                        const ClosestSeedPeriodFrequencies *period,
+                                        LotteryResult *out_result, FILE *trace)
+{
+    if (!closest_ref || !info || !out_result || closest_ref->seed_count <= 0)
+        return 0;
+
+    LotteryResult per_seed[SEED_CALIBRATION_MAX_TOP_K];
+    memset(out_result, 0, sizeof(*out_result));
+
+    for (int s = 0; s < closest_ref->seed_count; s++)
+    {
+        generate_draw_seeded(info->main_count, info->main_min, info->main_max, info->extra_count,
+                             info->extra_min, info->extra_max,
+                             derive_draw_seed(closest_ref->seeds[s], draw_index), &per_seed[s],
+                             silent_callback);
+    }
+
+    if (trace)
+    {
+        for (int s = 0; s < closest_ref->seed_count; s++)
+        {
+            fprintf(trace, "  Seed rank #%d seed=%llu -> Main:", s + 1,
+                    (unsigned long long)closest_ref->seeds[s]);
+            for (int j = 0; j < per_seed[s].main_count; j++)
+                fprintf(trace, " %d", per_seed[s].main_numbers[j]);
+            if (per_seed[s].extra_count > 0)
+            {
+                fprintf(trace, " | Extra:");
+                for (int j = 0; j < per_seed[s].extra_count; j++)
+                    fprintf(trace, " %d", per_seed[s].extra_numbers[j]);
+            }
+            fputc('\n', trace);
+        }
+    }
+
+    out_result->main_count = info->main_count;
+    out_result->extra_count = info->extra_count;
+
+    for (int group = 0; group < 2; group++)
+    {
+        const int is_extra = (group == 1);
+        const int count = is_extra ? info->extra_count : info->main_count;
+        const int number_min = is_extra ? info->extra_min : info->main_min;
+        const int number_max = is_extra ? info->extra_max : info->main_max;
+        const double *reference =
+            is_extra ? closest_ref->extra_frequency : closest_ref->main_frequency;
+        const double norm = (double)closest_ref->historical_draw_count * (double)count;
+        int *out_numbers = is_extra ? out_result->extra_numbers : out_result->main_numbers;
+        unsigned char used[CLOSEST_SEED_FREQ_TABLE_SIZE] = {0};
+
+        for (int p = 0; p < count; p++)
+        {
+            int values[SEED_CALIBRATION_MAX_TOP_K];
+            PositionCandidate cands[SEED_CALIBRATION_MAX_TOP_K];
+            int cand_count = 0;
+
+            for (int s = 0; s < closest_ref->seed_count; s++)
+            {
+                values[s] = is_extra ? per_seed[s].extra_numbers[p] : per_seed[s].main_numbers[p];
+                if (values[s] < number_min || values[s] > number_max)
+                    return 0; /* generator contract violated */
+            }
+
+            if (trace)
+                fprintf(trace, "Trace %s position %d\n", is_extra ? "extra" : "main", p + 1);
+
+            if (period)
+                cand_count = build_period_score_candidates(
+                    values, closest_ref->seed_count,
+                    (const double (*)[CLOSEST_SEED_FREQ_TABLE_SIZE])(
+                        is_extra ? period->extra_frequency : period->main_frequency),
+                    reference, norm, used, cands, trace);
+            else
+                cand_count = build_sample_frequency_candidates(values, closest_ref->seed_count,
+                                                               reference, used, cands, trace);
+
+            int chosen = select_position_value(cands, cand_count, number_min, number_max, used,
+                                               reference, trace);
+            if (chosen < 0)
+                return 0;
+            out_numbers[p] = chosen;
+            used[chosen] = 1;
+        }
+    }
+
+    return 1;
+}
+
+/**
+ * @brief Compute one seed's normalized number frequencies over period draws [0..N-1].
+ */
+static void compute_seed_period_frequency(const ClosestSeedReference *closest_ref,
+                                          const LotteryInfo *info, uint64_t seed,
+                                          double *main_frequency, double *extra_frequency)
+{
+    memset(main_frequency, 0, sizeof(double) * CLOSEST_SEED_FREQ_TABLE_SIZE);
+    memset(extra_frequency, 0, sizeof(double) * CLOSEST_SEED_FREQ_TABLE_SIZE);
+
+    for (int i = 0; i < closest_ref->historical_draw_count; i++)
+    {
+        LotteryResult draw;
+        generate_draw_seeded(info->main_count, info->main_min, info->main_max, info->extra_count,
+                             info->extra_min, info->extra_max, derive_draw_seed(seed, i), &draw,
+                             silent_callback);
+
+        for (int j = 0; j < draw.main_count; j++)
+            if (draw.main_numbers[j] >= info->main_min && draw.main_numbers[j] <= info->main_max)
+                main_frequency[draw.main_numbers[j]] += 1.0;
+        for (int j = 0; j < draw.extra_count; j++)
+            if (draw.extra_numbers[j] >= info->extra_min &&
+                draw.extra_numbers[j] <= info->extra_max)
+                extra_frequency[draw.extra_numbers[j]] += 1.0;
+    }
+
+    double main_norm = (double)closest_ref->historical_draw_count * (double)info->main_count;
+    if (main_norm > 0.0)
+        for (int n = info->main_min; n <= info->main_max; n++)
+            main_frequency[n] /= main_norm;
+
+    if (info->extra_count > 0)
+    {
+        double extra_norm = (double)closest_ref->historical_draw_count * (double)info->extra_count;
+        if (extra_norm > 0.0)
+            for (int n = info->extra_min; n <= info->extra_max; n++)
+                extra_frequency[n] /= extra_norm;
+    }
+}
+
+/** @brief Build per-seed normalized frequencies over period draws [0..N-1] for every seed. */
+static int build_seed_period_frequencies(const ClosestSeedReference *closest_ref,
+                                         const LotteryInfo *info, ClosestSeedPeriodFrequencies *out)
+{
+    if (!closest_ref || !info || !out || closest_ref->historical_draw_count <= 0)
+        return 0;
+
+    for (int s = 0; s < closest_ref->seed_count; s++)
+        compute_seed_period_frequency(closest_ref, info, closest_ref->seeds[s],
+                                      out->main_frequency[s], out->extra_frequency[s]);
+    return 1;
+}
+
+/** @brief Compute normalized L1 distance between simulated and reference frequencies. */
+static double compute_frequency_l1_distance(const double *sim_frequency,
+                                            const double *ref_frequency, int number_min,
+                                            int number_max)
+{
+    if (!sim_frequency || number_min > number_max)
+        return 0.0;
+
+    double sum = 0.0;
+    int count = 0;
+    for (int n = number_min; n <= number_max; n++)
+    {
+        double ref = ref_frequency ? ref_frequency[n] : 0.0;
+        sum += fabs(sim_frequency[n] - ref);
+        count++;
+    }
+
+    return (count > 0) ? (sum / (double)count) : 0.0;
+}
+
+/** @brief Compute per-seed period-frequency diagnostics against reference frequencies. */
+static int compute_seed_period_frequency_diagnostics(const ClosestSeedReference *closest_ref,
+                                                     const LotteryInfo *info, uint64_t seed,
+                                                     double *main_l1, double *extra_l1,
+                                                     double *combined_l1)
+{
+    if (!closest_ref || !info || closest_ref->historical_draw_count <= 0)
+        return 0;
+
+    double main_frequency[CLOSEST_SEED_FREQ_TABLE_SIZE];
+    double extra_frequency[CLOSEST_SEED_FREQ_TABLE_SIZE];
+    compute_seed_period_frequency(closest_ref, info, seed, main_frequency, extra_frequency);
+
+    double local_main_l1 = compute_frequency_l1_distance(
+        main_frequency, closest_ref->main_frequency, info->main_min, info->main_max);
+    double local_extra_l1 = 0.0;
+    if (info->extra_count > 0)
+        local_extra_l1 = compute_frequency_l1_distance(
+            extra_frequency, closest_ref->extra_frequency, info->extra_min, info->extra_max);
+
+    if (main_l1)
+        *main_l1 = local_main_l1;
+    if (extra_l1)
+        *extra_l1 = local_extra_l1;
+    if (combined_l1)
+        *combined_l1 =
+            (info->extra_count > 0) ? 0.5 * (local_main_l1 + local_extra_l1) : local_main_l1;
+
+    return 1;
 }
 
 #define CLOSEST_SEED_PROGRESS_BAR_WIDTH 32
@@ -643,6 +1588,7 @@ static void print_usage(const char *prog)
             "  --frequency-distribution Print frequency distribution over historical data\n"
             "  --analytics-barometer   Print overdue barometer over historical data\n"
             "  --analytics-hot-cold    Print hot/cold number rankings over historical data\n"
+            "  --draw-count-period     Return number of historical draws in [--from, --to]\n"
             "  --top N                 Number of hot/cold entries (default: 10)\n"
             "  --explain               Show formulas/assumptions for analytics outputs\n"
             "  --format FORMAT         Analytics output format: table, json, csv\n"
@@ -686,6 +1632,8 @@ static void print_usage(const char *prog)
             "  %s --game \"Lotto 6aus49\" --download-url set https://example/api\n"
             "  %s --download-config \"#sym:HISTORICAL_DB_DOWNLOAD_WORKERS_DEFAULT\" set 10\n"
             "  %s --game \"Lotto 6aus49\" --draws 10000 --simulation-analytics --format json\n"
+            "  %s --game \"Lotto 6aus49\" --draw-count-period --from 2026-01-01 --to 2026-07-01\n"
+            "  %s --game \"Lotto 6aus49\" --next-draw closest-10.json --sorted\n"
             "\n"
             "Environment Variables:\n"
             "  OPEN_LOTTO_PLUGIN_PATH  Custom plugin directory path\n"
@@ -693,7 +1641,8 @@ static void print_usage(const char *prog)
             "  OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT  Override upstream sync endpoint\n"
             "  OPEN_LOTTO_SOURCES_CONFIG               Override sources config path\n"
             "  OPEN_LOTTO_DOWNLOAD_CONFIG              Override download config path\n",
-            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
+            prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
+            prog, prog);
 
     fprintf(stderr,
             "\nClosest-Seed Mode:\n"
@@ -706,6 +1655,11 @@ static void print_usage(const char *prog)
             "  --max-evals N           Max seed evaluations (default: 100000)\n"
             "  --threads N             Worker threads for closest-seed search (default: max CPUs)\n"
             "  --output-file FILE      Write closest-seed output directly to FILE\n"
+            "  --next-draw FILE        Read closest-seed JSON and synthesize exactly draw N+1\n"
+            "                         (always traces to stderr; no --draws/--format/--trace-draw)\n"
+            "  --closest-seed-input FILE\n"
+            "                         Read closest-seed JSON and synthesize next draw(s)\n"
+            "  --trace-draw N          With --closest-seed-input: trace only synthesized draw N\n"
             "  --timeout-ms N          Soft time budget hint in milliseconds (reserved)\n"
             "\n"
             "Closest-Seed Example:\n"
@@ -1130,6 +2084,7 @@ int main(int argc, char **argv)
     int analytics_barometer = 0;
     int analytics_hot_cold = 0;
     int simulation_analytics = 0;
+    int period_draw_count_mode = 0;
     int closest_seed_mode = 0;
     uint64_t closest_seed_start = 0;
     uint64_t closest_seed_end = 0;
@@ -1145,11 +2100,16 @@ int main(int argc, char **argv)
     int closest_seed_threads_set = 0;
     int closest_seed_timeout_ms = 0;
     int closest_seed_timeout_set = 0;
+    int closest_seed_trace_draw = 0;
+    int closest_seed_trace_draw_set = 0;
     const char *closest_seed_output_file = NULL;
+    const char *next_draw_input_file = NULL;
+    const char *closest_seed_input_file = NULL;
     const char *sim_historical_csv_output = NULL;
     int analytics_top = 10;
     int analytics_explain = 0;
     const char *analytics_format = "table";
+    int analytics_format_set = 0;
     const char *historical_csv = NULL;
     int historical_csv_from_cli = 0;
 
@@ -1411,6 +2371,10 @@ int main(int argc, char **argv)
         {
             simulation_analytics = 1;
         }
+        else if (strcmp(argv[i], "--draw-count-period") == 0)
+        {
+            period_draw_count_mode = 1;
+        }
         else if (strcmp(argv[i], "--closest-seed") == 0)
         {
             closest_seed_mode = 1;
@@ -1571,6 +2535,61 @@ int main(int argc, char **argv)
                 return 1;
             }
         }
+        else if (strcmp(argv[i], "--closest-seed-input") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--closest-seed-input requires a file path.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            closest_seed_input_file = argv[++i];
+            if (closest_seed_input_file[0] == '\0')
+            {
+                fprintf(stderr, "--closest-seed-input requires a non-empty path.\n");
+                config_free(&cfg);
+                return 1;
+            }
+        }
+        else if (strcmp(argv[i], "--next-draw") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--next-draw requires a file path.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            next_draw_input_file = argv[++i];
+            if (next_draw_input_file[0] == '\0')
+            {
+                fprintf(stderr, "--next-draw requires a non-empty path.\n");
+                config_free(&cfg);
+                return 1;
+            }
+        }
+        else if (strcmp(argv[i], "--trace-draw") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                fprintf(stderr, "--trace-draw requires a positive integer.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            char *end = NULL;
+            long parsed = strtol(argv[++i], &end, 10);
+            if (!end || *end != '\0' || parsed <= 0 || parsed > INT_MAX)
+            {
+                fprintf(stderr, "Error: --trace-draw must be a positive integer.\n");
+                config_free(&cfg);
+                return 1;
+            }
+
+            closest_seed_trace_draw = (int)parsed;
+            closest_seed_trace_draw_set = 1;
+        }
         else if (strcmp(argv[i], "--format") == 0)
         {
             if (i + 1 >= argc)
@@ -1581,6 +2600,7 @@ int main(int argc, char **argv)
             }
 
             analytics_format = argv[++i];
+            analytics_format_set = 1;
             if (strcmp(analytics_format, "table") != 0 && strcmp(analytics_format, "json") != 0 &&
                 strcmp(analytics_format, "csv") != 0)
             {
@@ -1863,8 +2883,46 @@ int main(int argc, char **argv)
         }
     }
 
+    if (period_draw_count_mode)
+    {
+        if (animate || gui || export_format || simulation_analytics || analytics_mode_count > 0 ||
+            closest_seed_mode || closest_seed_input_file || sim_historical_csv_output ||
+            database_gewinnzahlen_cmd)
+        {
+            fprintf(stderr, "Error: --draw-count-period is a standalone analytics mode and "
+                            "cannot be combined with draw generation, closest-seed, export, or "
+                            "other analytics modes.\n");
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (!period_from || !period_to)
+        {
+            fprintf(stderr, "Error: --draw-count-period requires --from and --to.\n");
+            fprintf(stderr, "Hint: Example: --draw-count-period --from 2026-01-01 --to "
+                            "2026-07-04\n");
+            config_free(&cfg);
+            return 1;
+        }
+    }
+
     if (closest_seed_mode)
     {
+        if (next_draw_input_file)
+        {
+            fprintf(stderr, "Error: --closest-seed and --next-draw cannot be used together.\n");
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (closest_seed_input_file)
+        {
+            fprintf(stderr,
+                    "Error: --closest-seed and --closest-seed-input cannot be used together.\n");
+            config_free(&cfg);
+            return 1;
+        }
+
         if (animate || export_format || simulation_analytics || analytics_mode_count > 0 ||
             sim_historical_csv_output)
         {
@@ -1963,6 +3021,74 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (closest_seed_trace_draw_set && !closest_seed_input_file && !next_draw_input_file)
+    {
+        fprintf(stderr, "Error: --trace-draw is supported only with --closest-seed-input.\n");
+        config_free(&cfg);
+        return 1;
+    }
+
+    if (next_draw_input_file && closest_seed_input_file)
+    {
+        fprintf(stderr, "Error: --next-draw and --closest-seed-input cannot be used together.\n");
+        config_free(&cfg);
+        return 1;
+    }
+
+    if (next_draw_input_file)
+    {
+        /* Check the CLI value only: a config-file "draws" default must not break --next-draw. */
+        if (cli_draws != -1 && cli_draws != 1)
+        {
+            fprintf(stderr,
+                    "Error: --next-draw computes exactly one draw (N+1); do not use --draws.\n");
+            config_free(&cfg);
+            return 1;
+        }
+        draws = 1;
+
+        if (closest_seed_trace_draw_set)
+        {
+            fprintf(stderr, "Error: --trace-draw cannot be used with --next-draw; the N+1 trace "
+                            "is always printed to stderr.\n");
+            config_free(&cfg);
+            return 1;
+        }
+    }
+
+    if ((closest_seed_input_file || next_draw_input_file) && analytics_format_set)
+    {
+        fprintf(stderr, "Error: --format is not supported with --closest-seed-input or "
+                        "--next-draw (output is always a draw listing).\n");
+        config_free(&cfg);
+        return 1;
+    }
+
+    if (closest_seed_input_file &&
+        (animate || gui || closest_seed_mode || simulation_analytics || analytics_mode_count > 0 ||
+         period_draw_count_mode || historical_csv_from_cli || sim_historical_csv_output ||
+         database_gewinnzahlen_cmd || reload_plugin || period_from || period_to ||
+         closest_seed_output_file || export_format || export_filename))
+    {
+        fprintf(stderr, "Error: --closest-seed-input is a standalone prediction mode and cannot be "
+                        "combined with closest-seed/analytics/gui/export options.\n");
+        config_free(&cfg);
+        return 1;
+    }
+
+    if (next_draw_input_file &&
+        (animate || gui || closest_seed_mode || closest_seed_input_file || simulation_analytics ||
+         analytics_mode_count > 0 || period_draw_count_mode || historical_csv_from_cli ||
+         sim_historical_csv_output || database_gewinnzahlen_cmd || reload_plugin || period_from ||
+         period_to || closest_seed_output_file || export_format || export_filename))
+    {
+        fprintf(stderr,
+                "Error: --next-draw is a standalone prediction mode and cannot be combined with "
+                "closest-seed/analytics/gui/export options.\n");
+        config_free(&cfg);
+        return 1;
+    }
+
     /* Default GUI mode to 2D if not specified */
     if (!gui_mode)
     {
@@ -2011,6 +3137,199 @@ int main(int argc, char **argv)
         registry_destroy(registry);
         config_free(&cfg);
         return 1;
+    }
+
+    if (closest_seed_input_file || next_draw_input_file)
+    {
+        int next_draw_mode = (next_draw_input_file != NULL);
+        const char *prediction_input_file =
+            next_draw_mode ? next_draw_input_file : closest_seed_input_file;
+
+        ClosestSeedReference closest_ref;
+        if (!closest_seed_game_supported(&selected->info) ||
+            !parse_closest_seed_json_file(prediction_input_file, selected->name, &selected->info,
+                                          &closest_ref))
+        {
+            fprintf(stderr,
+                    "Error: Invalid closest-seed input file '%s'. Expected JSON output "
+                    "from --closest-seed --format json for the same --game.\n",
+                    prediction_input_file);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (next_draw_mode)
+            log_info("next-draw loaded: file=%s seeds=%d historical_draw_count=%d",
+                     prediction_input_file, closest_ref.seed_count,
+                     closest_ref.historical_draw_count);
+        else
+            log_info("closest-seed-input loaded: file=%s seeds=%d historical_draw_count=%d",
+                     prediction_input_file, closest_ref.seed_count,
+                     closest_ref.historical_draw_count);
+
+        if (next_draw_mode)
+        {
+            int draw_index = closest_ref.historical_draw_count;
+
+            fprintf(stderr,
+                    "Next draw mode: period has N=%d real draws, computing draw N+1 (index=%d)\n",
+                    closest_ref.historical_draw_count, draw_index);
+
+            ClosestSeedPeriodFrequencies *period_freq = calloc(1, sizeof(*period_freq));
+            if (!period_freq ||
+                !build_seed_period_frequencies(&closest_ref, &selected->info, period_freq))
+            {
+                fprintf(stderr,
+                        "Error: Failed to recompute period frequency distributions for next-draw "
+                        "mode.\n");
+                free(period_freq);
+                registry_destroy(registry);
+                config_free(&cfg);
+                return 1;
+            }
+
+            LotteryResult result;
+            fprintf(stderr, "\nNext draw trace (N+1): draw_index=%d\n", draw_index);
+            int synth_ok = synthesize_closest_seed_draw(&closest_ref, &selected->info, draw_index,
+                                                        period_freq, &result, stderr);
+            free(period_freq);
+            if (!synth_ok)
+            {
+                fprintf(stderr, "Error: Failed to synthesize next draw (N+1).\n");
+                registry_destroy(registry);
+                config_free(&cfg);
+                return 1;
+            }
+
+            if (sorted_numbers)
+                sort_lottery_result_numbers(&result);
+
+            printf("Synthesized next draw (N+1) from %d closest-seed candidate(s)\n\n",
+                   closest_ref.seed_count);
+            print_draw_result(selected->name, 1, &result);
+
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 0;
+        }
+
+        if (log_level == LOG_DEBUG && !closest_seed_trace_draw_set)
+        {
+            double diag_start = omp_get_wtime();
+            for (int s = 0; s < closest_ref.seed_count; s++)
+            {
+                double main_l1 = 0.0;
+                double extra_l1 = 0.0;
+                double combined_l1 = 0.0;
+                if (compute_seed_period_frequency_diagnostics(&closest_ref, &selected->info,
+                                                              closest_ref.seeds[s], &main_l1,
+                                                              &extra_l1, &combined_l1))
+                {
+                    if (selected->info.extra_count > 0)
+                    {
+                        log_debug(
+                            "closest-seed-input seed diagnostics: rank=%d seed=%llu "
+                            "period_l1_main=%.9f period_l1_extra=%.9f period_l1_combined=%.9f",
+                            s + 1, (unsigned long long)closest_ref.seeds[s], main_l1, extra_l1,
+                            combined_l1);
+                    }
+                    else
+                    {
+                        log_debug("closest-seed-input seed diagnostics: rank=%d seed=%llu "
+                                  "period_l1_main=%.9f",
+                                  s + 1, (unsigned long long)closest_ref.seeds[s], main_l1);
+                    }
+                }
+            }
+            log_debug("closest-seed-input period diagnostics completed in %.3f sec",
+                      omp_get_wtime() - diag_start);
+        }
+        else if (closest_seed_trace_draw_set)
+        {
+            log_info("closest-seed-input trace mode enabled: draw=%d (period diagnostics skipped)",
+                     closest_seed_trace_draw);
+        }
+
+        log_info("closest-seed-input synthesis plan: requested_draws=%d start_draw_index=%d "
+                 "end_draw_index=%d",
+                 draws, closest_ref.historical_draw_count,
+                 closest_ref.historical_draw_count + draws - 1);
+
+        if (draws > INT_MAX - closest_ref.historical_draw_count)
+        {
+            fprintf(stderr, "Error: --draws %d is too large for historical_draw_count %d.\n", draws,
+                    closest_ref.historical_draw_count);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (closest_seed_trace_draw_set && closest_seed_trace_draw > draws)
+        {
+            fprintf(stderr, "Error: --trace-draw %d exceeds --draws %d.\n", closest_seed_trace_draw,
+                    draws);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        LotteryResult *results = calloc((size_t)draws, sizeof(LotteryResult));
+        if (!results)
+        {
+            fprintf(stderr, "Error: Out of memory while preparing synthesized draws.\n");
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (closest_seed_trace_draw_set)
+            log_set_level(LOG_WARN);
+
+        for (int i = 0; i < draws; i++)
+        {
+            int draw_index = closest_ref.historical_draw_count + i;
+            int trace_this_draw =
+                closest_seed_trace_draw_set && ((i + 1) == closest_seed_trace_draw);
+            if (!closest_seed_trace_draw_set || trace_this_draw)
+                log_debug("closest-seed-input synthesize draw=%d draw_index=%d", i + 1, draw_index);
+
+            if (trace_this_draw)
+                fprintf(stderr, "\nTrace draw #%d (draw_index=%d) across %d closest seeds\n", i + 1,
+                        draw_index, closest_ref.seed_count);
+
+            if (!synthesize_closest_seed_draw(&closest_ref, &selected->info, draw_index, NULL,
+                                              &results[i], trace_this_draw ? stderr : NULL))
+            {
+                fprintf(stderr, "Error: Failed to synthesize draw %d from closest-seed input.\n",
+                        i + 1);
+                free(results);
+                registry_destroy(registry);
+                config_free(&cfg);
+                return 1;
+            }
+
+            if (sorted_numbers)
+                sort_lottery_result_numbers(&results[i]);
+        }
+
+        if (closest_seed_trace_draw_set)
+            log_set_level(log_level);
+
+        if (draws == 1)
+            printf("Synthesized draw from %d closest-seed candidate(s)\n\n",
+                   closest_ref.seed_count);
+        else
+            printf("Synthesized %d draws from %d closest-seed candidate(s)\n\n", draws,
+                   closest_ref.seed_count);
+
+        for (int i = 0; i < draws; i++)
+            print_draw_result(selected->name, i + 1, &results[i]);
+
+        free(results);
+        registry_destroy(registry);
+        config_free(&cfg);
+        return 0;
     }
 
     if (database_gewinnzahlen_cmd)
@@ -2107,6 +3426,18 @@ int main(int argc, char **argv)
         SeedCalibrationDrawContext draw_ctx;
         draw_ctx.info = selected->info;
 
+        ClosestSeedReference closest_reference;
+        if (!closest_seed_game_supported(&selected->info) ||
+            !build_closest_seed_reference(filtered, filtered_count, &selected->info,
+                                          &closest_reference))
+        {
+            free(historical_draws);
+            free(filtered);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
         uint64_t *sampled_seeds = NULL;
         uint64_t sampled_seed_start = closest_seed_start_set ? closest_seed_start : 0ULL;
         uint64_t sampled_seed_end = closest_seed_end_set ? closest_seed_end : UINT64_MAX;
@@ -2195,7 +3526,8 @@ int main(int argc, char **argv)
                     return 1;
                 }
             }
-            print_closest_seed_json(closest_seed_out, &result, period_from, period_to);
+            print_closest_seed_json(closest_seed_out, &result, selected->name, period_from,
+                                    period_to, &selected->info, &closest_reference);
             if (closest_seed_out != stdout)
             {
                 fclose(closest_seed_out);
@@ -2332,6 +3664,95 @@ int main(int argc, char **argv)
         }
 
         free(sampled_seeds);
+        free(historical_draws);
+        free(filtered);
+        registry_destroy(registry);
+        config_free(&cfg);
+        return 0;
+    }
+
+    if (period_draw_count_mode)
+    {
+        HistoricalDraw *historical_draws = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
+        HistoricalDraw *filtered = calloc(ANALYTICS_MAX_DRAWS, sizeof(HistoricalDraw));
+        int draw_count = 0;
+        int filtered_count = 0;
+
+        if (!historical_draws || !filtered)
+        {
+            fprintf(stderr, "Error: Out of memory while preparing draw-count buffers.\n");
+            free(historical_draws);
+            free(filtered);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        int load_rc = VALIDATE_OK;
+        if (historical_csv_from_cli)
+        {
+            load_rc =
+                analytics_load_historical_csv(historical_csv, historical_draws, ANALYTICS_MAX_DRAWS,
+                                              &draw_count, &selected->info);
+        }
+        else
+        {
+            load_rc = analytics_load_historical_db_snapshot(selected->name, NULL, historical_draws,
+                                                            ANALYTICS_MAX_DRAWS, &draw_count,
+                                                            &selected->info);
+        }
+
+        if (load_rc != VALIDATE_OK)
+        {
+            free(historical_draws);
+            free(filtered);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (analytics_filter_period(historical_draws, draw_count, period_from, period_to, filtered,
+                                    &filtered_count) != VALIDATE_OK)
+        {
+            free(historical_draws);
+            free(filtered);
+            registry_destroy(registry);
+            config_free(&cfg);
+            return 1;
+        }
+
+        if (strcmp(analytics_format, "json") == 0)
+        {
+            printf("{\n");
+            printf("  \"mode\": \"draw-count-period\",\n");
+            printf("  \"game\": ");
+            fprint_json_string(stdout, selected->name);
+            printf(",\n  \"period\": {\"from\": ");
+            fprint_json_string(stdout, period_from);
+            printf(", \"to\": ");
+            fprint_json_string(stdout, period_to);
+            printf("},\n");
+            printf("  \"draw_count\": %d\n", filtered_count);
+            printf("}\n");
+        }
+        else if (strcmp(analytics_format, "csv") == 0)
+        {
+            printf("section,key,value,extra\n");
+            printf("summary,mode,draw-count-period,\n");
+            printf("summary,game,%s,\n", selected->name);
+            printf("summary,from,%s,\n", period_from);
+            printf("summary,to,%s,\n", period_to);
+            printf("summary,draw_count,%d,\n", filtered_count);
+        }
+        else
+        {
+            printf("Draw count for period\n");
+            printf("game,%s\n", selected->name);
+            printf("from,%s\n", period_from);
+            printf("to,%s\n", period_to);
+            printf("draw_count,%d\n", filtered_count);
+        }
+
         free(historical_draws);
         free(filtered);
         registry_destroy(registry);
