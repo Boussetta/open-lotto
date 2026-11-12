@@ -220,6 +220,17 @@ Override upstream endpoint (useful for tests/self-hosted mirrors)
 OPEN_LOTTO_GEWINNZAHLEN_URL_EUROJACKPOT="https://..." ./open-lotto --game "Eurojackpot" --database-gewinnzahlen update
 ```
 
+The bulk (historical) download builds further URLs from templates, which can also be overridden.
+Placeholders: `{spielart}`, `{date}` (YYYY-MM-DD) and `{year}`. A history template without `{year}` is fetched once.
+
+```bash
+OPEN_LOTTO_HIST_HISTORY_URL_TEMPLATE="https://mirror.example/{spielart}/{year}.json" \
+OPEN_LOTTO_HIST_DRAW_URL_TEMPLATE="https://mirror.example/{spielart}/{date}.json" \
+  ./open-lotto --game "Eurojackpot" --database-gewinnzahlen update
+```
+
+URLs are passed to `curl` without a shell, and draw dates from upstream data must be strict `YYYY-MM-DD`.
+
 Frequency analytics over an inclusive date range
 
 ```bash
