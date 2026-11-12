@@ -194,16 +194,24 @@ static void log_write(LogLevel level, const char *fmt, va_list args)
     if (level > current_level)
         return;
 
-    // Timestamp
+    // Timestamp (thread-safe: logging is called from OpenMP workers)
     char timebuf[32];
     time_t now = time(NULL);
-    struct tm *tm_info = localtime(&now);
-    strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", tm_info);
+    struct tm tm_info;
+#ifdef _WIN32
+    localtime_s(&tm_info, &now);
+#else
+    localtime_r(&now, &tm_info);
+#endif
+    strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", &tm_info);
 
-    // Console output (colored)
-    fprintf(stderr, "%s[%s] %s: ", level_to_color(level), timebuf, level_to_string(level));
-    vfprintf(stderr, fmt, args);
-    fprintf(stderr, "%s\n", COLOR_RESET);
+    // Format the message once; a va_list may only be consumed once.
+    char msg[2048];
+    vsnprintf(msg, sizeof(msg), fmt, args);
+
+    // Console output (colored), one write per line to limit interleaving
+    fprintf(stderr, "%s[%s] %s: %s%s\n", level_to_color(level), timebuf, level_to_string(level),
+            msg, COLOR_RESET);
 
     if (line_observer)
         line_observer();
@@ -211,9 +219,7 @@ static void log_write(LogLevel level, const char *fmt, va_list args)
     // File output (no colors)
     if (log_file)
     {
-        fprintf(log_file, "[%s] %s: ", timebuf, level_to_string(level));
-        vfprintf(log_file, fmt, args);
-        fprintf(log_file, "\n");
+        fprintf(log_file, "[%s] %s: %s\n", timebuf, level_to_string(level), msg);
         fflush(log_file);
     }
 }
