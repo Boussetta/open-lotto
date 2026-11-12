@@ -11,6 +11,47 @@
 #include <stdio.h>
 
 /**
+ * @brief Write s to f as the body of a JSON string (escaping quotes,
+ *        backslashes and control characters).
+ */
+static int json_write_escaped(FILE *f, const char *s)
+{
+    if (!s)
+        return 0;
+    for (const unsigned char *p = (const unsigned char *)s; *p; p++)
+    {
+        int rc;
+        switch (*p)
+        {
+        case '"':
+            rc = fputs("\\\"", f);
+            break;
+        case '\\':
+            rc = fputs("\\\\", f);
+            break;
+        case '\n':
+            rc = fputs("\\n", f);
+            break;
+        case '\r':
+            rc = fputs("\\r", f);
+            break;
+        case '\t':
+            rc = fputs("\\t", f);
+            break;
+        default:
+            if (*p < 0x20)
+                rc = fprintf(f, "\\u%04x", *p);
+            else
+                rc = fputc(*p, f);
+            break;
+        }
+        if (rc < 0)
+            return -1;
+    }
+    return 0;
+}
+
+/**
  * @brief Write a simulation analytics bundle as one JSON document.
  */
 int simulation_analytics_export_json_file(const char *filename,
@@ -33,10 +74,13 @@ int simulation_analytics_export_json_file(const char *filename,
 
     fprintf(f, "{\n");
     fprintf(f, "  \"schema_version\": \"%s\",\n", SIM_ANALYTICS_SCHEMA_VERSION);
-    fprintf(f,
-            "  \"metadata\": {\"generated_at\": \"%s\", \"game\": \"%s\", \"source\": "
-            "\"%s\", \"run_count\": %d",
-            metadata->generated_at_utc, metadata->game, metadata->source, metadata->run_count);
+    fputs("  \"metadata\": {\"generated_at\": \"", f);
+    json_write_escaped(f, metadata->generated_at_utc);
+    fputs("\", \"game\": \"", f);
+    json_write_escaped(f, metadata->game);
+    fputs("\", \"source\": \"", f);
+    json_write_escaped(f, metadata->source);
+    fprintf(f, "\", \"run_count\": %d", metadata->run_count);
     if (metadata->has_seed)
     {
         fprintf(f, ", \"seed\": %llu", (unsigned long long)metadata->seed);

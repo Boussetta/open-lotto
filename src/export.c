@@ -14,6 +14,47 @@
 #include <string.h>
 
 /**
+ * @brief Write s to f as the body of a JSON string (escaping quotes,
+ *        backslashes and control characters).
+ */
+static int json_write_escaped(FILE *f, const char *s)
+{
+    if (!s)
+        return 0;
+    for (const unsigned char *p = (const unsigned char *)s; *p; p++)
+    {
+        int rc;
+        switch (*p)
+        {
+        case '"':
+            rc = fputs("\\\"", f);
+            break;
+        case '\\':
+            rc = fputs("\\\\", f);
+            break;
+        case '\n':
+            rc = fputs("\\n", f);
+            break;
+        case '\r':
+            rc = fputs("\\r", f);
+            break;
+        case '\t':
+            rc = fputs("\\t", f);
+            break;
+        default:
+            if (*p < 0x20)
+                rc = fprintf(f, "\\u%04x", *p);
+            else
+                rc = fputc(*p, f);
+            break;
+        }
+        if (rc < 0)
+            return -1;
+    }
+    return 0;
+}
+
+/**
  * @brief Export a single lottery result to CSV format
  *
  * CSV format: main_numbers + extra_numbers (space-separated)
@@ -162,7 +203,8 @@ int export_results_json_file(const char *filename, const char *game_name,
     }
 
     /* Write JSON header */
-    if (fprintf(file, "{\n  \"game\": \"%s\",\n  \"draws\": [\n", game_name) < 0)
+    if (fputs("{\n  \"game\": \"", file) < 0 || json_write_escaped(file, game_name) < 0 ||
+        fputs("\",\n  \"draws\": [\n", file) < 0)
     {
         log_error("Failed to write JSON header");
         fclose(file);
